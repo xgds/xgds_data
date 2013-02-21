@@ -4,11 +4,14 @@
 # All Rights Reserved.
 # __END_LICENSE__
 
+import sys
 import re
+import traceback
 
 from django.shortcuts import render_to_response
 from django.http import HttpResponseNotAllowed, HttpResponseRedirect, HttpResponseForbidden, Http404
 from django.template import RequestContext
+from django.db import connection, DatabaseError
 
 from xgds_data.models import getModelByName
 from xgds_data.forms import QueryForm
@@ -54,24 +57,48 @@ def searchModel(request, modelName):
         form = QueryForm(request.POST)
         assert form.is_valid()
         userQuery = form.cleaned_data['query']
+        escapedUserQuery = re.sub(r'%', '%%', userQuery)
         mostRecentFirst = form.cleaned_data['mostRecentFirst']
 
         prefix = 'SELECT * FROM %s ' % tableName
+        countPrefix = 'SELECT COUNT(*) FROM %s ' % tableName
+        order = ''
         if mostRecentFirst and timestampField:
-            prefix += 'ORDER BY %s DESC ' % timestampField
-        sqlQuery = prefix + userQuery
+            order += ' ORDER BY %s DESC ' % timestampField
+        limit = ' LIMIT 100'
 
+        countQuery = countPrefix + escapedUserQuery
+        sqlQuery = prefix + escapedUserQuery + order + limit
         # escape % signs, interpreted by Django raw() as template format
-        escapedSqlQuery = re.sub(r'%', '%%', sqlQuery)
-        styledSql = prefix + '<span style="color: blue; font-weight: bold">%s</span>' % userQuery
 
-        matches = list(model.objects.raw(escapedSqlQuery))
+        styledSql = (prefix
+                     + '<span style="color: blue; font-weight: bold">%s</span>' % userQuery
+                     + order
+                     + limit)
 
-        result = {
-            'sql': styledSql,
-            'summary': '%s matches' % len(matches),
-            'matches': matches,
-        }
+
+        try:
+            cursor = connection.cursor()
+            cursor.execute(countQuery)
+            count = cursor.fetchone()[0]
+
+            matches = list(model.objects.raw(sqlQuery))
+
+            wasError = False
+        except DatabaseError:
+            sys.stderr.write(traceback.format_exc())
+            wasError = True
+            result = {
+                'sql': styledSql,
+                'summary': 'database error!',
+                'matches': [],
+            }
+        if not wasError:
+            result = {
+                'sql': styledSql,
+                'summary': '%s matches (showing at most 100)' % count,
+                'matches': matches,
+            }
     else:
         # GET method
         form = QueryForm()
