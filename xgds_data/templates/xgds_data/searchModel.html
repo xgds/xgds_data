@@ -1,0 +1,55 @@
+{% extends "base.html" %}
+
+{% block cssExtras %}
+{{ block.super }}
+
+<style type="text/css">
+#modelHeader {
+  padding-top: 15px;
+  font-weight: bold;
+}
+
+#searchQueryForm {
+  padding-top: 15px;
+}
+
+#searchResult {
+  padding-top: 15px;
+}
+
+#searchResultSummary {
+  font-weight: bold;
+}
+
+#searchQueryForm td, th {
+  text-align: left;
+}
+
+</style>
+
+{% endblock cssExtras %}
+
+{% block content %}
+
+{% include "xgds_data/searchNav.html" %}
+
+<div id="modelHeader">Searching data model {{ model.qualifiedName }}</div>
+
+<form id="searchQueryForm" method="post" action=".">
+  <table>
+    {{ form.as_table }}
+  </table>
+  <input name="submit" type="submit" value="Submit"></td>
+</form>
+
+{% if result %}
+  <div id="searchResult">
+    <div class="sqlQuery">Search was: <span>{{ result.sql|safe }}</span></div>
+    <div id="searchResultSummary">{{ result.summary }}</div>
+    {% for match in result.matches %}
+      <div>{{ match }}</div>
+    {% endfor %}
+  </div>
+{% endif %}
+
+{% endblock content %}

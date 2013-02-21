@@ -1,0 +1,21 @@
+{% extends "base.html" %}
+
+{% block cssExtras %}
+{{ block.super }}
+
+<style type="text/css">
+.navLink {
+    padding-left: 10px;
+}
+</style>
+
+{% endblock cssExtras %}
+
+{% block content %}
+
+<div>Choose model:</div>
+{% for model in models %}
+  <div class="navLink"><a href="{{ model.name }}">{{ model.name }}</a></div>
+{% endfor %}
+
+{% endblock content %}

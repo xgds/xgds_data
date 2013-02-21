@@ -6,6 +6,11 @@
 
 from django.conf.urls.defaults import url, patterns
 
-urlpatterns = patterns('',
-    url(r'^$', 'views.index', name='index'),
+urlpatterns = patterns(
+    'xgds_data.views',
+
+    url(r'^search/$', 'searchIndex',
+        name='xgds_data_searchIndex'),
+    url(r'^search/(?P<modelName>[^/]+)/$', 'searchModel',
+        name='xgds_data_searchModel'),
 )

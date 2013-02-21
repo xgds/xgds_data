@@ -4,4 +4,11 @@
 # All Rights Reserved.
 # __END_LICENSE__
 
-# from django import forms
+from django import forms
+
+class QueryForm(forms.Form):
+    query = forms.CharField(max_length=256, required=False,
+                            widget=forms.TextInput(attrs={'size': 100}))
+    mostRecentFirst = forms.BooleanField(label='Most recent first',
+                                         required=False,
+                                         initial=True)
