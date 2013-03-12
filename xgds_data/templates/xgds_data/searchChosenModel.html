@@ -1,0 +1,44 @@
+{% extends "base.html" %}
+{% load nav %}
+{% block siteSection %}{{ title }}{% endblock %}
+{% block nav %}
+   {{ block.super }}
+   {% endblock %}
+   
+{% block scripts %}
+  {{ block.super }}
+  <link rel="stylesheet" type="text/css" 
+        href="{{ MEDIA_URL }}style/jquery-ui.css" ></link>
+  <script language="javascript" type="text/javascript"
+	  src="{{MEDIA_URL}}jquery/ui/jquery-ui-1.8.12.custom.js"></script>
+  <script language="javascript" type="text/javascript"
+	  src="{{MEDIA_URL}}jquery/jquery-ui-timepicker-addon.js"></script>
+  <script language="javascript" type="text/javascript">
+{% for f in datetimefields %}
+  $('#id_{{f}}_lo').datetimepicker({addSliderAccess: false});
+  $('#id_{{f}}_hi').datetimepicker({addSliderAccess: false});
+{% endfor %}
+</script>
+{% endblock %}
+
+
+{% block contents %}						
+<h2>{{ title }}</h2>  
+{% for d in debug %}
+<span>{{ d }}</span>
+{% endfor %}
+<form action="{% url xgds_data_searchChosenModel module model %}" method="post">
+  <table>
+{{ searchForm.as_table }}
+  </table>
+    <input type="submit" value="Search" />
+</form>
+{% if count %}
+<HR>
+{{ count }} records found 
+<A HREF="{% url xgds_data_csvChosenModel module model %}?{{ csvargs }}">Download CSV</A>
+{% elif searchForm.cleaned_data %}
+No records found 
+{% endif %}
+{% endblock %}
+
