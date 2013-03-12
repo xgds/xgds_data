@@ -12,5 +12,11 @@ urlpatterns = patterns(
     url(r'^search/$', 'searchIndex',
         name='xgds_data_searchIndex'),
     url(r'^search/(?P<modelName>[^/]+)/$', 'searchModel',
-        name='xgds_data_searchModel'),
+        name='xgds_data_searchModel'),                                      
+    url(r'^chooseSearchModel/(?P<moduleName>[^/]+)/$', 'chooseSearchModel', 
+        name='xgds_data_chooseSearchModel'),
+    url(r'^searchChosenModel/(?P<moduleName>[^/]+)/(?P<modelName>[^/]+)/$', 'searchChosenModel',
+        name='xgds_data_searchChosenModel'),
+    url(r'^searchChosenModel/(?P<moduleName>[^/]+)/(?P<modelName>[^/]+)/csv[^/]*$', 'csvChosenModel',
+        name='xgds_data_csvChosenModel'),
 )

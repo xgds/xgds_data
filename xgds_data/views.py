@@ -8,15 +8,21 @@ import sys
 import re
 import traceback
 
-from django.shortcuts import render_to_response
-from django.http import HttpResponseNotAllowed, HttpResponseRedirect, HttpResponseForbidden, Http404
+from django.shortcuts import render_to_response, render
+from django.http import HttpResponseNotAllowed, HttpResponseRedirect, HttpResponseForbidden, Http404, HttpResponse
 from django.template import RequestContext
 from django.db import connection, DatabaseError
 
 from xgds_data.models import getModelByName
-from xgds_data.forms import QueryForm
+from xgds_data.forms import QueryForm, SearchForm
 from xgds_data import settings
 
+from inspect import isclass, getmembers, getmodule
+from django.db.models.fields import DateTimeField
+from django import forms
+from django.utils.http import urlencode
+
+# from django import forms ## need to get this out of here and back into form
 
 def getModelInfo(qualifiedName, model):
     return {
@@ -109,3 +115,113 @@ def searchModel(request, modelName):
                                'form': form,
                                'result': result},
                               context_instance=RequestContext(request))
+
+def chooseSearchModel(request, moduleName):
+    """
+        List the models in the module, so they can be selected for search
+        """
+    modelmodule = __import__('.'.join([moduleName,'models'])).models
+    mymodels = [(x,y) for x,y in getmembers(modelmodule,predicate=isclass) if (getmodule(y) == modelmodule) ]
+
+    return render(request,'xgds_data/chooseSearchModel.html', 
+                  {'title': 'Search '+moduleName,
+                   'module': moduleName,
+                   'models' : mymodels}
+                  )
+
+def searchChosenModel(request, moduleName, modelName):
+    """
+        Search over the fields of the selected model
+        """
+    #isruModels = xgds_data.models.get_app('xgds_data', True)
+    #moduleName = request.session['moduleName']
+    modelmodule = __import__('.'.join([moduleName,'models'])).models
+    myModel = getattr(modelmodule,modelName)
+    debug = []
+    dfilters = {}
+    rcount = None
+    if request.method == 'POST' :
+        form = SearchForm(data=request.POST,mymodel=myModel)
+        if form.is_valid():  
+            filters = []
+            for field in form.cleaned_data :
+                if form.cleaned_data[field] != None:
+                    if field.endswith('_lo') :
+                        filters.append((field[:-3]+'__gte',form.cleaned_data[field]))
+                    elif field.endswith('_hi') :
+                        filters.append((field[:-3]+'__lte',form.cleaned_data[field]))
+                        debug.append(form.cleaned_data[field].__class__)
+                    elif (form[field].field.__class__ ==  forms.ModelChoiceField):
+                        ## we don't need to explicitly call .id below for the initial query,
+                        ## but it is needed for the csv later
+                        filters.append((field+'__exact',form.cleaned_data[field].id))
+                        debug.append(form.cleaned_data[field].__class__)
+                    elif (form[field].field.__class__ ==  forms.ChoiceField):
+                        if (form.cleaned_data[field]  == 'True') :
+                            filters.append((field+'__gt',0))
+                        elif (form.cleaned_data[field]  == 'False') :
+                            filters.append((field+'__exact',0))
+                    else :
+                        filters.append((field+'__icontains',form.cleaned_data[field]))             
+
+            debug = [ (x,form.errors[x]) for x in form.errors ]
+            dfilters = dict(filters)
+            rcount = myModel.objects.filter(**dfilters).count()
+        else:
+            debug = [ (x,form.errors[x]) for x in form.errors ]
+            form = SearchForm(mymodel=myModel)
+    else:
+        form = SearchForm(mymodel=myModel)
+    # I can use this on the individual names returned to get the object: getattr(models.get_app('isruApp', True),'ArtemisPositionData')
+    # also from inspect.py, try isclass(getattr(models.get_app('isruApp', True),'ArtemisPositionData'))
+    return render(request,'xgds_data/searchChosenModel.html', 
+                                      {'title': 'Search '+modelName,
+                                       'module': moduleName,
+                                       'model': modelName,
+                                       'debug' :  debug,
+                                       'count' : rcount,
+                                       'csvargs' : urlencode(dfilters),
+                                       'datetimefields' : [x.name for x in myModel._meta.fields if isinstance(x,DateTimeField)],
+                                       "searchForm" : form},
+                                      )
+
+# this doesn't do the needed escaping, so we should try to replace with something else
+def csvify(fields, obj=None):
+    """
+        Returns the objectss values for the supplied field names as a comma-separated string, or just the field names if no object is given.
+        Currently doesn't do any escaping, which is bad.
+        """
+    if (obj) :
+        return ','.join([unicode(getattr(obj,f)) for f in fields if hasattr(obj,f) ])
+    else :
+        return ','.join(fields)
+    
+def csvChosenModel(request, moduleName, modelName):
+    """
+        Returns a csv of the supplied query.
+        """
+    modelmodule = __import__('.'.join([moduleName,'models'])).models
+    myModel = getattr(modelmodule,modelName)
+    results = []
+    fields = []
+    if request.method == 'POST' :
+        data = request.POST
+    else:
+        data = request.GET
+    form = SearchForm(data=data,mymodel=myModel)
+
+    if form.is_valid():  
+        dfilters = {}
+        for field in data :
+            if data[field] :
+                dfilters[field] = data[field]
+        results = myModel.objects.filter(**dfilters).all()
+        fields = [f.column for f in  myModel._meta.fields ]
+        results = [csvify(fields,r) for r in results]
+        results.insert(0,csvify(fields)) # add header row
+    else:
+        results = [ (x,form.errors[x]) for x in form.errors ]
+
+    return HttpResponse("\n".join(results), content_type="text/plain")
+
+
