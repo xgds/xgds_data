@@ -47,6 +47,8 @@ class SearchForm(forms.Form):
                     self.fields[field.name+'_lo'] = forms.FloatField(required=False)
                     self.fields[field.name+'_hi'] = forms.FloatField(required=False)
                 elif (isinstance(field, fields.related.ForeignKey)) :
+                    # can't use as queryset arg because it needs a queryset, not a list
+                    #foreigners = sorted(field.related.parent_model.objects.all(), key=lambda x: unicode(x))
                     self.fields[field.name] = forms.ModelChoiceField(queryset=field.related.parent_model.objects.all(),
 #                                                                     order_by('name'),
                                                                      empty_label='',

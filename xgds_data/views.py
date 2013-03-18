@@ -7,6 +7,7 @@
 import sys
 import re
 import traceback
+import csv
 
 from django.shortcuts import render_to_response, render
 from django.http import HttpResponseNotAllowed, HttpResponseRedirect, HttpResponseForbidden, Http404, HttpResponse
@@ -133,8 +134,6 @@ def searchChosenModel(request, moduleName, modelName):
     """
         Search over the fields of the selected model
         """
-    #isruModels = xgds_data.models.get_app('xgds_data', True)
-    #moduleName = request.session['moduleName']
     modelmodule = __import__('.'.join([moduleName,'models'])).models
     myModel = getattr(modelmodule,modelName)
     debug = []
@@ -172,8 +171,7 @@ def searchChosenModel(request, moduleName, modelName):
             form = SearchForm(mymodel=myModel)
     else:
         form = SearchForm(mymodel=myModel)
-    # I can use this on the individual names returned to get the object: getattr(models.get_app('isruApp', True),'ArtemisPositionData')
-    # also from inspect.py, try isclass(getattr(models.get_app('isruApp', True),'ArtemisPositionData'))
+
     return render(request,'xgds_data/searchChosenModel.html', 
                                       {'title': 'Search '+modelName,
                                        'module': moduleName,
@@ -184,17 +182,6 @@ def searchChosenModel(request, moduleName, modelName):
                                        'datetimefields' : [x.name for x in myModel._meta.fields if isinstance(x,DateTimeField)],
                                        "searchForm" : form},
                                       )
-
-# this doesn't do the needed escaping, so we should try to replace with something else
-def csvify(fields, obj=None):
-    """
-        Returns the objectss values for the supplied field names as a comma-separated string, or just the field names if no object is given.
-        Currently doesn't do any escaping, which is bad.
-        """
-    if (obj) :
-        return ','.join([unicode(getattr(obj,f)) for f in fields if hasattr(obj,f) ])
-    else :
-        return ','.join(fields)
     
 def csvChosenModel(request, moduleName, modelName):
     """
@@ -216,12 +203,18 @@ def csvChosenModel(request, moduleName, modelName):
             if data[field] :
                 dfilters[field] = data[field]
         results = myModel.objects.filter(**dfilters).all()
-        fields = [f.column for f in  myModel._meta.fields ]
-        results = [csvify(fields,r) for r in results]
-        results.insert(0,csvify(fields)) # add header row
+        fields = [f.column for f in myModel._meta.fields ]      
+        response = HttpResponse(content_type='text/csv')
+        # if you want to download instead of display in browser         
+        # response['Content-Disposition'] = 'attachment; filename='+modelName+'.csv'
+        writer = csv.writer(response)
+        writer.writerow(fields)
+        for r in results:
+            writer.writerow( [getattr(r,f) for f in fields if hasattr(r,f) ] )
     else:
         results = [ (x,form.errors[x]) for x in form.errors ]
+        response = HttpResponse("\n".join(results), content_type="text/csv")
 
-    return HttpResponse("\n".join(results), content_type="text/plain")
+    return response
 
 
