@@ -129,7 +129,17 @@ def chooseSearchModel(request, moduleName):
                    'module': moduleName,
                    'models' : mymodels}
                   )
-
+    
+def csvEncode(something):
+    """
+        csvlib can't deal with non-ascii unicode, thus, this function
+        """
+    if (isinstance(something,unicode)) :
+        return something.encode("ascii", errors='xmlcharrefreplace')
+        # return something.encode("utf-8")
+    else :
+        return something
+    
 def searchChosenModel(request, moduleName, modelName):
     """
         Search over the fields of the selected model
@@ -137,10 +147,13 @@ def searchChosenModel(request, moduleName, modelName):
     modelmodule = __import__('.'.join([moduleName,'models'])).models
     myModel = getattr(modelmodule,modelName)
     debug = []
-    dfilters = {}
-    rcount = None
+    form = False
     if request.method == 'POST' :
-        form = SearchForm(data=request.POST,mymodel=myModel)
+        data = request.POST
+    else:
+        data = request.GET
+    if (data.get('mode',False)) :
+        form = SearchForm(data=data,mymodel=myModel)
         if form.is_valid():  
             filters = []
             for field in form.cleaned_data :
@@ -149,72 +162,55 @@ def searchChosenModel(request, moduleName, modelName):
                         filters.append((field[:-3]+'__gte',form.cleaned_data[field]))
                     elif field.endswith('_hi') :
                         filters.append((field[:-3]+'__lte',form.cleaned_data[field]))
-                        debug.append(form.cleaned_data[field].__class__)
-                    elif (form[field].field.__class__ ==  forms.ModelChoiceField):
-                        ## we don't need to explicitly call .id below for the initial query,
-                        ## but it is needed for the csv later
-                        filters.append((field+'__exact',form.cleaned_data[field].id))
-                        debug.append(form.cleaned_data[field].__class__)
-                    elif (form[field].field.__class__ ==  forms.ChoiceField):
+                    elif (isinstance(form[field].field,forms.ModelMultipleChoiceField)):
+                        filters.append((field+'__in',[x for x in form.cleaned_data[field]]))
+                        #debug.append([x.id for x in form.cleaned_data[field]])
+                    elif (isinstance(form[field].field,forms.ModelChoiceField)):
+                        filters.append((field+'__exact',form.cleaned_data[field]))
+                        #debug.append([x.__class__ for x in form.cleaned_data[field]])
+                    elif (isinstance(form[field].field,forms.ChoiceField)):
                         if (form.cleaned_data[field]  == 'True') :
                             filters.append((field+'__gt',0))
                         elif (form.cleaned_data[field]  == 'False') :
                             filters.append((field+'__exact',0))
                     else :
                         filters.append((field+'__icontains',form.cleaned_data[field]))             
-
-            debug = [ (x,form.errors[x]) for x in form.errors ]
+    
+            #debug = [ (x,form.errors[x]) for x in form.errors ]
             dfilters = dict(filters)
-            rcount = myModel.objects.filter(**dfilters).count()
-        else:
-            debug = [ (x,form.errors[x]) for x in form.errors ]
-            form = SearchForm(mymodel=myModel)
-    else:
-        form = SearchForm(mymodel=myModel)
-
-    return render(request,'xgds_data/searchChosenModel.html', 
+            if (data.get('mode','query') == 'csv') :
+                results = myModel.objects.filter(**dfilters).all()
+                fields = [f.column for f in myModel._meta.fields ]      
+                response = HttpResponse(content_type='text/csv')
+                # if you want to download instead of display in browser  
+                # response['Content-Disposition'] = 'attachment; filename='+modelName+'.csv'
+                writer = csv.writer(response)
+                writer.writerow(fields)
+                for r in results:
+                    writer.writerow( [csvEncode(getattr(r,f)) for f in fields if hasattr(r,f) ] )
+            else :
+                response = render(request,'xgds_data/searchChosenModel.html', 
                                       {'title': 'Search '+modelName,
                                        'module': moduleName,
                                        'model': modelName,
                                        'debug' :  debug,
-                                       'count' : rcount,
+                                       'count' : myModel.objects.filter(**dfilters).count(),
                                        'csvargs' : urlencode(dfilters),
                                        'datetimefields' : [x.name for x in myModel._meta.fields if isinstance(x,DateTimeField)],
                                        "searchForm" : form},
                                       )
-    
-def csvChosenModel(request, moduleName, modelName):
-    """
-        Returns a csv of the supplied query.
-        """
-    modelmodule = __import__('.'.join([moduleName,'models'])).models
-    myModel = getattr(modelmodule,modelName)
-    results = []
-    fields = []
-    if request.method == 'POST' :
-        data = request.POST
-    else:
-        data = request.GET
-    form = SearchForm(data=data,mymodel=myModel)
+        else:
+            debug = [ (x,form.errors[x]) for x in form.errors ]
 
-    if form.is_valid():  
-        dfilters = {}
-        for field in data :
-            if data[field] :
-                dfilters[field] = data[field]
-        results = myModel.objects.filter(**dfilters).all()
-        fields = [f.column for f in myModel._meta.fields ]      
-        response = HttpResponse(content_type='text/csv')
-        # if you want to download instead of display in browser         
-        # response['Content-Disposition'] = 'attachment; filename='+modelName+'.csv'
-        writer = csv.writer(response)
-        writer.writerow(fields)
-        for r in results:
-            writer.writerow( [getattr(r,f) for f in fields if hasattr(r,f) ] )
-    else:
-        results = [ (x,form.errors[x]) for x in form.errors ]
-        response = HttpResponse("\n".join(results), content_type="text/csv")
+    if (not form) :
+        form = SearchForm(mymodel=myModel)
+        response = render(request,'xgds_data/searchChosenModel.html', 
+                              {'title': 'Search '+modelName,
+                               'module': moduleName,
+                               'model': modelName,
+                               'debug' :  debug,
+                               'datetimefields' : [x.name for x in myModel._meta.fields if isinstance(x,DateTimeField)],
+                               "searchForm" : form},
+                              )       
 
     return response
-
-

@@ -13,11 +13,17 @@
 	  src="{{MEDIA_URL}}jquery/ui/jquery-ui-1.8.12.custom.js"></script>
   <script language="javascript" type="text/javascript"
 	  src="{{MEDIA_URL}}jquery/jquery-ui-timepicker-addon.js"></script>
-  <script language="javascript" type="text/javascript">
+  <script type="text/javascript">
+  function submitform()
+  {
+	document.QueryForm["mode"].value = "csv";
+    document.QueryForm.submit();
+  }
 {% for f in datetimefields %}
   $('#id_{{f}}_lo').datetimepicker({addSliderAccess: false});
   $('#id_{{f}}_hi').datetimepicker({addSliderAccess: false});
 {% endfor %}
+  </script>
 </script>
 {% endblock %}
 
@@ -27,18 +33,20 @@
 {% for d in debug %}
 <span>{{ d }}</span>
 {% endfor %}
-<form action="{% url xgds_data_searchChosenModel module model %}" method="post">
+<form name='QueryForm' action="{% url xgds_data_searchChosenModel module model %}" method="post">
   <table>
+  <input type="hidden" name="mode" value="query">
 {{ searchForm.as_table }}
   </table>
     <input type="submit" value="Search" />
-</form>
 {% if count %}
 <HR>
 {{ count }} records found 
-<A HREF="{% url xgds_data_csvChosenModel module model %}?{{ csvargs }}">Download CSV</A>
+<A HREF="javascript:submitform()">
+Download CSV</A>
 {% elif searchForm.cleaned_data %}
 No records found 
 {% endif %}
+</form>
 {% endblock %}
 

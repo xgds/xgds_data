@@ -49,9 +49,10 @@ class SearchForm(forms.Form):
                 elif (isinstance(field, fields.related.ForeignKey)) :
                     # can't use as queryset arg because it needs a queryset, not a list
                     #foreigners = sorted(field.related.parent_model.objects.all(), key=lambda x: unicode(x))
-                    self.fields[field.name] = forms.ModelChoiceField(queryset=field.related.parent_model.objects.all(),
+                    self.fields[field.name] = forms.ModelMultipleChoiceField(queryset=field.related.parent_model.objects.all(),
+                                                                             initial=field.related.parent_model.objects.all(),
 #                                                                     order_by('name'),
-                                                                     empty_label='',
+                                                                     #empty_label=[],
                                                                      required = False)
                 elif (isinstance(field, fields.IntegerField)) :
                     self.fields[field.name+'_lo'] = forms.IntegerField(required=False)
