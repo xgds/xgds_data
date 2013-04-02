@@ -14,17 +14,19 @@
   <script language="javascript" type="text/javascript"
 	  src="{{MEDIA_URL}}jquery/jquery-ui-timepicker-addon.js"></script>
   <script type="text/javascript">
-  function submitform()
+  function submitform(mode)
   {
-	document.QueryForm["mode"].value = "csv";
+	document.QueryForm["mode"].value = mode;
     document.QueryForm.submit();
   }
 {% for f in datetimefields %}
   $('#id_{{f}}_lo').datetimepicker({addSliderAccess: false});
   $('#id_{{f}}_hi').datetimepicker({addSliderAccess: false});
 {% endfor %}
+$("#addform").click(function() {
+	submitform('addform');
+});
   </script>
-</script>
 {% endblock %}
 
 
@@ -34,19 +36,25 @@
 <span>{{ d }}</span>
 {% endfor %}
 <form name='QueryForm' action="{% url xgds_data_searchChosenModel module model %}" method="post">
-  <table>
   <input type="hidden" name="mode" value="query">
-{{ searchForm.as_table }}
-  </table>
+    {{ formset.management_form }}
+        {% for form in formset %}
+            <table>
+        {{ form.as_table }}
+            </table>
+            <HR>
+        {% endfor %}
     <input type="submit" value="Search" />
+	<input type="submit" value="Add Form" id="addform" />  
 {% if count %}
 <HR>
 {{ count }} records found 
-<A HREF="javascript:submitform()">
+<A HREF="javascript:submitform('csv')">
 Download CSV</A>
 {% elif searchForm.cleaned_data %}
 No records found 
 {% endif %}
 </form>
+
 {% endblock %}
 
