@@ -21,6 +21,7 @@ from xgds_data import settings
 from inspect import isclass, getmembers, getmodule
 from django.db.models import Q
 from django.db.models.fields import DateTimeField
+from django.forms.models import ModelMultipleChoiceField, ModelChoiceField
 from django.forms.fields import ChoiceField
 from django.db.models.query import QuerySet
 from django import forms
@@ -187,7 +188,7 @@ def searchChosenModel(request, moduleName, modelName):
         foo = tmpFormClass()      
         newdata = data.copy()
         for fname, field in foo.fields.iteritems() :
-            if isinstance(field.initial,QuerySet) :
+            if isinstance(field,ModelMultipleChoiceField) :
                 val = [ unicode(x.id) for x in field.initial ]
                 newdata.setlist(formsetifyFieldName(formCount,fname),val)
             elif ((not isinstance(field,ChoiceField)) & (not field.initial)) :
@@ -209,37 +210,49 @@ def searchChosenModel(request, moduleName, modelName):
         formset = tmpFormSet(data)
         #form = SearchForm(data=data,mymodel=myModel)
         if formset.is_valid():  
-            filters = Q()
+            filters = None
             ## forms are interpreted as internally conjunctive, externally disjunctive
             for form in formset:
                 subfilter = Q()
                 for field in form.cleaned_data :
                     if form.cleaned_data[field] != None:
-                        if field.endswith('_lo') :
+                        clause  = None
+                        negate = False
+                        if field.endswith('_operator') :
+                            pass
+                        elif field.endswith('_lo') :
                             clause = { field[:-3]+'__gte' : form.cleaned_data[field] }
-                            subfilter &= Q(**clause)
+                            negate = form.cleaned_data[field[:-3]+'_operator'] == 'NOT IN'
                         elif field.endswith('_hi') :
                             clause = { field[:-3]+'__lte' : form.cleaned_data[field] }
-                            subfilter &= Q(**clause)
+                            negate = form.cleaned_data[field[:-3]+'_operator'] == 'NOT IN'
                         elif (isinstance(form[field].field,forms.ModelMultipleChoiceField)):
                             clause = { field+'__in' : form.cleaned_data[field] }
-                            subfilter &= Q(**clause)
+                            negate = form.cleaned_data[field+'_operator'] == 'NOT IN'
                             #debug.append([x.id for x in form.cleaned_data[field]])
                         elif (isinstance(form[field].field,forms.ModelChoiceField)):
+                            negate = form.cleaned_data[field+'_operator'] == '!='
                             clause = { field+'__exact' : form.cleaned_data[field] }
-                            subfilter &= Q(**clause)
                             #debug.append([x.__class__ for x in form.cleaned_data[field]])
                         elif (isinstance(form[field].field,forms.ChoiceField)):
+                            negate = form.cleaned_data[field+'_operator'] == '!='
                             if (form.cleaned_data[field]  == 'True') :
-                                clause = { field+'__gt' : form.cleaned_data[field] }
-                                subfilter &= Q(**clause)
+                                clause = { field+'__gt' : 0 }
                             elif (form.cleaned_data[field]  == 'False') :
                                 clause = { field+'__exact' : 0 }
-                                subfilter &= Q(**clause)
                         else :
-                            clause = { field+'__icontains' : form.cleaned_data[field] }
-                            subfilter &= Q(**clause)
-                filters |= subfilter           
+                            if form.cleaned_data[field] :
+                                negate = form.cleaned_data[field+'_operator'] == '!='
+                                clause = { field+'__icontains' : form.cleaned_data[field] }
+                        if clause :
+                            if negate :
+                                subfilter &= ~Q(**clause)
+                            else :
+                                subfilter &= Q(**clause)
+                if filters :
+                    filters |= subfilter  
+                else :
+                    filters = subfilter        
     
             #debug = [ (x,form.errors[x]) for x in form.errors ]
             #dfilters = dict(filters)

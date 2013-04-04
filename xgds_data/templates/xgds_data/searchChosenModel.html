@@ -26,6 +26,12 @@
 $("#addform").click(function() {
 	submitform('addform');
 });
+$("#query").click(function() {
+	submitform('query');
+});
+$("#csv").click(function() {
+	submitform('csv');
+});
   </script>
 {% endblock %}
 
@@ -44,14 +50,16 @@ $("#addform").click(function() {
             </table>
             <HR>
         {% endfor %}
-    <input type="submit" value="Search" />
+    <input type="submit" value="Search" id="query" />
+{% if count %}
+    <input type="submit" value="Download CSV" id="csv" /> 
+{% endif %}
 	<input type="submit" value="Add Form" id="addform" />  
 {% if count %}
 <HR>
 {{ count }} records found 
-<A HREF="javascript:submitform('csv')">
-Download CSV</A>
-{% elif searchForm.cleaned_data %}
+{% elif formset.cleaned_data %}
+<HR>
 No records found 
 {% endif %}
 </form>
