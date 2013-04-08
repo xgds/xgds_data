@@ -21,9 +21,8 @@ from xgds_data import settings
 from inspect import isclass, getmembers, getmodule
 from django.db.models import Q
 from django.db.models.fields import DateTimeField
-from django.forms.models import ModelMultipleChoiceField, ModelChoiceField
+from django.forms.models import ModelMultipleChoiceField
 from django.forms.fields import ChoiceField
-from django.db.models.query import QuerySet
 from django import forms
 from django.forms.formsets import formset_factory
 
@@ -145,6 +144,9 @@ def csvEncode(something):
         return something
     
 def specializedSearchForm(myModel) :
+    """
+        Returns form class for the given model, so you don't have to pass the model to the constructor
+        """
     ## tmpFormClass is a SearchForm specialized on a specific model
     ## so we don't have to pass in the model
     ## so it can be used by formset_factory.
@@ -157,26 +159,71 @@ def specializedSearchForm(myModel) :
     return tmpFormClass
 
 def formsetifyFieldName(i,fname):
+    """
+        Returns the field name for the ith form and given fname
+        """
     return '-'.join(['form',str(i),fname])
 
-def formsetDateTimeFields(fields,formCount) :
-    datetimefields = []
-    for x in fields :
-        if isinstance(x,DateTimeField) :
-            for y in range(0,formCount+1) :
-                datetimefields.append(formsetifyFieldName(y,x.name))
-    return datetimefields
-
+def makeFilters(formset):
+    """
+        Helper for searchChosenModel; figures out restrictions given a formset
+        """
+    filters = None
+    ## forms are interpreted as internally conjunctive, externally disjunctive
+    for form in formset:
+        subfilter = Q()
+        for field in form.cleaned_data :
+            if form.cleaned_data[field] != None:
+                clause  = None
+                negate = False
+                if field.endswith('_operator') :
+                    pass
+                elif field.endswith('_lo') :
+                    clause = { field[:-3]+'__gte' : form.cleaned_data[field] }
+                    negate = form.cleaned_data[field[:-3]+'_operator'] == 'NOT IN'
+                elif field.endswith('_hi') :
+                    clause = { field[:-3]+'__lte' : form.cleaned_data[field] }
+                    negate = form.cleaned_data[field[:-3]+'_operator'] == 'NOT IN'
+                elif (isinstance(form[field].field,forms.ModelMultipleChoiceField)):
+                    clause = { field+'__in' : form.cleaned_data[field] }
+                    negate = form.cleaned_data[field+'_operator'] == 'NOT IN'
+                    #debug.append([x.id for x in form.cleaned_data[field]])
+                elif (isinstance(form[field].field,forms.ModelChoiceField)):
+                    negate = form.cleaned_data[field+'_operator'] == '!='
+                    clause = { field+'__exact' : form.cleaned_data[field] }
+                    #debug.append([x.__class__ for x in form.cleaned_data[field]])
+                elif (isinstance(form[field].field,forms.ChoiceField)):
+                    negate = form.cleaned_data[field+'_operator'] == '!='
+                    if (form.cleaned_data[field]  == 'True') :
+                        clause = { field+'__gt' : 0 }
+                    elif (form.cleaned_data[field]  == 'False') :
+                        clause = { field+'__exact' : 0 }
+                else :
+                    if form.cleaned_data[field] :
+                        negate = form.cleaned_data[field+'_operator'] == '!='
+                        clause = { field+'__icontains' : form.cleaned_data[field] }
+                if clause :
+                    if negate :
+                        subfilter &= ~Q(**clause)
+                    else :
+                        subfilter &= Q(**clause)
+        if filters :
+            filters |= subfilter  
+        else :
+            filters = subfilter 
+    return filters
+                    
+                    
 def searchChosenModel(request, moduleName, modelName):
     """
         Search over the fields of the selected model
         """
     modelmodule = __import__('.'.join([moduleName,'models'])).models
     myModel = getattr(modelmodule,modelName)
+    modelFields = myModel._meta.fields
     tmpFormClass = specializedSearchForm(myModel)
     tmpFormSet = formset_factory(tmpFormClass)
     debug = []
-    formset = False
     if request.method == 'POST' :
         data = request.POST;
     else:
@@ -185,9 +232,11 @@ def searchChosenModel(request, moduleName, modelName):
     mode = data.get('mode',False)
     if (mode == 'addform') :
         formCount = int(data['form-TOTAL_FORMS'])
-        foo = tmpFormClass()      
+        ## this is very strange, but the extra forms don't come up with the right defaults
+        ## create a new form and read what the initial values should be
+        blankForm = tmpFormClass()      
         newdata = data.copy()
-        for fname, field in foo.fields.iteritems() :
+        for fname, field in blankForm.fields.iteritems() :
             if isinstance(field,ModelMultipleChoiceField) :
                 val = [ unicode(x.id) for x in field.initial ]
                 newdata.setlist(formsetifyFieldName(formCount,fname),val)
@@ -197,97 +246,44 @@ def searchChosenModel(request, moduleName, modelName):
                 newdata[formsetifyFieldName(formCount,fname)] = unicode(field.initial)
         newdata['form-TOTAL_FORMS'] = unicode(formCount  + 1 ) 
         formset = tmpFormSet(newdata) # but passing data nullifies extra
-        response = render(request,'xgds_data/searchChosenModel.html', 
-                              {'title': 'Search '+modelName,
-                               'module': moduleName,
-                               'model': modelName,
-                               'debug' :  debug,
-                               'datetimefields' : formsetDateTimeFields(myModel._meta.fields,formCount),
-                               "formset" : formset},
-                              )  
-    elif (mode) : # determines if this is first time or not
+    elif ((mode == 'query') or (mode == 'csv')) :
         formCount = int(data['form-TOTAL_FORMS'])
         formset = tmpFormSet(data)
-        #form = SearchForm(data=data,mymodel=myModel)
         if formset.is_valid():  
-            filters = None
-            ## forms are interpreted as internally conjunctive, externally disjunctive
-            for form in formset:
-                subfilter = Q()
-                for field in form.cleaned_data :
-                    if form.cleaned_data[field] != None:
-                        clause  = None
-                        negate = False
-                        if field.endswith('_operator') :
-                            pass
-                        elif field.endswith('_lo') :
-                            clause = { field[:-3]+'__gte' : form.cleaned_data[field] }
-                            negate = form.cleaned_data[field[:-3]+'_operator'] == 'NOT IN'
-                        elif field.endswith('_hi') :
-                            clause = { field[:-3]+'__lte' : form.cleaned_data[field] }
-                            negate = form.cleaned_data[field[:-3]+'_operator'] == 'NOT IN'
-                        elif (isinstance(form[field].field,forms.ModelMultipleChoiceField)):
-                            clause = { field+'__in' : form.cleaned_data[field] }
-                            negate = form.cleaned_data[field+'_operator'] == 'NOT IN'
-                            #debug.append([x.id for x in form.cleaned_data[field]])
-                        elif (isinstance(form[field].field,forms.ModelChoiceField)):
-                            negate = form.cleaned_data[field+'_operator'] == '!='
-                            clause = { field+'__exact' : form.cleaned_data[field] }
-                            #debug.append([x.__class__ for x in form.cleaned_data[field]])
-                        elif (isinstance(form[field].field,forms.ChoiceField)):
-                            negate = form.cleaned_data[field+'_operator'] == '!='
-                            if (form.cleaned_data[field]  == 'True') :
-                                clause = { field+'__gt' : 0 }
-                            elif (form.cleaned_data[field]  == 'False') :
-                                clause = { field+'__exact' : 0 }
-                        else :
-                            if form.cleaned_data[field] :
-                                negate = form.cleaned_data[field+'_operator'] == '!='
-                                clause = { field+'__icontains' : form.cleaned_data[field] }
-                        if clause :
-                            if negate :
-                                subfilter &= ~Q(**clause)
-                            else :
-                                subfilter &= Q(**clause)
-                if filters :
-                    filters |= subfilter  
-                else :
-                    filters = subfilter        
-    
-            #debug = [ (x,form.errors[x]) for x in form.errors ]
-            #dfilters = dict(filters)
-            if (mode == 'csv') :
-                results = myModel.objects.filter(filters).all()
-                fields = [f.column for f in myModel._meta.fields ]      
-                response = HttpResponse(content_type='text/csv')
-                # if you want to download instead of display in browser  
-                # response['Content-Disposition'] = 'attachment; filename='+modelName+'.csv'
-                writer = csv.writer(response)
-                writer.writerow(fields)
-                for r in results:
-                    writer.writerow( [csvEncode(getattr(r,f)) for f in fields if hasattr(r,f) ] )
-            else :
-                response = render(request,'xgds_data/searchChosenModel.html', 
-                                      {'title': 'Search '+modelName,
-                                       'module': moduleName,
-                                       'model': modelName,
-                                       'debug' :  debug,
-                                       'count' : myModel.objects.filter(filters).count(),
-                                       'datetimefields' : formsetDateTimeFields(myModel._meta.fields,formCount),
-                                       "formset" : formset},
-                                      )
+            filters = makeFilters(formset)      
         else:
-            debug = [ (x,formset.errors[x]) for x in formset.errors ]
-
-    if (not formset) :
+            debug = [ (x,formset.errors[x]) for x in formset.errors ]       
+    else:
         formset = tmpFormSet()
-        response = render(request,'xgds_data/searchChosenModel.html', 
+        
+    if ((mode == 'csv') and formset.is_valid()): 
+        results = myModel.objects.filter(filters).all()
+        fnames = [f.column for f in modelFields ]      
+        response = HttpResponse(content_type='text/csv')
+        # if you want to download instead of display in browser  
+        # response['Content-Disposition'] = 'attachment; filename='+modelName+'.csv'
+        writer = csv.writer(response)
+        writer.writerow(fnames)
+        for r in results:
+            writer.writerow( [csvEncode(getattr(r,f)) for f in fnames if hasattr(r,f) ] )
+        return response
+    else :
+        datetimefields = []
+        for x in modelFields :
+            if isinstance(x,DateTimeField) :
+                for y in range(0,formCount+1) :
+                    datetimefields.append(formsetifyFieldName(y,x.name))
+        if ((mode == 'query') and formset.is_valid()):  
+            resultCount = myModel.objects.filter(filters).count()
+        else :
+            resultCount = None
+        return render(request,'xgds_data/searchChosenModel.html', 
                               {'title': 'Search '+modelName,
                                'module': moduleName,
                                'model': modelName,
                                'debug' :  debug,
-                               'datetimefields' : formsetDateTimeFields(myModel._meta.fields,formCount),
+                               'count' : resultCount,
+                               'datetimefields' : datetimefields,
                                "formset" : formset},
-                              )           
+                              )
 
-    return response
