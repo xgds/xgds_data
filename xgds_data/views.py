@@ -8,6 +8,7 @@ import sys
 import re
 import traceback
 import csv
+import json
 
 from django.shortcuts import render_to_response, render
 from django.http import HttpResponseNotAllowed, HttpResponseRedirect, HttpResponseForbidden, Http404, HttpResponse
@@ -15,16 +16,18 @@ from django.template import RequestContext
 from django.db import connection, DatabaseError
 
 from xgds_data.models import getModelByName
-from xgds_data.forms import QueryForm, SearchForm
+from xgds_data.forms import QueryForm, SearchForm, AxesForm
 from xgds_data import settings
-
+                
 from inspect import isclass, getmembers, getmodule
 from django.db.models import Q
-from django.db.models.fields import DateTimeField
+from django.db.models.fields import DateTimeField, DateField, DecimalField, FloatField, IntegerField, TimeField
 from django.forms.models import ModelMultipleChoiceField
 from django.forms.fields import ChoiceField
 from django import forms
 from django.forms.formsets import formset_factory
+import datetime
+import calendar
 
 # from django import forms ## need to get this out of here and back into form
 
@@ -179,40 +182,47 @@ def makeFilters(formset):
                 if field.endswith('_operator') :
                     pass
                 elif field.endswith('_lo') :
-                    clause = { field[:-3]+'__gte' : form.cleaned_data[field] }
                     negate = form.cleaned_data[field[:-3]+'_operator'] == 'NOT IN'
+                    if (negate and form.cleaned_data[field[:-3]+'_hi'] != None) :
+                        negate = False
+                        subfilter &= Q(**{ field[:-3]+'__lt' : form.cleaned_data[field] }) | Q(**{ field[:-3]+'__gt' : form.cleaned_data[field[:-3]+'_hi'] })
+                    else :
+                        clause = Q(**{ field[:-3]+'__gte' : form.cleaned_data[field] })
                 elif field.endswith('_hi') :
-                    clause = { field[:-3]+'__lte' : form.cleaned_data[field] }
                     negate = form.cleaned_data[field[:-3]+'_operator'] == 'NOT IN'
+                    if (negate and form.cleaned_data[field[:-3]+'_lo'] != None) :
+                        ## no clause- handled with lo case, above
+                        negate = False
+                    else :
+                        clause = Q(**{ field[:-3]+'__lte' : form.cleaned_data[field] })                   
                 elif (isinstance(form[field].field,forms.ModelMultipleChoiceField)):
-                    clause = { field+'__in' : form.cleaned_data[field] }
+                    clause = Q(**{ field+'__in' : form.cleaned_data[field] })
                     negate = form.cleaned_data[field+'_operator'] == 'NOT IN'
                     #debug.append([x.id for x in form.cleaned_data[field]])
                 elif (isinstance(form[field].field,forms.ModelChoiceField)):
                     negate = form.cleaned_data[field+'_operator'] == '!='
-                    clause = { field+'__exact' : form.cleaned_data[field] }
+                    clause = Q(**{ field+'__exact' : form.cleaned_data[field] })
                     #debug.append([x.__class__ for x in form.cleaned_data[field]])
                 elif (isinstance(form[field].field,forms.ChoiceField)):
                     negate = form.cleaned_data[field+'_operator'] == '!='
                     if (form.cleaned_data[field]  == 'True') :
-                        clause = { field+'__gt' : 0 }
+                        clause = Q(**{ field+'__gt' : 0 })
                     elif (form.cleaned_data[field]  == 'False') :
-                        clause = { field+'__exact' : 0 }
+                        clause = Q(**{ field+'__exact' : 0 })
                 else :
                     if form.cleaned_data[field] :
                         negate = form.cleaned_data[field+'_operator'] == '!='
-                        clause = { field+'__icontains' : form.cleaned_data[field] }
+                        clause = Q(**{ field+'__icontains' : form.cleaned_data[field] })
                 if clause :
                     if negate :
-                        subfilter &= ~Q(**clause)
+                        subfilter &= ~clause
                     else :
-                        subfilter &= Q(**clause)
+                        subfilter &= clause
         if filters :
             filters |= subfilter  
         else :
             filters = subfilter 
     return filters
-                    
                     
 def searchChosenModel(request, moduleName, modelName):
     """
@@ -230,6 +240,7 @@ def searchChosenModel(request, moduleName, modelName):
         data = request.GET
     formCount = 1
     mode = data.get('mode',False)
+    filters = None
     if (mode == 'addform') :
         formCount = int(data['form-TOTAL_FORMS'])
         ## this is very strange, but the extra forms don't come up with the right defaults
@@ -268,15 +279,30 @@ def searchChosenModel(request, moduleName, modelName):
             writer.writerow( [csvEncode(getattr(r,f)) for f in fnames if hasattr(r,f) ] )
         return response
     else :
+        if ((mode == 'query') and formset.is_valid()):  
+            resultCount = myModel.objects.filter(filters).count()
+        else :
+            resultCount = None
         datetimefields = []
         for x in modelFields :
             if isinstance(x,DateTimeField) :
                 for y in range(0,formCount+1) :
                     datetimefields.append(formsetifyFieldName(y,x.name))
-        if ((mode == 'query') and formset.is_valid()):  
-            resultCount = myModel.objects.filter(filters).count()
-        else :
-            resultCount = None
+        axesform = AxesForm(modelFields,data)       
+            
+        if (not axesform.fields.get('yaxis')) :
+            ## if yaxis is not defined, then we can't really plot
+            axesform = None
+        elif ((data.get('xaxis') == None) or (data.get('xaxis') == None)) :
+            ## lame, but Django doesn't use the defined initial value when displaying as_hidden
+            ## this will mess everything up
+            ## thus, we force the initial values here.
+            ## this should only be executed when the form is blank (i.e., initially)
+            qd = data.copy()
+            qd.setdefault('xaxis',axesform.fields.get('xaxis').initial)
+            qd.setdefault('yaxis',axesform.fields.get('yaxis').initial)
+            axesform = AxesForm(modelFields,qd)
+
         return render(request,'xgds_data/searchChosenModel.html', 
                               {'title': 'Search '+modelName,
                                'module': moduleName,
@@ -284,6 +310,78 @@ def searchChosenModel(request, moduleName, modelName):
                                'debug' :  debug,
                                'count' : resultCount,
                                'datetimefields' : datetimefields,
-                               "formset" : formset},
+                               "formset" : formset,
+                               'axesform' : axesform},
                               )
+
+def plotQueryResults(request, moduleName, modelName):
+    """
+        Plot the results of a query
+        """
+    modelmodule = __import__('.'.join([moduleName,'models'])).models
+    myModel = getattr(modelmodule,modelName)
+    modelFields = myModel._meta.fields
+    tmpFormClass = specializedSearchForm(myModel)
+    tmpFormSet = formset_factory(tmpFormClass)
+    debug = []
+    if request.method == 'POST' :
+        data = request.POST;
+    else:
+        data = request.GET
+    filters = None
+
+    formset = tmpFormSet(data)
+    if formset.is_valid():  
+        filters = makeFilters(formset)      
+    else:
+        debug = [ (x,formset.errors[x]) for x in formset.errors ]
+
+    if (formset.is_valid()):  
+        resultCount = myModel.objects.filter(filters).count()
+    else :
+        resultCount = None
+    
+    axesform = AxesForm(modelFields,data);
+    xaxis = data.get('xaxis')
+    yaxis = data.get('yaxis')
+    fieldDict = dict([ (x.name,x) for x in modelFields ])
+    if (xaxis and (isinstance(fieldDict[xaxis],DateField) or
+                   isinstance(fieldDict[xaxis],TimeField))) :
+        xmode = "'time'"
+    else :
+        xmode = "null"
+    if (yaxis and (isinstance(fieldDict[yaxis],DateField) or
+                   isinstance(fieldDict[yaxis],TimeField))) :
+        ymode = "'time'"
+    else :
+        ymode = "null"
+    
+    plotData = None
+    plotOpts = None
+
+    if ( filters != None ) :
+        dthandler = lambda obj: calendar.timegm(obj.timetuple()) * 1000 if isinstance(obj, datetime.datetime) else None 
+        ydata = [getattr(x,xaxis) for x in myModel.objects.filter(filters).all() ]
+        xdata = [getattr(x,yaxis) for x in myModel.objects.filter(filters).all() ]
+
+        plotData = {'name': 'Plotty', 
+                    'mean': json.dumps(zip(ydata, xdata),default=dthandler) }
+        plotOpts = {'xmode': xmode,
+                    'ymode': ymode,
+                    'ymin': min(ydata),
+                    'ymax': max(ydata) }
+
+    return render(request,'xgds_data/plotQueryResults.html', 
+                          {'plotData': plotData,
+                           'plotOpts': plotOpts,
+                           'title': 'Plot '+modelName,
+                           'module': moduleName,
+                           'model': modelName,
+                           'xaxis' : xaxis,
+                           'yaxis' : yaxis,
+                           'debug' :  debug,
+                           'count' : resultCount,
+                           "formset" : formset,
+                           'axesform' : axesform},
+                          )
 

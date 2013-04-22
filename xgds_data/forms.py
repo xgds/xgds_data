@@ -8,6 +8,7 @@ from django import forms
 from django.forms.util import ErrorList
 from django.db.models import fields
 from django.utils.safestring import mark_safe
+from django.db.models.fields import DateField, DecimalField, FloatField, IntegerField, TimeField
 
 class QueryForm(forms.Form):
     query = forms.CharField(max_length=256, required=False,
@@ -20,14 +21,6 @@ class SearchForm(forms.Form):
     """
         Dynamically creates a form to search the given class
         """
-    ## listing all these args seems really yucky and brittle
-    ## is there a better way?
-    #def __init__(self,mymodel,data=None, files=None, auto_id='id_%s', prefix=None,
-    #             initial=None, error_class=ErrorList, label_suffix=':',
-    #             empty_permitted=False):
-    #    forms.Form.__init__(self,data, files, auto_id, prefix,
-    #             initial, error_class, label_suffix,
-    #             empty_permitted)
     def __init__(self,mymodel,*args,**kwargs):
         forms.Form.__init__(self,*args,**kwargs)
         self.model = mymodel
@@ -134,3 +127,20 @@ class SearchForm(forms.Form):
                 row = row + u'</tr>'
                 output.append(row)            
         return mark_safe(u'\n'.join(output))
+
+class AxesForm(forms.Form):
+    def __init__(self,modelFields,*args,**kwargs):
+        forms.Form.__init__(self,*args,**kwargs)
+        chartablefields = []
+        for x in modelFields :
+            if (isinstance(x,DateField) or
+                isinstance(x,DecimalField) or
+                isinstance(x,FloatField) or
+                isinstance(x,IntegerField) or
+                isinstance(x,TimeField)) :
+                chartablefields.append(x);
+        if (len(chartablefields) > 1) :
+            choices = tuple( (x.name,x.name) for x in chartablefields)
+            self.fields['xaxis'] = forms.ChoiceField(choices=choices,required=True,initial=chartablefields[0].name)
+            self.fields['yaxis'] = forms.ChoiceField(choices=choices,required=True,initial=chartablefields[1].name)
+        

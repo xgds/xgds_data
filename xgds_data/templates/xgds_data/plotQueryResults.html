@@ -14,7 +14,7 @@
   <script language="javascript" type="text/javascript"
 	  src="{{MEDIA_URL}}jquery/jquery-ui-timepicker-addon.js"></script>
   <script type="text/javascript">
-  function submitform(mode)
+function submitform(mode)
   {
 	document.QueryForm["mode"].value = mode;
     document.QueryForm.submit();
@@ -32,10 +32,6 @@ $("#query").click(function() {
 $("#csv").click(function() {
 	submitform('csv');
 });
-$("#plot").click(function() {
-	document.QueryForm.action = "{% url xgds_data_plotQueryResults module model %}";
-	document.QueryForm.submit();
-});
   </script>
   
   <script language="javascript" type="text/javascript"
@@ -43,43 +39,45 @@ $("#plot").click(function() {
   <script language="javascript" type="text/javascript"
 	  src="{{ MEDIA_URL }}external/js/jquery.flot.threshold.min.js"></script>
 
+{% if count %}
+<script language="javascript" type="text/javascript">
+  var results_plot = $.plot($("#results_plot"),
+  [{ color:"blue", 
+	  lines : { show : false }, points : { radius: 3, show : true, fill : true },
+	data: {{ plotData.mean|safe }} }],
+  {series: {shadowSize: 0, lines: {lineWidth:1}},
+   grid: { hoverable: true, clickable: true },
+   yaxis: { mode: {{ plotOpts.ymode|safe }}  },
+   xaxis: { mode: {{ plotOpts.xmode|safe }} }
+ });
+
+</script>
+{% endif %}
+
 {% endblock %}
 
 
 {% block contents %}						
 <h2>{{ title }}</h2>  
 {% for d in debug %}
-	<span>{{ d }}</span>
+<span>{{ d }}</span>
 {% endfor %}
-<form name='QueryForm' action="{% url xgds_data_searchChosenModel module model %}" method="post">
+<form name='QueryForm' action="{% url xgds_data_plotQueryResults module model %}" method="post">
   <input type="hidden" name="mode" value="query">
-  
-{% if axesform %}
-    {% for field in axesform %}
-          {{ field.as_hidden }} 
-  {% endfor %}
-{% endif %}
+    {{ formset.management_form }}
+    {% for form in formset %}
+		{% for field in form %}
+        	{{ field.as_hidden }} 
+		{% endfor %}
+    {% endfor %}
+        
+<table>
+{{ axesform.as_table }}
+</table>
 
-{{ formset.management_form }}
-{% for form in formset %}
-    <table>
-	{{ form.as_table }}
-    </table>
-    <HR>
-{% endfor %}
-
-<input type="submit" value="Search" id="query" />
-<input type="submit" value="Add Disjunction" id="addform" /> 
-    
 {% if count %}
-    <input type="submit" value="Download CSV" id="csv" /> 
-    {% if axesform %}
-	    {% if count > 10000 %}
-	    <input type="submit" value="Plot Results" id="plot" title="Exceeded Plot Limit of 10000" disabled/> 
-	    {% else %}
-	    <input type="submit" value="Plot Results" id="plot"/> 
-	    {% endif %}
-    {% endif %}
+	<input type="submit" value="Refresh Plot" id="plot" /> 
+	<div id="results_plot" style="width:800px;height:450px"></div>
 	<HR>
 	{{ count }} records found 
 {% elif formset.cleaned_data %}
