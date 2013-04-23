@@ -62,7 +62,7 @@ $("#csv").click(function() {
 {% for d in debug %}
 <span>{{ d }}</span>
 {% endfor %}
-<form name='QueryForm' action="{% url xgds_data_plotQueryResults module model %}" method="post">
+<form name='QueryForm' action="{% url xgds_data_searchPlotQueryResults module model %}" method="post">
   <input type="hidden" name="mode" value="query">
     {{ formset.management_form }}
     {% for form in formset %}

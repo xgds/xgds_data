@@ -33,7 +33,7 @@ $("#csv").click(function() {
 	submitform('csv');
 });
 $("#plot").click(function() {
-	document.QueryForm.action = "{% url xgds_data_plotQueryResults module model %}";
+	document.QueryForm.action = "{% url xgds_data_searchPlotQueryResults module model %}";
 	document.QueryForm.submit();
 });
   </script>

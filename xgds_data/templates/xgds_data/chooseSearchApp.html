@@ -1,0 +1,24 @@
+{% extends "base.html" %}
+{% load nav %}
+{% block siteSection %}{{ siteSection }}{% endblock %}
+{% block nav %}
+   {{ block.super }}
+   {% endblock %}
+
+{% block scripts %}
+  {{ block.super }}
+  <link rel="stylesheet" type="text/css"
+        href="{{ STATIC_URL }}style/jquery-ui.css" ></link>
+{% endblock %}
+
+
+{% block contents %}
+<h2>{{ siteSection }}</h2>
+Pick app to search:
+<ul>
+{% for app in apps %}
+  <li class="navLink"><a href="{% url xgds_data_searchChooseModel app %}">{{ app }}</a></li>
+{% endfor %}
+</ul>
+{% endblock %}
+

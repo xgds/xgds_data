@@ -15,8 +15,7 @@
 {% block contents %}						
 <h2>{{ title }}</h2>  
 Pick model to search:
-{% for n,m in models %}
-  <div class="navLink"><a href="{% url xgds_data_searchChosenModel module n %}">{{n}}</a></div>
+{% for model in models %}
+  <div class="navLink"><a href="{% url xgds_data_searchChosenModel module model %}">{{ model }}</a></div>
 {% endfor %}
 {% endblock %}
-

@@ -25,5 +25,12 @@ Don't try to get the value of XGDS_DATA_FOO from django.conf.settings.
 That settings object will not know about the default value!
 """
 
-# choose models to support in siteSettings.py
+# choose models to support in siteSettings.py. mostly obsolete.
 XGDS_DATA_SEARCH_MODELS = ()
+
+# choose django apps not to list for search purposes
+XGDS_DATA_SEARCH_SKIP_APP_PATTERNS = (
+    r'^django\..*',
+    r'^geocam.*',
+    r'^pipeline$',
+)

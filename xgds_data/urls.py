@@ -9,14 +9,23 @@ from django.conf.urls.defaults import url, patterns
 urlpatterns = patterns(
     'xgds_data.views',
 
-    url(r'^search/$', 'searchIndex',
+    url(r'^advancedSearch/$', 'searchIndex',
         name='xgds_data_searchIndex'),
-    url(r'^search/(?P<modelName>[^/]+)/$', 'searchModel',
-        name='xgds_data_searchModel'),                                      
-    url(r'^chooseSearchModel/(?P<moduleName>[^/]+)/$', 'chooseSearchModel', 
-        name='xgds_data_chooseSearchModel'),
-    url(r'^searchChosenModel/(?P<moduleName>[^/]+)/(?P<modelName>[^/]+)/$', 'searchChosenModel',
+    url(r'^advancedSearch/(?P<modelName>[^/]+)/$', 'searchModel',
+        name='xgds_data_searchModel'),
+
+    url(r'^search/$', 'chooseSearchApp',
+        name='xgds_data_searchChooseApp'),
+    url(r'^search/(?P<moduleName>[^/]+)/$', 'chooseSearchModel',
+        name='xgds_data_searchChooseModel'),
+    url(r'^search/(?P<moduleName>[^/]+)/(?P<modelName>[^/]+)/$', 'searchChosenModel',
         name='xgds_data_searchChosenModel'),
-    url(r'^plotQueryResults/(?P<moduleName>[^/]+)/(?P<modelName>[^/]+)/$', 'plotQueryResults',
-        name='xgds_data_plotQueryResults'),
+    url(r'^search/plot/(?P<moduleName>[^/]+)/(?P<modelName>[^/]+)/$', 'plotQueryResults',
+        name='xgds_data_searchPlotQueryResults'),
+
+    # legacy urls
+    url(r'^chooseSearchModel/(?P<moduleName>[^/]+)/$', 'chooseSearchModel',
+        name='xgds_data_chooseSearchModel_orig'),
+    url(r'^searchChosenModel/(?P<moduleName>[^/]+)/(?P<modelName>[^/]+)/$', 'searchChosenModel',
+        name='xgds_data_searchChosenModel_orig'),
 )
