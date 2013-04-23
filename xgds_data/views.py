@@ -14,6 +14,7 @@ from django.shortcuts import render_to_response, render
 from django.http import HttpResponseNotAllowed, HttpResponseRedirect, HttpResponseForbidden, Http404, HttpResponse
 from django.template import RequestContext
 from django.db import connection, DatabaseError
+from django.db.models import get_app, get_apps, get_models
 
 from xgds_data.models import getModelByName
 from xgds_data.forms import QueryForm, SearchForm, AxesForm
@@ -127,13 +128,17 @@ def chooseSearchModel(request, moduleName):
     """
         List the models in the module, so they can be selected for search
         """
-    modelmodule = __import__('.'.join([moduleName,'models'])).models
-    mymodels = [(x,y) for x,y in getmembers(modelmodule,predicate=isclass) if (getmodule(y) == modelmodule) ]
+    #modelmodule = __import__('.'.join([moduleName,'models'])).models
+    #mymodels = [(x,y) for x,y in getmembers(modelmodule,predicate=isclass) if (getmodule(y) == modelmodule) ]
+    app = get_app(moduleName)
+    models = [m.__name__ for m in get_models(app)
+              if not m._meta.abstract]
+    print 'models:', models
 
     return render(request,'xgds_data/chooseSearchModel.html', 
                   {'title': 'Search '+moduleName,
                    'module': moduleName,
-                   'models' : mymodels}
+                   'models' : models}
                   )
     
 def csvEncode(something):
@@ -228,7 +233,8 @@ def searchChosenModel(request, moduleName, modelName):
     """
         Search over the fields of the selected model
         """
-    modelmodule = __import__('.'.join([moduleName,'models'])).models
+    #modelmodule = __import__('.'.join([moduleName,'models'])).models
+    modelmodule = get_app(moduleName)
     myModel = getattr(modelmodule,modelName)
     modelFields = myModel._meta.fields
     tmpFormClass = specializedSearchForm(myModel)
@@ -385,3 +391,23 @@ def plotQueryResults(request, moduleName, modelName):
                            'axesform' : axesform},
                           )
 
+
+SKIP_APP_REGEXES = [re.compile(p) for p in settings.XGDS_DATA_SEARCH_SKIP_APP_PATTERNS]
+
+
+def isSkippedApp(appName):
+    return any((r.match(appName) for r in SKIP_APP_REGEXES))
+
+
+def hasModels(appName):
+    return len(get_models(get_app(appName))) != 0
+
+
+def chooseSearchApp(request):
+    apps = [app.__name__ for app in get_apps()]
+    apps = [re.sub('\.models$', '', app) for app in apps]
+    apps = [app for app in apps
+            if (not isSkippedApp(app)) and hasModels(app)]
+    return render(request,
+                  'xgds_data/chooseSearchApp.html',
+                  {'apps': apps})
