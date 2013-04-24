@@ -128,17 +128,13 @@ def chooseSearchModel(request, moduleName):
     """
         List the models in the module, so they can be selected for search
         """
-    #modelmodule = __import__('.'.join([moduleName,'models'])).models
-    #mymodels = [(x,y) for x,y in getmembers(modelmodule,predicate=isclass) if (getmodule(y) == modelmodule) ]
     app = get_app(moduleName)
-    models = [m.__name__ for m in get_models(app)
-              if not m._meta.abstract]
-    print 'models:', models
+    models = [m.__name__ for m in get_models(app) if not m._meta.abstract]
 
     return render(request,'xgds_data/chooseSearchModel.html', 
                   {'title': 'Search '+moduleName,
                    'module': moduleName,
-                   'models' : models}
+                   'models' : sorted(models)}
                   )
     
 def csvEncode(something):
