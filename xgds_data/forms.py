@@ -24,13 +24,13 @@ class SearchForm(forms.Form):
     def __init__(self,mymodel,*args,**kwargs):
         forms.Form.__init__(self,*args,**kwargs)
         self.model = mymodel
+        rangeOperators = (('IN','IN'),('IN~','IN~'),('NOT IN','NOT IN'))
+        categoricalOperators = (('=','='), ('!=','!='))
         for field in (mymodel._meta.fields):
             if (isinstance(field,fields.AutoField)) :
                 pass ## nothing
             elif (isinstance(field, fields.BooleanField)) :
-                self.fields[field.name+'_operator'] = forms.ChoiceField(choices=
-                                                            (('=','='),
-                                                             ('!=','!=')),
+                self.fields[field.name+'_operator'] = forms.ChoiceField(choices=categoricalOperators,
                                                             required=True)
                 self.fields[field.name] = forms.ChoiceField(choices=
                                                             ((None,'<Any>'),
@@ -38,29 +38,21 @@ class SearchForm(forms.Form):
                                                              (False, False)),
                                                             required=True)
             elif (isinstance(field, fields.DateTimeField)) :
-                self.fields[field.name+'_operator'] = forms.ChoiceField(choices=
-                                                            (('IN','IN'),
-                                                             ('NOT IN','NOT IN')),
+                self.fields[field.name+'_operator'] = forms.ChoiceField(choices=rangeOperators,
                                                             required=True)
                 self.fields[field.name+'_lo'] = forms.DateTimeField(required=False)
                 self.fields[field.name+'_hi'] = forms.DateTimeField(required=False)
             elif (isinstance(field, fields.CharField)) :
-                self.fields[field.name+'_operator'] = forms.ChoiceField(choices=
-                                                            (('=','='),
-                                                             ('!=','!=')),
+                self.fields[field.name+'_operator'] = forms.ChoiceField(choices=categoricalOperators,
                                                             required=True)
                 self.fields[field.name] = forms.CharField(required=False)
             elif (isinstance(field, fields.FloatField)) :
-                self.fields[field.name+'_operator'] = forms.ChoiceField(choices=
-                                                            (('IN','IN'),
-                                                             ('NOT IN','NOT IN')),
+                self.fields[field.name+'_operator'] = forms.ChoiceField(choices=rangeOperators,
                                                             required=True)
                 self.fields[field.name+'_lo'] = forms.FloatField(required=False)
                 self.fields[field.name+'_hi'] = forms.FloatField(required=False)
             elif (isinstance(field, fields.related.ForeignKey)) :
-                self.fields[field.name+'_operator'] = forms.ChoiceField(choices=
-                                                            (('=','='),
-                                                             ('!=','!=')),
+                self.fields[field.name+'_operator'] = forms.ChoiceField(choices=categoricalOperators,
                                                             required=True)
                 # can't use as queryset arg because it needs a queryset, not a list
                 #foreigners = sorted(field.related.parent_model.objects.all(), key=lambda x: unicode(x))
@@ -69,30 +61,22 @@ class SearchForm(forms.Form):
 #                                                                     order_by('name'),
                                                                  empty_label="<Any>",
                                                                  required = False)
-            elif (isinstance(field, fields.IntegerField)) :
-                self.fields[field.name+'_operator'] = forms.ChoiceField(choices=
-                                                            (('IN','IN'),
-                                                             ('NOT IN','NOT IN')),
-                                                            required=True)
-                self.fields[field.name+'_lo'] = forms.IntegerField(required=False)
-                self.fields[field.name+'_hi'] = forms.IntegerField(required=False)
             elif (isinstance(field, fields.PositiveIntegerField)) :
-                self.fields[field.name+'_operator'] = forms.ChoiceField(choices=
-                                                            (('IN','IN'),
-                                                             ('NOT IN','NOT IN')),
+                self.fields[field.name+'_operator'] = forms.ChoiceField(choices=rangeOperators,
                                                             required=True)
                 self.fields[field.name+'_lo'] = forms.IntegerField(min_value=1,required=False)
                 self.fields[field.name+'_hi'] = forms.IntegerField(min_value=1,required=False)
+            elif (isinstance(field, fields.IntegerField)) :
+                self.fields[field.name+'_operator'] = forms.ChoiceField(choices=rangeOperators,
+                                                            required=True)
+                self.fields[field.name+'_lo'] = forms.IntegerField(required=False)
+                self.fields[field.name+'_hi'] = forms.IntegerField(required=False)
             elif (isinstance(field, fields.TextField)) :
-                self.fields[field.name+'_operator'] = forms.ChoiceField(choices=
-                                                            (('=','='),
-                                                             ('!=','!=')),
+                self.fields[field.name+'_operator'] = forms.ChoiceField(choices=categoricalOperators,
                                                             required=True)
                 self.fields[field.name] = forms.CharField(required=False)
             else:
-                self.fields[field.name+'_operator'] = forms.ChoiceField(choices=
-                                                            (('=','='),
-                                                             ('!=','!=')),
+                self.fields[field.name+'_operator'] = forms.ChoiceField(choices=categoricalOperators,
                                                             required=True)
                 ## that can't be the right way to get the name
                 longname = '.'.join([field.__class__.__module__,field.__class__.__name__])

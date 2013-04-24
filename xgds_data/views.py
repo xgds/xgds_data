@@ -14,7 +14,7 @@ from django.shortcuts import render_to_response, render
 from django.http import HttpResponseNotAllowed, HttpResponseRedirect, HttpResponseForbidden, Http404, HttpResponse
 from django.template import RequestContext
 from django.db import connection, DatabaseError
-from django.db.models import get_app, get_apps, get_models
+from django.db.models import get_app, get_apps, get_models, Min, Max
 
 from xgds_data.models import getModelByName
 from xgds_data.forms import QueryForm, SearchForm, AxesForm
@@ -182,33 +182,41 @@ def makeFilters(formset):
                 negate = False
                 if field.endswith('_operator') :
                     pass
-                elif field.endswith('_lo') :
-                    negate = form.cleaned_data[field[:-3]+'_operator'] == 'NOT IN'
-                    if (negate and form.cleaned_data[field[:-3]+'_hi'] != None) :
-                        negate = False
-                        subfilter &= Q(**{ field[:-3]+'__lt' : form.cleaned_data[field] }) | Q(**{ field[:-3]+'__gt' : form.cleaned_data[field[:-3]+'_hi'] })
+                elif (field.endswith('_lo') or field.endswith('_hi')):
+                    base = field[:-3]
+                    loval = form.cleaned_data[base+'_lo']
+                    hival = form.cleaned_data[base+'_hi']                    
+                    operator = form.cleaned_data[base+'_operator']
+                    if (operator == 'IN~') :
+                        ## this isn't a restriction, so ignore
+                        pass
                     else :
-                        clause = Q(**{ field[:-3]+'__gte' : form.cleaned_data[field] })
-                elif field.endswith('_hi') :
-                    negate = form.cleaned_data[field[:-3]+'_operator'] == 'NOT IN'
-                    if (negate and form.cleaned_data[field[:-3]+'_lo'] != None) :
-                        ## no clause- handled with lo case, above
-                        negate = False
-                    else :
-                        clause = Q(**{ field[:-3]+'__lte' : form.cleaned_data[field] })                   
+                        negate = form.cleaned_data[base+'_operator'] == 'NOT IN'
+                        if (loval != None and hival != None and field.endswith('_lo')) :
+                            ## range query- handle on _lo to prevent from doing it twice
+                            ## this aren't simple Q objects so don't set clause variable
+                            if (negate) :
+                                negate = False
+                                subfilter &= Q(**{ base+'__lt' : loval }) | Q(**{ base+'__gt' : hival })
+                            else :
+                                subfilter &= Q(**{ base+'__gte' : loval }) & Q(**{ base+'__lte' : hival })
+                        elif (loval != None) :
+                            clause = Q(**{ base+'__gte' : loval })
+                        elif (hival != None) :
+                            clause = Q(**{ base+'__lte' : hival })          
                 elif (isinstance(form[field].field,forms.ModelMultipleChoiceField)):
                     clause = Q(**{ field+'__in' : form.cleaned_data[field] })
                     negate = form.cleaned_data[field+'_operator'] == 'NOT IN'
-                    #debug.append([x.id for x in form.cleaned_data[field]])
                 elif (isinstance(form[field].field,forms.ModelChoiceField)):
                     negate = form.cleaned_data[field+'_operator'] == '!='
                     clause = Q(**{ field+'__exact' : form.cleaned_data[field] })
-                    #debug.append([x.__class__ for x in form.cleaned_data[field]])
                 elif (isinstance(form[field].field,forms.ChoiceField)):
                     negate = form.cleaned_data[field+'_operator'] == '!='
                     if (form.cleaned_data[field]  == 'True') :
+                        ## True values appear to be represented as numbers greater than 0
                         clause = Q(**{ field+'__gt' : 0 })
                     elif (form.cleaned_data[field]  == 'False') :
+                        ## False values appear to be represented as 0
                         clause = Q(**{ field+'__exact' : 0 })
                 else :
                     if form.cleaned_data[field] :
@@ -224,12 +232,60 @@ def makeFilters(formset):
         else :
             filters = subfilter 
     return filters
+
+def scoreNumeric(field,val,minimum,maximum) :
+    """
+        provide a score for a numeric clause that ranges from 1 (best) to 0 (worst)
+        """
+    if (val == None) :
+        return '1' # same constant for everyone, so it factors out
+    elif (val == 'min') :
+        val = minimum
+    elif (val == 'max') :
+        val = maximum
+    return "1-abs(({0}-{1})/({2}))".format(field,val,max(abs(maximum-val),abs(minimum-val)))
+
+    
+def sortFormula(formset,query):
+    """
+        Helper for searchChosenModel; comes up with a formula for ordering the results
+        """
+    bases = []
+    limits = []
+    desiderata = dict()
+    ## forms are interpreted as internally conjunctive, externally disjunctive
+    for form in formset:
+        for field in form.cleaned_data :
+            if form.cleaned_data[field] != None:
+                if (field.endswith('_operator') and (form.cleaned_data[field] == 'IN~')) :
+                    base = field[:-9]
+                    operator = form.cleaned_data[base+'_operator']
+                    if (operator == 'IN~') :
+                        loval = form.cleaned_data[base+'_lo']
+                        hival = form.cleaned_data[base+'_hi']
+                        if (loval != None and hival != None) :
+                            desiderata[base] = (hival + loval)/2
+                        elif (loval != None) :
+                            desiderata[base] = 'max'
+                        elif (hival != None) :
+                            desiderata[base] = 'min'
+                        if (base in desiderata) :
+                            bases.append(base)
+                            limits.append(Min(base))
+                            limits.append(Max(base))
+    if (len(limits) > 0) :
+        ranges = query.aggregate(*limits)
+        
+        formula = ' + '.join([scoreNumeric(b,desiderata[b],ranges[b+'__min'],ranges[b+'__max']) for b in bases])
+        return formula
+    else :
+        return None
+
                     
 def searchChosenModel(request, moduleName, modelName):
     """
         Search over the fields of the selected model
         """
-    #modelmodule = __import__('.'.join([moduleName,'models'])).models
     modelmodule = get_app(moduleName)
     myModel = getattr(modelmodule,modelName)
     modelFields = myModel._meta.fields
@@ -270,7 +326,12 @@ def searchChosenModel(request, moduleName, modelName):
         formset = tmpFormSet()
         
     if ((mode == 'csv') and formset.is_valid()): 
-        results = myModel.objects.filter(filters).all()
+        query = myModel.objects.filter(filters)
+        scorer = sortFormula(formset,query)
+        if (scorer) :
+            query = query.extra(select={'score': scorer}, order_by = ['-score'])
+
+        results = query.all()
         fnames = [f.column for f in modelFields ]      
         response = HttpResponse(content_type='text/csv')
         # if you want to download instead of display in browser  
