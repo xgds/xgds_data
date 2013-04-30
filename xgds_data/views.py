@@ -13,6 +13,7 @@ import json
 from django.shortcuts import render_to_response, render
 from django.http import HttpResponseNotAllowed, HttpResponseRedirect, HttpResponseForbidden, Http404, HttpResponse
 from django.template import RequestContext
+from django.core.paginator import Paginator
 from django.db import connection, DatabaseError
 from django.db.models import get_app, get_apps, get_models, Min, Max
 
@@ -239,6 +240,10 @@ def scoreNumeric(field,val,minimum,maximum) :
         """
     if (val == None) :
         return '1' # same constant for everyone, so it factors out
+    elif (isinstance(val,list)) :
+        lorange = val[0]
+        hirange = val[1]
+        return "1-max(({1}-{0},{0}-{2},0)/({3}))".format(field,lorange,hirange,max(abs(maximum-val),abs(minimum-val)))
     elif (val == 'min') :
         val = minimum
     elif (val == 'max') :
@@ -344,8 +349,15 @@ def searchChosenModel(request, moduleName, modelName):
     else :
         if ((mode == 'query') and formset.is_valid()):  
             resultCount = myModel.objects.filter(filters).count()
+#            results = myModel.objects.filter(filters)[:10] ## first 10 results
+#            resultsPages = Paginator(myModel.objects.filter(filters).all(), 10)
+#            resultCount = resultsPages.count
+#            resultsPage = resultsPages.page(1)
+#            if (resultsPage.number == resultsPage.paginator.num_pages) :
+#                resultsPage = None
         else :
             resultCount = None
+#            resultsPage = None
         datetimefields = []
         for x in modelFields :
             if isinstance(x,DateTimeField) :
@@ -372,6 +384,7 @@ def searchChosenModel(request, moduleName, modelName):
                                'model': modelName,
                                'debug' :  debug,
                                'count' : resultCount,
+#                               'resultsPage': resultsPage,
                                'datetimefields' : datetimefields,
                                "formset" : formset,
                                'axesform' : axesform},
