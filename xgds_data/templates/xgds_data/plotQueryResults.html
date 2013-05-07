@@ -12,44 +12,55 @@
   <script language="javascript" type="text/javascript"
 	  src="{{ STATIC_URL }}jquery/ui/jquery-ui-1.8.12.custom.js"></script>
   <script language="javascript" type="text/javascript"
-	  src="{{ STATIC_URL }}jquery/jquery-ui-timepicker-addon.js"></script>
-  <script type="text/javascript">
-function submitform(mode)
-  {
-	document.QueryForm["mode"].value = mode;
-    document.QueryForm.submit();
-  }
-{% for f in datetimefields %}
-  $('#id_{{f}}_lo').datetimepicker({addSliderAccess: false});
-  $('#id_{{f}}_hi').datetimepicker({addSliderAccess: false});
-{% endfor %}
-$("#addform").click(function() {
-	submitform('addform');
-});
-$("#query").click(function() {
-	submitform('query');
-});
-$("#csv").click(function() {
-	submitform('csv');
-});
-  </script>
-  
-  <script language="javascript" type="text/javascript"
 	  src="{{ STATIC_URL }}external/js/jquery.flot.min.js"></script>
   <script language="javascript" type="text/javascript"
 	  src="{{ STATIC_URL }}external/js/jquery.flot.threshold.min.js"></script>
 
 {% if count %}
 <script language="javascript" type="text/javascript">
-  var results_plot = $.plot($("#results_plot"),
-  [{ color:"blue", 
-	  lines : { show : false }, points : { radius: 3, show : true, fill : true },
-	data: {{ plotData.mean|safe }} }],
-  {series: {shadowSize: 0, lines: {lineWidth:1}},
-   grid: { hoverable: true, clickable: true },
-   yaxis: { mode: {{ plotOpts.ymode|safe }}  },
-   xaxis: { mode: {{ plotOpts.xmode|safe }} }
- });
+
+function makePlot(data) {
+	var xSelect = $('select[name|="xaxis"]')[0];
+	var xaxis = xSelect.options[xSelect.selectedIndex].value;
+	var ySelect = $('select[name|="yaxis"]')[0]
+	var yaxis = ySelect.options[ySelect.selectedIndex].value;
+	
+	var plotData = [];
+
+	for (i in data) {
+		plotData.push([ data[i][xaxis], data[i][yaxis] ]);
+	}
+	
+	  var xmode = null;
+	  var ymode = null;
+	  for (i in timeFields) {
+		  if (timeFields[i] == xaxis) {
+			  xmode = "time";
+		  }
+		  if (timeFields[i] == yaxis) {
+			  ymode = "time";
+		  }
+	  }
+	  return $.plot($("#results_plot"),
+			  [{ color:"blue", 
+				  lines : { show : false }, 
+				  points : { radius: 3, show : true, fill : true },
+				  data: plotData
+				}],
+			  {series: {shadowSize: 0, lines: {lineWidth:1}},
+			   grid: { hoverable: true, clickable: true },
+			   yaxis: { mode: ymode  },
+			   xaxis: { mode: xmode }
+			 });
+
+}
+
+$('select[name|="xaxis"]').change( function() { makePlot(data); } );
+$('select[name|="yaxis"]').change( function() { makePlot(data); } );
+	
+  var timeFields = {{ timeFields|safe }};
+  var data = {{ plotData|safe }} ; 
+  var plot = makePlot(data);
 
 </script>
 {% endif %}
@@ -76,7 +87,6 @@ $("#csv").click(function() {
 </table>
 
 {% if count %}
-	<input type="submit" value="Refresh Plot" id="plot" /> 
 	<div id="results_plot" style="width:800px;height:450px"></div>
 	<HR>
 	{{ count }} records found 
