@@ -116,6 +116,7 @@ class AxesForm(forms.Form):
     def __init__(self,modelFields,*args,**kwargs):
         forms.Form.__init__(self,*args,**kwargs)
         chartablefields = []
+        seriesablefields = []
         for x in modelFields :
             if (isinstance(x,DateField) or
                 isinstance(x,DecimalField) or
@@ -123,8 +124,11 @@ class AxesForm(forms.Form):
                 isinstance(x,IntegerField) or
                 isinstance(x,TimeField)) :
                 chartablefields.append(x);
+            else :
+                seriesablefields.append(x);
         if (len(chartablefields) > 1) :
             choices = tuple( (x.name,x.name) for x in chartablefields)
             self.fields['xaxis'] = forms.ChoiceField(choices=choices,required=True,initial=chartablefields[0].name)
             self.fields['yaxis'] = forms.ChoiceField(choices=choices,required=True,initial=chartablefields[1].name)
+            self.fields['series'] = forms.ChoiceField(choices=tuple( (x.name,x.name) for x in seriesablefields),required=True,initial=seriesablefields[0].name)
         
