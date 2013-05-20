@@ -12,44 +12,83 @@
   <script language="javascript" type="text/javascript"
 	  src="{{ STATIC_URL }}jquery/ui/jquery-ui-1.8.12.custom.js"></script>
   <script language="javascript" type="text/javascript"
-	  src="{{ STATIC_URL }}jquery/jquery-ui-timepicker-addon.js"></script>
-  <script type="text/javascript">
-function submitform(mode)
-  {
-	document.QueryForm["mode"].value = mode;
-    document.QueryForm.submit();
-  }
-{% for f in datetimefields %}
-  $('#id_{{f}}_lo').datetimepicker({addSliderAccess: false});
-  $('#id_{{f}}_hi').datetimepicker({addSliderAccess: false});
-{% endfor %}
-$("#addform").click(function() {
-	submitform('addform');
-});
-$("#query").click(function() {
-	submitform('query');
-});
-$("#csv").click(function() {
-	submitform('csv');
-});
-  </script>
-  
-  <script language="javascript" type="text/javascript"
 	  src="{{ STATIC_URL }}external/js/jquery.flot.min.js"></script>
   <script language="javascript" type="text/javascript"
 	  src="{{ STATIC_URL }}external/js/jquery.flot.threshold.min.js"></script>
 
 {% if count %}
 <script language="javascript" type="text/javascript">
-  var results_plot = $.plot($("#results_plot"),
-  [{ color:"blue", 
-	  lines : { show : false }, points : { radius: 3, show : true, fill : true },
-	data: {{ plotData.mean|safe }} }],
-  {series: {shadowSize: 0, lines: {lineWidth:1}},
-   grid: { hoverable: true, clickable: true },
-   yaxis: { mode: {{ plotOpts.ymode|safe }}  },
-   xaxis: { mode: {{ plotOpts.xmode|safe }} }
- });
+
+function makePlot(data) {
+	var xSelect = $('select[name|="xaxis"]')[0];
+	var xaxis = xSelect.options[xSelect.selectedIndex].value;
+	var ySelect = $('select[name|="yaxis"]')[0]
+	var yaxis = ySelect.options[ySelect.selectedIndex].value;
+	var series;
+	if ($('select[name|="series"]').length > 0) {
+		var sSelect = $('select[name|="series"]')[0];
+		series = sSelect.options[sSelect.selectedIndex].value;		
+	} else {
+		series = $('input[name|="series"]')[0].value;
+	}
+	
+	var plotData = {};
+
+	for (i in data) {
+		var s = data[i][series];
+		if (!s) {
+			// presumably this is when no series has been chosen
+			s = '<i>none given</i>';
+		}
+		if (plotData[s] == undefined) {
+			plotData[s] = {
+				label : ''+s,
+				lines : { show : false }, 
+				points : { radius: 3, show : true, fill : true },
+				data : []
+			};
+		}
+		plotData[s].data.push([ data[i][xaxis], data[i][yaxis] ]);
+	}
+	var plotArray = [];
+	for (s in plotData) {
+		plotArray.push(plotData[s]);
+	}
+	
+	  var xmode = null;
+	  var ymode = null;
+	  for (i in timeFields) {
+		  if (timeFields[i] == xaxis) {
+			  xmode = "time";
+		  }
+		  if (timeFields[i] == yaxis) {
+			  ymode = "time";
+		  }
+	  }
+	  return $.plot($("#results_plot"),
+			plotArray,
+			  {series: {shadowSize: 0, lines: {lineWidth:1}},
+			   grid: { hoverable: true, clickable: true },
+			   yaxis: { mode: ymode  },
+			   xaxis: { mode: xmode },
+				legend : {
+					show : (series != '')  && (series != 'None'),
+					container: $("#legend"),
+					noColumns : 5,
+					sorted: true,
+					backgroundOpacity : 0
+				}
+			 });
+
+}
+
+$('select[name|="xaxis"]').change( function() { makePlot(data); } );
+$('select[name|="yaxis"]').change( function() { makePlot(data); } );
+$('select[name|="series"]').change( function() { makePlot(data); } );
+	
+  var timeFields = {{ timeFields|safe }};
+  var data = {{ plotData|safe }} ; 
+  var plot = makePlot(data);
 
 </script>
 {% endif %}
@@ -70,14 +109,27 @@ $("#csv").click(function() {
         	{{ field.as_hidden }} 
 		{% endfor %}
     {% endfor %}
-        
-<table>
-{{ axesform.as_table }}
-</table>
+
+<table>      
+<tr><th>{{ axesform.xaxis.label_tag }}: </th><td>{{ axesform.xaxis }}</td></tr>
+<tr><th>{{ axesform.yaxis.label_tag }}: </th><td>{{ axesform.yaxis }}</td></tr>
+{% if axesform.fields.series.choices|length == 1 %}
+	{% comment %} 
+	There's probably a better way to do this but I couldn't find it.
+	We just want the displayed choice name, not the actual value.
+	There will be exactly one choice, so looping isn't necessary, but could not find an alternative.
+	{% endcomment %} 
+	{% for value, displayName in axesform.fields.series.choices %}
+		<tr><th>{{ axesform.series.label_tag }}: </th><td>{{ axesform.series.as_hidden }}{{ displayName }}</td></tr>	
+	{% endfor %}
+{% else %}
+	<tr><th>{{ axesform.series.label_tag }}: </th><td>{{ axesform.series }}</td></tr>
+{% endif %}
+</table> 
 
 {% if count %}
-	<input type="submit" value="Refresh Plot" id="plot" /> 
 	<div id="results_plot" style="width:800px;height:450px"></div>
+	<div id="legend"></div>
 	<HR>
 	{{ count }} records found 
 {% elif formset.cleaned_data %}

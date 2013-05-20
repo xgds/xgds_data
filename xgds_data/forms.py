@@ -8,7 +8,8 @@ from django import forms
 from django.forms.util import ErrorList
 from django.db.models import fields
 from django.utils.safestring import mark_safe
-from django.db.models.fields import DateField, DecimalField, FloatField, IntegerField, TimeField
+from django.db.models.fields import AutoField, DateField, DecimalField, FloatField, IntegerField, TimeField
+from django.db.models.fields.related import RelatedField
 
 class QueryForm(forms.Form):
     query = forms.CharField(max_length=256, required=False,
@@ -113,9 +114,13 @@ class SearchForm(forms.Form):
         return mark_safe(u'\n'.join(output))
 
 class AxesForm(forms.Form):
+    """
+        Dynamically creates the form to choose the axes and series of a corresponding plot
+        """
     def __init__(self,modelFields,*args,**kwargs):
         forms.Form.__init__(self,*args,**kwargs)
         chartablefields = []
+        seriesablefields = []
         for x in modelFields :
             if (isinstance(x,DateField) or
                 isinstance(x,DecimalField) or
@@ -123,8 +128,17 @@ class AxesForm(forms.Form):
                 isinstance(x,IntegerField) or
                 isinstance(x,TimeField)) :
                 chartablefields.append(x);
+            elif ((not isinstance(x,AutoField)) and (x.model.objects.values(x.name).order_by().distinct().count() <= 100)) :
+                seriesablefields.append(x);
         if (len(chartablefields) > 1) :
-            choices = tuple( (x.name,x.name) for x in chartablefields)
-            self.fields['xaxis'] = forms.ChoiceField(choices=choices,required=True,initial=chartablefields[0].name)
-            self.fields['yaxis'] = forms.ChoiceField(choices=choices,required=True,initial=chartablefields[1].name)
+            datachoices = tuple( (x.name,x.name) for x in chartablefields)
+            serieschoices = [(None,'None')]
+            for x in seriesablefields :
+                if isinstance(x,RelatedField) :
+                    serieschoices.append( (x.name+'_id',x.name) )
+                else :
+                    serieschoices.append( (x.name, x.name) )
+            self.fields['xaxis'] = forms.ChoiceField(choices=datachoices,required=True,initial=chartablefields[0].name)
+            self.fields['yaxis'] = forms.ChoiceField(choices=datachoices,required=True,initial=chartablefields[1].name)
+            self.fields['series'] = forms.ChoiceField(choices=tuple(serieschoices),required=True,initial=serieschoices[0][0])
         

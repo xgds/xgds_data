@@ -27,6 +27,7 @@ from django.db.models.fields import DateTimeField, DateField, DecimalField, Floa
 from django.forms.models import ModelMultipleChoiceField
 from django.forms.fields import ChoiceField
 from django import forms
+from django.db.models import Model 
 from django.forms.formsets import formset_factory
 import datetime
 import calendar
@@ -326,7 +327,7 @@ def searchChosenModel(request, moduleName, modelName):
         if formset.is_valid():  
             filters = makeFilters(formset)      
         else:
-            debug = [ (x,formset.errors[x]) for x in formset.errors ]       
+            debug = formset.errors  
     else:
         formset = tmpFormSet()
         
@@ -349,15 +350,8 @@ def searchChosenModel(request, moduleName, modelName):
     else :
         if ((mode == 'query') and formset.is_valid()):  
             resultCount = myModel.objects.filter(filters).count()
-#            results = myModel.objects.filter(filters)[:10] ## first 10 results
-#            resultsPages = Paginator(myModel.objects.filter(filters).all(), 10)
-#            resultCount = resultsPages.count
-#            resultsPage = resultsPages.page(1)
-#            if (resultsPage.number == resultsPage.paginator.num_pages) :
-#                resultsPage = None
         else :
             resultCount = None
-#            resultsPage = None
         datetimefields = []
         for x in modelFields :
             if isinstance(x,DateTimeField) :
@@ -376,6 +370,7 @@ def searchChosenModel(request, moduleName, modelName):
             qd = data.copy()
             qd.setdefault('xaxis',axesform.fields.get('xaxis').initial)
             qd.setdefault('yaxis',axesform.fields.get('yaxis').initial)
+            qd.setdefault('series',axesform.fields.get('series').initial)
             axesform = AxesForm(modelFields,qd)
 
         return render(request,'xgds_data/searchChosenModel.html', 
@@ -398,63 +393,54 @@ def plotQueryResults(request, moduleName, modelName):
     myModel = getattr(modelmodule,modelName)
     modelFields = myModel._meta.fields
     tmpFormClass = specializedSearchForm(myModel)
-    tmpFormSet = formset_factory(tmpFormClass)
-    debug = []
+    tmpFormSet = formset_factory(tmpFormClass)   
     if request.method == 'POST' :
         data = request.POST;
     else:
         data = request.GET
-    filters = None
-
-    formset = tmpFormSet(data)
-    if formset.is_valid():  
-        filters = makeFilters(formset)      
-    else:
-        debug = [ (x,formset.errors[x]) for x in formset.errors ]
-
-    if (formset.is_valid()):  
-        resultCount = myModel.objects.filter(filters).count()
-    else :
-        resultCount = None
     
     axesform = AxesForm(modelFields,data);
-    xaxis = data.get('xaxis')
-    yaxis = data.get('yaxis')
+    timeFields = []
     fieldDict = dict([ (x.name,x) for x in modelFields ])
-    if (xaxis and (isinstance(fieldDict[xaxis],DateField) or
-                   isinstance(fieldDict[xaxis],TimeField))) :
-        xmode = "'time'"
-    else :
-        xmode = "null"
-    if (yaxis and (isinstance(fieldDict[yaxis],DateField) or
-                   isinstance(fieldDict[yaxis],TimeField))) :
-        ymode = "'time'"
-    else :
-        ymode = "null"
+    for f in fieldDict.keys() :
+        if (isinstance(fieldDict[f],DateField) or isinstance(fieldDict[f],TimeField)) :
+            timeFields.append(f)
     
-    plotData = None
-    plotOpts = None
+    formset = tmpFormSet(data)
+    if formset.is_valid():  
+        filters = makeFilters(formset)
+        debug = []
+        resultCount = myModel.objects.filter(filters).count()      
+    else:
+        filters = None
+        debug = [ (x,formset.errors[x]) for x in formset.errors ]
+        resultCount = None
+
 
     if ( filters != None ) :
-        dthandler = lambda obj: calendar.timegm(obj.timetuple()) * 1000 if isinstance(obj, datetime.datetime) else None 
-        ydata = [getattr(x,xaxis) for x in myModel.objects.filter(filters).all() ]
-        xdata = [getattr(x,yaxis) for x in myModel.objects.filter(filters).all() ]
+        plotdata = list(myModel.objects.filter(filters).values())
+        ## the following code determines if there are any foreign keys that can be selected, and if so,
+        ## replaces the corresponding values (which will be ids) with the string representation
+        seriesChoices = dict(axesform.fields['series'].choices)
+        seriesValues = dict([ (m.column, dict([ (getattr(x,x._meta.pk.name),x.__str__()) 
+                                         for x in m.rel.to.objects.all() ]) ) 
+                       for m in modelFields if (m.rel != None) and (seriesChoices.has_key(m.column)) ])
 
-        plotData = {'name': 'Plotty', 
-                    'mean': json.dumps(zip(ydata, xdata),default=dthandler) }
-        plotOpts = {'xmode': xmode,
-                    'ymode': ymode,
-                    'ymin': min(ydata),
-                    'ymax': max(ydata) }
+        for x in plotdata :
+            for k in seriesValues.keys() :
+                if (x[k] != None) :
+                    x[k] = seriesValues[k][x[k]]
+    else :
+        plotdata = []
 
+    megahandler = lambda obj: calendar.timegm(obj.timetuple()) * 1000 \
+            if isinstance(obj, datetime.datetime) else obj.__str__() if isinstance(obj,Model) else None
     return render(request,'xgds_data/plotQueryResults.html', 
-                          {'plotData': plotData,
-                           'plotOpts': plotOpts,
+                          {'plotData': json.dumps(plotdata,default=megahandler),
+                           'timeFields': json.dumps(timeFields),
                            'title': 'Plot '+modelName,
                            'module': moduleName,
                            'model': modelName,
-                           'xaxis' : xaxis,
-                           'yaxis' : yaxis,
                            'debug' :  debug,
                            'count' : resultCount,
                            "formset" : formset,
