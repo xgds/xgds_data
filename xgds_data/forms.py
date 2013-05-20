@@ -127,7 +127,7 @@ class AxesForm(forms.Form):
                 isinstance(x,FloatField) or
                 isinstance(x,IntegerField) or
                 isinstance(x,TimeField)) :
-                chartablefields.append(x);
+                chartablefields.append(x)
             elif ((not isinstance(x,AutoField)) and (x.model.objects.values(x.name).order_by().distinct().count() <= 100)) :
                 seriesablefields.append(x);
         if (len(chartablefields) > 1) :
@@ -141,4 +141,5 @@ class AxesForm(forms.Form):
             self.fields['xaxis'] = forms.ChoiceField(choices=datachoices,required=True,initial=chartablefields[0].name)
             self.fields['yaxis'] = forms.ChoiceField(choices=datachoices,required=True,initial=chartablefields[1].name)
             self.fields['series'] = forms.ChoiceField(choices=tuple(serieschoices),required=True,initial=serieschoices[0][0])
+
         
