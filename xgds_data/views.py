@@ -418,7 +418,12 @@ def plotQueryResults(request, moduleName, modelName):
 
 
     if ( filters != None ) :
-        plotdata = list(myModel.objects.filter(filters).values())
+        ##plotdata = list(myModel.objects.filter(filters).values())
+        ##pldata = [x.__str__() for x in myModel.objects.filter(filters)]
+        objs = myModel.objects.filter(filters)
+        plotdata = [ dict([(fld.column,fld.value_from_object(x)) for fld in modelFields ]) for x in objs]
+        pldata = [x.__str__() for x in objs]
+        
         ## the following code determines if there are any foreign keys that can be selected, and if so,
         ## replaces the corresponding values (which will be ids) with the string representation
         seriesChoices = dict(axesform.fields['series'].choices)
@@ -431,12 +436,14 @@ def plotQueryResults(request, moduleName, modelName):
                 if (x[k] != None) :
                     x[k] = seriesValues[k][x[k]]
     else :
+        pldata = []
         plotdata = []
 
     megahandler = lambda obj: calendar.timegm(obj.timetuple()) * 1000 \
             if isinstance(obj, datetime.datetime) else obj.__str__() if isinstance(obj,Model) else None
     return render(request,'xgds_data/plotQueryResults.html', 
                           {'plotData': json.dumps(plotdata,default=megahandler),
+                           'labels': pldata,
                            'timeFields': json.dumps(timeFields),
                            'title': 'Plot '+modelName,
                            'module': moduleName,

@@ -82,13 +82,25 @@ function makePlot(data) {
 
 }
 
+function plothoverHandler(event, pos, item) {
+    if (item) {
+	$("#hoverlabel").html(names[item.dataIndex]);
+	$("#hoverlabel").css("color",item.series.color);
+    } else {
+	$("#hoverlabel").html('&nbsp;');
+    }
+}
+
+
 $('select[name|="xaxis"]').change( function() { makePlot(data); } );
 $('select[name|="yaxis"]').change( function() { makePlot(data); } );
 $('select[name|="series"]').change( function() { makePlot(data); } );
 	
   var timeFields = {{ timeFields|safe }};
   var data = {{ plotData|safe }} ; 
+  var names = {{ labels|safe }} ; 
   var plot = makePlot(data);
+  $("#results_plot").bind("plothover", plothoverHandler);
 
 </script>
 {% endif %}
@@ -128,6 +140,7 @@ $('select[name|="series"]').change( function() { makePlot(data); } );
 </table> 
 
 {% if count %}
+	<div align="center" id="hoverlabel" style="width:800px">&nbsp;</div>
 	<div id="results_plot" style="width:800px;height:450px"></div>
 	<div id="legend"></div>
 	<HR>
