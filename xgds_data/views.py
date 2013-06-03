@@ -433,7 +433,8 @@ def plotQueryResults(request, moduleName, modelName):
 
         for x in plotdata :
             for k in seriesValues.keys() :
-                if (x[k] != None) :
+                # if (x[k] != None) :
+                if ((x[k] != None) and (x[k] > 0)) : # plrp has weird values that should be handled differently
                     x[k] = seriesValues[k][x[k]]
     else :
         pldata = []
