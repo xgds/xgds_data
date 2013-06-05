@@ -385,7 +385,7 @@ def searchChosenModel(request, moduleName, modelName):
                                'axesform' : axesform},
                               )
 
-def plotQueryResults(request, moduleName, modelName):
+def plotQueryResults(request, moduleName, modelName, start, end):
     """
         Plot the results of a query
         """
@@ -409,18 +409,11 @@ def plotQueryResults(request, moduleName, modelName):
     formset = tmpFormSet(data)
     if formset.is_valid():  
         filters = makeFilters(formset)
-        debug = []
-        resultCount = myModel.objects.filter(filters).count()      
-    else:
-        filters = None
-        debug = [ (x,formset.errors[x]) for x in formset.errors ]
-        resultCount = None
-
-
-    if ( filters != None ) :
+        objs = myModel.objects.filter(filters)[start:end]
+        
         ##plotdata = list(myModel.objects.filter(filters).values())
         ##pldata = [x.__str__() for x in myModel.objects.filter(filters)]
-        objs = myModel.objects.filter(filters)
+        ## objs = myModel.objects.filter(filters)[5:100]
         plotdata = [ dict([(fld.column,fld.value_from_object(x)) for fld in modelFields ]) for x in objs]
         pldata = [x.__str__() for x in objs]
         
@@ -433,10 +426,15 @@ def plotQueryResults(request, moduleName, modelName):
 
         for x in plotdata :
             for k in seriesValues.keys() :
-                # if (x[k] != None) :
-                if ((x[k] != None) and (x[k] > 0)) : # plrp has weird values that should be handled differently
+                if (x[k] != None) :
                     x[k] = seriesValues[k][x[k]]
-    else :
+        
+        debug = []
+        resultCount = myModel.objects.filter(filters).count()     
+        shownCount = len(pldata) 
+    else:
+        debug = [ (x,formset.errors[x]) for x in formset.errors ]
+        resultCount = None
         pldata = []
         plotdata = []
 
@@ -449,8 +447,11 @@ def plotQueryResults(request, moduleName, modelName):
                            'title': 'Plot '+modelName,
                            'module': moduleName,
                            'model': modelName,
+                           'start' : start,
+                           'end' : end,
                            'debug' :  debug,
                            'count' : resultCount,
+                           'showncount' : shownCount,
                            "formset" : formset,
                            'axesform' : axesform},
                           )

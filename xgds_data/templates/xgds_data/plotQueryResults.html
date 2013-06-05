@@ -18,6 +18,18 @@
 
 {% if count %}
 <script language="javascript" type="text/javascript">
+function submitform(start, end)
+{
+  $('form[name|="PlotForm"]')[0].action = $('form[name|="PlotForm"]')[0].action+start+'/'+end+'/';
+}
+
+$("#prev").click(function() {
+	submitform({{ start|add:"-10000" }},{{ end|add:"-10000" }});
+});
+
+$("#next").click(function() {
+	submitform({{ start|add:"10000" }},{{ end|add:"10000" }});
+});
 
 function makePlot(data) {
 	var xSelect = $('select[name|="xaxis"]')[0];
@@ -113,7 +125,7 @@ $('select[name|="series"]').change( function() { makePlot(data); } );
 {% for d in debug %}
 <span>{{ d }}</span>
 {% endfor %}
-<form name='QueryForm' action="{% url xgds_data_searchPlotQueryResults module model %}" method="post">
+<form name='PlotForm' action="{% url xgds_data_searchPlotQueryResults module model %}" method="post">
   <input type="hidden" name="mode" value="query">
     {{ formset.management_form }}
     {% for form in formset %}
@@ -144,7 +156,23 @@ $('select[name|="series"]').change( function() { makePlot(data); } );
 	<div id="results_plot" style="width:800px;height:450px"></div>
 	<div id="legend"></div>
 	<HR>
-	{{ count }} records found 
+	<div>Plotting records {{ start|add:"1" }} through 
+	{% if count > end|add:"1" %}
+		{{ end|add:"1" }} 
+	{% else %}
+		{{ count }}
+	{% endif %}
+	out of {{ count }} total</div>
+	{% if start|add:"0" > 0 %}
+		<input type="submit" value="Previous Records" id="prev" title="Refresh page with previous records"/>
+	{% else %}
+		<input type="submit" value="Previous Records" id="prev" title="There are no previous records" disabled/>
+	{% endif %}
+	{% if count > end|add:"1" %}
+	 	<input type="submit" value="Next Records" id="next" title="Refresh page with next records"/>
+	{% else %}
+	 	<input type="submit" value="Next Records" id="next" title="There are no next records" disabled/> 
+	{% endif %}
 {% elif formset.cleaned_data %}
 	<HR>
 	No records found 

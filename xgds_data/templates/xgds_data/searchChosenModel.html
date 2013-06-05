@@ -33,7 +33,7 @@ $("#csv").click(function() {
 	submitform('csv');
 });
 $("#plot").click(function() {
-	document.QueryForm.action = "{% url xgds_data_searchPlotQueryResults module model %}";
+	document.QueryForm.action = "{% url xgds_data_searchPlotQueryResults module model 0 9999 %}";
 	document.QueryForm.submit();
 });
   </script>
@@ -75,7 +75,7 @@ $("#plot").click(function() {
     <input type="submit" value="Download CSV" id="csv" /> 
     {% if axesform %}
 	    {% if count > 10000 %}
-	    <input type="submit" value="Plot Results" id="plot" title="Exceeded Plot Limit of 10000" disabled/> 
+	    <input type="submit" value="Plot First 10000 Results" id="plot" title="Plot limited to 10000 records" /> 
 	    {% else %}
 	    <input type="submit" value="Plot Results" id="plot"/> 
 	    {% endif %}
