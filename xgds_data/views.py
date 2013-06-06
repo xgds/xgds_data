@@ -336,7 +336,6 @@ def searchChosenModel(request, moduleName, modelName):
         scorer = sortFormula(formset,query)
         if (scorer) :
             query = query.extra(select={'score': scorer}, order_by = ['-score'])
-
         results = query.all()
         fnames = [f.column for f in modelFields ]      
         response = HttpResponse(content_type='text/csv')
@@ -409,7 +408,11 @@ def plotQueryResults(request, moduleName, modelName, start, end):
     formset = tmpFormSet(data)
     if formset.is_valid():  
         filters = makeFilters(formset)
-        objs = myModel.objects.filter(filters)[start:end]
+        objs = myModel.objects.filter(filters)
+        scorer = sortFormula(formset,objs)
+        if (scorer) :
+            objs = objs.extra(select={'score': scorer}, order_by = ['-score'])
+        objs = objs[start:end]
         
         ##plotdata = list(myModel.objects.filter(filters).values())
         ##pldata = [x.__str__() for x in myModel.objects.filter(filters)]
