@@ -77,6 +77,7 @@ function makePlot(data) {
 			  ymode = "time";
 		  }
 	  }
+	  $("#legend").html(""); // won't automatically be cleared if we no longer have a legend
 	  return $.plot($("#results_plot"),
 			plotArray,
 			  {series: {shadowSize: 0, lines: {lineWidth:1}},
@@ -84,7 +85,7 @@ function makePlot(data) {
 			   yaxis: { mode: ymode  },
 			   xaxis: { mode: xmode },
 				legend : {
-					show : (series != '')  && (series != 'None'),
+					show : (series != '') && (series != 'None'),
 					container: $("#legend"),
 					noColumns : 5,
 					sorted: true,

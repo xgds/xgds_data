@@ -10,6 +10,8 @@ import traceback
 import csv
 import json
 
+import time
+
 from django.shortcuts import render_to_response, render
 from django.http import HttpResponseNotAllowed, HttpResponseRedirect, HttpResponseForbidden, Http404, HttpResponse
 from django.template import RequestContext
@@ -235,6 +237,12 @@ def makeFilters(formset):
             filters = subfilter 
     return filters
 
+def sqlRowwiseMin(field,val,minimum,maximum) :
+    """
+        SQL expression for the minimum of multiple values on a row-wise basis (instead of over all values of a column)
+        """
+    return "CASE WHEN ({0} < {1}) THEN {0} ELSE {1}END"
+        
 def scoreNumeric(field,val,minimum,maximum) :
     """
         provide a score for a numeric clause that ranges from 1 (best) to 0 (worst)
@@ -242,9 +250,23 @@ def scoreNumeric(field,val,minimum,maximum) :
     if (val == None) :
         return '1' # same constant for everyone, so it factors out
     elif (isinstance(val,list)) :
-        lorange = val[0]
-        hirange = val[1]
-        return "1-max(({1}-{0},{0}-{2},0)/({3}))".format(field,lorange,hirange,max(abs(maximum-val),abs(minimum-val)))
+        if (isinstance(minimum,datetime.datetime)) :
+            minimum = time.mktime(minimum.timetuple())
+        if (isinstance(maximum,datetime.datetime)) :
+            maximum = time.mktime(maximum.timetuple())
+        if (isinstance(val[0],datetime.datetime)) :
+            lorange = time.mktime(val[0].timetuple())
+        else :
+            lorange = val[0]
+        if (isinstance(val[1],datetime.datetime)) :
+            hirange = time.mktime(val[1].timetuple())
+        else :
+            hirange = val[1]
+        if ((lorange <= minimum) and (maximum <= hirange)) :
+            return '1' 
+        else :
+            return "1-(greatest(least({1}-{0},{0}-{2}),0)/{3})".format(
+                                                    field,lorange,hirange,max(0,lorange-minimum,maximum-hirange))
     elif (val == 'min') :
         val = minimum
     elif (val == 'max') :
@@ -270,7 +292,7 @@ def sortFormula(formset,query):
                         loval = form.cleaned_data[base+'_lo']
                         hival = form.cleaned_data[base+'_hi']
                         if (loval != None and hival != None) :
-                            desiderata[base] = (hival + loval)/2
+                            desiderata[base] = [loval,hival] #(hival + loval)/2
                         elif (loval != None) :
                             desiderata[base] = 'max'
                         elif (hival != None) :
