@@ -237,7 +237,7 @@ def makeFilters(formset):
             filters = subfilter 
     return filters
         
-def scoreNumeric(field,val,minimum,maximum) :
+def scoreNumericOLD(field,val,minimum,maximum) :
     """
         provide a score for a numeric clause that ranges from 1 (best) to 0 (worst)
         """
@@ -269,16 +269,58 @@ def scoreNumeric(field,val,minimum,maximum) :
     else :
         return "1-(greatest(least({1}-{0},{0}-{2}),0)/{3})".format(
                                                     field,lorange,hirange,max(0,lorange-minimum,maximum-hirange))
-    # else :
-    #     return "1-abs(({0}-{1})/({2}))".format(field,val,max(abs(maximum-val),abs(minimum-val)))
 
+def baseScore(field,lorange,hirange) :
+    """
+        provide a score for a numeric clause that ranges from 1 (best) to 0 (worst)
+        """
+    timeConversion = False
+    if (isinstance(lorange,datetime.datetime)) :
+        timeConversion = True
+        lorange = time.mktime(lorange.timetuple())
+    if (isinstance(hirange,datetime.datetime)) :
+        timeConversion = True
+        hirange = time.mktime(hirange.timetuple())
+    ## perhaps could swap lo, hi if lo > hi
+    if (timeConversion) :
+        field = 'UNIX_TIMESTAMP({0})'.format(field)
     
-def sortFormula(formset,query):
+    if (lorange == hirange) :
+        return "abs({0}-{1})".format(field,lorange)
+    elif (lorange == 'min') :
+        return "greatest(0,{0}-{1})".format(field,hirange)
+    elif (hirange == 'max') :
+        return "greatest(0,{1}-{0})".format(field,lorange)
+    else :
+        ##return "greatest(0,least({1}-{0},{0}-{2}))".format(field,lorange,hirange)
+        return "greatest(0,{1}-{0},{0}-{2})".format(field,lorange,hirange)
+
+def medianEval(table,expression,size) :
+    """
+        Quick mysql-y way of estimating the median from a sample; not very Django-y
+        """
+    sampleSize = min(size,1000)
+    sql = 'select {1} as score from {0} JOIN ({3}) AS r2 USING (id) order by score limit {2},1;'.format(
+            table,expression,sampleSize/2,
+            '(SELECT CEIL(RAND() * (SELECT MAX(id) FROM {0})) AS id from {0} limit {1})'.format(table,sampleSize))
+    cursor = connection.cursor()
+    cursor.execute(sql)
+    return cursor.fetchone()[0]
+
+def scoreNumeric(model,field,lorange,hirange,tableSize) :
+    """
+        provide a score for a numeric clause that ranges from 1 (best) to 0 (worst)
+        """   
+    return "1 /(1 + {0}/{1})".format(baseScore(field,lorange,hirange),
+                        medianEval(model._meta.db_table,baseScore(field,lorange,hirange),tableSize)) 
+    #return "1-(1 + {1}) /(2 + 2 * {0})".format(baseScore(field,lorange,hirange),
+    #                    medianEval(model._meta.db_table,baseScore(field,lorange,hirange),tableSize)) 
+
+def sortFormula(model, formset, query):
     """
         Helper for searchChosenModel; comes up with a formula for ordering the results
         """
-    bases = []
-    limits = []
+
     desiderata = dict()
     ## forms are interpreted as internally conjunctive, externally disjunctive
     for form in formset:
@@ -290,20 +332,17 @@ def sortFormula(formset,query):
                     if (operator == 'IN~') :
                         loval = form.cleaned_data[base+'_lo']
                         hival = form.cleaned_data[base+'_hi']
-                        if (loval != None and hival != None) :
-                            desiderata[base] = [loval,hival] #(hival + loval)/2
-                        elif (loval != None) :
-                            desiderata[base] = 'max'
-                        elif (hival != None) :
-                            desiderata[base] = 'min'
-                        if (base in desiderata) :
-                            bases.append(base)
-                            limits.append(Min(base))
-                            limits.append(Max(base))
-    if (len(limits) > 0) :
-        ranges = query.aggregate(*limits)
+                        if ((loval == None) or (loval == 'None')) :
+                            loval = 'min'
+                        if ((hival == None) or (hival == 'None')) :
+                            hival = 'max'
+                        if ((loval != 'min') or (hival != 'max')) :
+                            desiderata[base] = [loval,hival]
+
+    if (len(desiderata) > 0) :
+        tableSize = model.objects.count()
         
-        formula = ' + '.join([scoreNumeric(b,desiderata[b],ranges[b+'__min'],ranges[b+'__max']) for b in bases])
+        formula = ' + '.join([scoreNumeric(model,b,desiderata[b][0],desiderata[b][1],tableSize) for b in desiderata.keys()])
         return formula
     else :
         return None
@@ -354,7 +393,7 @@ def searchChosenModel(request, moduleName, modelName):
         
     if ((mode == 'csv') and formset.is_valid()): 
         query = myModel.objects.filter(filters)
-        scorer = sortFormula(formset,query)
+        scorer = sortFormula(myModel, formset,query)
         if (scorer) :
             query = query.extra(select={'score': scorer}, order_by = ['-score'])
         results = query.all()
@@ -430,11 +469,11 @@ def plotQueryResults(request, moduleName, modelName, start, end):
     if formset.is_valid():  
         filters = makeFilters(formset)
         objs = myModel.objects.filter(filters)
-        scorer = sortFormula(formset,objs)
+        scorer = sortFormula(myModel,formset,objs)
         if (scorer) :
             objs = objs.extra(select={'score': scorer}, order_by = ['-score'])
         objs = objs[start:end]
-        
+        ##print(objs.query)
         ##plotdata = list(myModel.objects.filter(filters).values())
         ##pldata = [x.__str__() for x in myModel.objects.filter(filters)]
         ## objs = myModel.objects.filter(filters)[5:100]
