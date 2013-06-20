@@ -479,6 +479,7 @@ def plotQueryResults(request, moduleName, modelName, start, end):
         ## objs = myModel.objects.filter(filters)[5:100]
         plotdata = [ dict([(fld.column,fld.value_from_object(x)) for fld in modelFields ]) for x in objs]
         pldata = [x.__str__() for x in objs]
+        ##pldata = [x.denominator.__str__() for x in objs]
         
         ## the following code determines if there are any foreign keys that can be selected, and if so,
         ## replaces the corresponding values (which will be ids) with the string representation

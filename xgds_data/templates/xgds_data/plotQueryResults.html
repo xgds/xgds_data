@@ -31,7 +31,8 @@ $("#next").click(function() {
 	submitform({{ start|add:"10000" }},{{ end|add:"10000" }});
 });
 
-function makePlot(data) {
+var nameData; // cache names, needed because series in plot changes order
+function makePlot(data,names) {
 	var xSelect = $('select[name|="xaxis"]')[0];
 	var xaxis = xSelect.options[xSelect.selectedIndex].value;
 	var ySelect = $('select[name|="yaxis"]')[0]
@@ -39,12 +40,13 @@ function makePlot(data) {
 	var series;
 	if ($('select[name|="series"]').length > 0) {
 		var sSelect = $('select[name|="series"]')[0];
-		series = sSelect.options[sSelect.selectedIndex].value;		
+		series = sSelect.options[sSelect.selectedIndex].value;
 	} else {
 		series = $('input[name|="series"]')[0].value;
 	}
 	
 	var plotData = {};
+        nameData = {};
 
 	for (i in data) {
 		var s = data[i][series];
@@ -59,8 +61,10 @@ function makePlot(data) {
 				points : { radius: 3, show : true, fill : true },
 				data : []
 			};
+                        nameData[s] = [];
 		}
 		plotData[s].data.push([ data[i][xaxis], data[i][yaxis] ]);
+                nameData[s].push(names[i]);
 	}
 	var plotArray = [];
 	for (s in plotData) {
@@ -97,7 +101,7 @@ function makePlot(data) {
 
 function plothoverHandler(event, pos, item) {
     if (item) {
-	$("#hoverlabel").html(names[item.dataIndex]);
+        $("#hoverlabel").html(nameData[item.series.label][item.dataIndex])
 	$("#hoverlabel").css("color",item.series.color);
     } else {
 	$("#hoverlabel").html('&nbsp;');
@@ -105,14 +109,14 @@ function plothoverHandler(event, pos, item) {
 }
 
 
-$('select[name|="xaxis"]').change( function() { makePlot(data); } );
-$('select[name|="yaxis"]').change( function() { makePlot(data); } );
-$('select[name|="series"]').change( function() { makePlot(data); } );
+$('select[name|="xaxis"]').change( function() { makePlot(data,names); } );
+$('select[name|="yaxis"]').change( function() { makePlot(data,names); } );
+$('select[name|="series"]').change( function() { makePlot(data,names); } );
 	
   var timeFields = {{ timeFields|safe }};
   var data = {{ plotData|safe }} ; 
   var names = {{ labels|safe }} ; 
-  var plot = makePlot(data);
+  var plot = makePlot(data,names);
   $("#results_plot").bind("plothover", plothoverHandler);
 
 </script>
