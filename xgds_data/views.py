@@ -243,7 +243,7 @@ def scoreNumericOLD(field,val,minimum,maximum) :
         """
 
     if (val == None) :
-        return '1' # same constant for everyone, so it factors out
+        return '1'  # same constant for everyone, so it factors out
     elif (val == 'min') :
         val = minimum
     elif (val == 'max') :
@@ -380,7 +380,7 @@ def searchChosenModel(request, moduleName, modelName):
             else :
                 newdata[formsetifyFieldName(formCount,fname)] = unicode(field.initial)
         newdata['form-TOTAL_FORMS'] = unicode(formCount  + 1 ) 
-        formset = tmpFormSet(newdata) # but passing data nullifies extra
+        formset = tmpFormSet(newdata)  # but passing data nullifies extra
     elif ((mode == 'query') or (mode == 'csv')) :
         formCount = int(data['form-TOTAL_FORMS'])
         formset = tmpFormSet(data)
