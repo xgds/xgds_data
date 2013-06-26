@@ -15,7 +15,6 @@ import time
 from django.shortcuts import render_to_response, render
 from django.http import HttpResponseNotAllowed, HttpResponseRedirect, HttpResponseForbidden, Http404, HttpResponse
 from django.template import RequestContext
-from django.core.paginator import Paginator
 from django.db import connection, DatabaseError
 from django.db.models import get_app, get_apps, get_models, Min, Max
 
@@ -33,6 +32,7 @@ from django.db.models import Model
 from django.forms.formsets import formset_factory
 import datetime
 import calendar
+from math import pow,floor,log10
 
 # from django import forms ## need to get this out of here and back into form
 
@@ -128,6 +128,29 @@ def searchModel(request, modelName):
                                'result': result},
                               context_instance=RequestContext(request))
 
+
+SKIP_APP_REGEXES = [re.compile(p) for p in settings.XGDS_DATA_SEARCH_SKIP_APP_PATTERNS]
+
+
+def isSkippedApp(appName):
+    return any((r.match(appName) for r in SKIP_APP_REGEXES))
+
+
+def hasModels(appName):
+    return len(get_models(get_app(appName))) != 0
+
+
+def chooseSearchApp(request):
+    apps = [app.__name__ for app in get_apps()]
+    apps = [re.sub('\.models$', '', app) for app in apps]
+    apps = [app for app in apps
+            if (not isSkippedApp(app)) and hasModels(app)]
+    return render(request,
+                  'xgds_data/chooseSearchApp.html',
+                  {'apps': apps})
+
+
+
 def chooseSearchModel(request, moduleName):
     """
         List the models in the module, so they can be selected for search
@@ -177,6 +200,10 @@ def makeFilters(formset):
         Helper for searchChosenModel; figures out restrictions given a formset
         """
     filters = None
+    ##if (threshold == 1) :
+    ##    filters = None
+    ##else :
+    ##    filters = Q(**{ 'score__gte' : threshold } )
     ## forms are interpreted as internally conjunctive, externally disjunctive
     for form in formset:
         subfilter = Q()
@@ -241,7 +268,6 @@ def scoreNumericOLD(field,val,minimum,maximum) :
     """
         provide a score for a numeric clause that ranges from 1 (best) to 0 (worst)
         """
-
     if (val == None) :
         return '1'  # same constant for everyone, so it factors out
     elif (val == 'min') :
@@ -295,17 +321,37 @@ def baseScore(field,lorange,hirange) :
         ##return "greatest(0,least({1}-{0},{0}-{2}))".format(field,lorange,hirange)
         return "greatest(0,{1}-{0},{0}-{2})".format(field,lorange,hirange)
 
-def medianEval(table,expression,size) :
+def randomSample(table,expression,size,offset = None, limit = None) :
     """
-        Quick mysql-y way of estimating the median from a sample; not very Django-y
+        Selects a random set of records, assuming even distibution of ids; not very Django-y
         """
-    sampleSize = min(size,1000)
-    sql = 'select {1} as score from {0} JOIN ({3}) AS r2 USING (id) order by score limit {2},1;'.format(
-            table,expression,sampleSize/2,
-            '(SELECT CEIL(RAND() * (SELECT MAX(id) FROM {0})) AS id from {0} limit {1})'.format(table,sampleSize))
+    randselect = '(SELECT CEIL(RAND() * (SELECT MAX(id) FROM {0})) AS id from {0} limit {1})'.format(table,size)
+    if ((offset == None) or (limit == None)) :
+        sql = 'select {1} as score from {0} JOIN ({2}) AS r2 USING (id) order by score;'.format(
+            table,expression,randselect)
+    else :
+        sql = 'select {1} as score from {0} JOIN ({2}) AS r2 USING (id) order by score limit {3},{4};'.format(
+            table,expression,randselect,offset,limit )
     cursor = connection.cursor()
     cursor.execute(sql)
+    return cursor.fetchall()
+
+def countMatches(table,expression,where,threshold):
+    """
+        Get the full count of records matching the restriction; can be slow
+        """
+    sql = 'select sum({1} >= {3}) from {0} {2};'.format(table,expression,where,threshold)
+    cursor = connection.cursor()
+    cursor.execute(sql)
+    print(sql)
     return cursor.fetchone()[0]
+    
+def medianEval(table,expression,size) :
+    """
+        Quick mysql-y way of estimating the median from a sample
+        """
+    sampleSize = min(size,1000)
+    return randomSample(table,expression,sampleSize,sampleSize/2,1)[0][0]
 
 def scoreNumeric(model,field,lorange,hirange,tableSize) :
     """
@@ -316,11 +362,10 @@ def scoreNumeric(model,field,lorange,hirange,tableSize) :
     #return "1-(1 + {1}) /(2 + 2 * {0})".format(baseScore(field,lorange,hirange),
     #                    medianEval(model._meta.db_table,baseScore(field,lorange,hirange),tableSize)) 
 
-def sortFormula(model, formset, query):
+def desiredRanges(model, formset):
     """
-        Helper for searchChosenModel; comes up with a formula for ordering the results
+        Pulls out the approximate (soft) constraints from the form
         """
-
     desiderata = dict()
     ## forms are interpreted as internally conjunctive, externally disjunctive
     for form in formset:
@@ -338,15 +383,39 @@ def sortFormula(model, formset, query):
                             hival = 'max'
                         if ((loval != 'min') or (hival != 'max')) :
                             desiderata[base] = [loval,hival]
+    return desiderata;
 
+def sortFormula(model, formset) :
+    """
+        Helper for searchChosenModel; comes up with a formula for ordering the results
+        """
+    desiderata = desiredRanges(model, formset)
     if (len(desiderata) > 0) :
         tableSize = model.objects.count()
-        
         formula = ' + '.join([scoreNumeric(model,b,desiderata[b][0],desiderata[b][1],tableSize) for b in desiderata.keys()])
-        return formula
+        return '({0})/{1} '.format(formula,len(desiderata))  # scale to have a max of 1
     else :
         return None
 
+def sortThreshold() :
+    """
+        Guess on a good threshold to cutoff the search results
+        """
+    ## rather arbitrary cutoff, which would return 30% of results if scores are uniform
+    return 0.7
+
+def divineWhereClause(pre,post):
+    """
+        Extracts the where clause from post by comparing it to pre, which should be the same query without filters. Probably brittle.
+        """
+    ## this disgusting function is the culmination of hours of frustration
+    ## Sometimes raw sql is needed, for instance, counting the records that have a certain computed value
+    ## Since I already had code that created Django filters, I wanted to get the corresponding SQL of the
+    ## where clause rather than duplicate that logic in generating raw SQL.
+    ## unfortunately there did not appear to be an easy way to do this
+    ## This icky hack is the best I could come up with, comparing the Django created query with filters
+    ## to the same without
+    return post[([ pre[i] == post[i] for i in range(0,len(pre)) ].index(False)):(len(post)-[ pre[len(pre) - i - 1] == post[len(post) - i - 1] for i in range(0,len(pre)) ].index(False))]
                     
 def searchChosenModel(request, moduleName, modelName):
     """
@@ -365,6 +434,8 @@ def searchChosenModel(request, moduleName, modelName):
     formCount = 1
     mode = data.get('mode',False)
     filters = None
+    resultCount = None
+    
     if (mode == 'addform') :
         formCount = int(data['form-TOTAL_FORMS'])
         ## this is very strange, but the extra forms don't come up with the right defaults
@@ -384,65 +455,83 @@ def searchChosenModel(request, moduleName, modelName):
     elif ((mode == 'query') or (mode == 'csv')) :
         formCount = int(data['form-TOTAL_FORMS'])
         formset = tmpFormSet(data)
-        if formset.is_valid():  
-            filters = makeFilters(formset)      
+        if formset.is_valid():              
+            filters = makeFilters(formset)
+            query = myModel.objects.filter(filters)
+            scorer = sortFormula(myModel, formset)
+            if (scorer) :
+                query = query.extra(select={'score': scorer}, order_by = ['-score'])
+            if (mode == 'csv'):                
+                results = query.all()
+                if (scorer) :
+                    results = results[0:countMatches(myModel._meta.db_table,
+                                                     scorer,
+                                                     divineWhereClause(myModel.objects.all().query.__str__(),
+                                                                       myModel.objects.filter(filters).query.__str__()),
+                                                     sortThreshold())]
+                fnames = [f.column for f in modelFields ]      
+                response = HttpResponse(content_type='text/csv')
+                # if you want to download instead of display in browser  
+                # response['Content-Disposition'] = 'attachment; filename='+modelName+'.csv'
+                writer = csv.writer(response)
+                writer.writerow(fnames)
+                for r in results:
+                    writer.writerow( [csvEncode(getattr(r,f)) for f in fnames if hasattr(r,f) ] )
+                return response
+            elif (mode == 'query'):  
+                    if (scorer) :
+                        ## estimate number of matches from random sample
+                        cpass = 0.0
+                        tableSize = query.count()
+                        thresh = sortThreshold()
+                        sample = randomSample(myModel._meta.db_table,scorer,10000)
+                        for x in sample :
+                            if (x[0] >= thresh) :
+                                cpass = cpass + 1
+                        ##query = query[0:round(tableSize*cpass/len(sample))]
+                        resultCount = tableSize*cpass/len(sample)
+                        ## make it look approximate
+                        if (resultCount > 0) :
+                            resultCount = int(round(resultCount/pow(10,floor(log10(resultCount)))) 
+                                              * pow(10,floor(log10(resultCount))))  
+                    else :
+                        resultCount = query.count()                   
         else:
-            debug = formset.errors  
+            debug = formset.errors
     else:
         formset = tmpFormSet()
+                
+    datetimefields = []
+    for x in modelFields :
+        if isinstance(x,DateTimeField) :
+            for y in range(0,formCount+1) :
+                datetimefields.append(formsetifyFieldName(y,x.name))
+    axesform = AxesForm(modelFields,data)       
         
-    if ((mode == 'csv') and formset.is_valid()): 
-        query = myModel.objects.filter(filters)
-        scorer = sortFormula(myModel, formset,query)
-        if (scorer) :
-            query = query.extra(select={'score': scorer}, order_by = ['-score'])
-        results = query.all()
-        fnames = [f.column for f in modelFields ]      
-        response = HttpResponse(content_type='text/csv')
-        # if you want to download instead of display in browser  
-        # response['Content-Disposition'] = 'attachment; filename='+modelName+'.csv'
-        writer = csv.writer(response)
-        writer.writerow(fnames)
-        for r in results:
-            writer.writerow( [csvEncode(getattr(r,f)) for f in fnames if hasattr(r,f) ] )
-        return response
-    else :
-        if ((mode == 'query') and formset.is_valid()):  
-            resultCount = myModel.objects.filter(filters).count()
-        else :
-            resultCount = None
-        datetimefields = []
-        for x in modelFields :
-            if isinstance(x,DateTimeField) :
-                for y in range(0,formCount+1) :
-                    datetimefields.append(formsetifyFieldName(y,x.name))
-        axesform = AxesForm(modelFields,data)       
-            
-        if (not axesform.fields.get('yaxis')) :
-            ## if yaxis is not defined, then we can't really plot
-            axesform = None
-        elif ((data.get('xaxis') == None) or (data.get('xaxis') == None)) :
-            ## lame, but Django doesn't use the defined initial value when displaying as_hidden
-            ## this will mess everything up
-            ## thus, we force the initial values here.
-            ## this should only be executed when the form is blank (i.e., initially)
-            qd = data.copy()
-            qd.setdefault('xaxis',axesform.fields.get('xaxis').initial)
-            qd.setdefault('yaxis',axesform.fields.get('yaxis').initial)
-            qd.setdefault('series',axesform.fields.get('series').initial)
-            axesform = AxesForm(modelFields,qd)
+    if (not axesform.fields.get('yaxis')) :
+        ## if yaxis is not defined, then we can't really plot
+        axesform = None
+    elif ((data.get('xaxis') == None) or (data.get('xaxis') == None)) :
+        ## lame, but Django doesn't appear to use the defined initial value when displaying as_hidden
+        ## this will mess everything up
+        ## thus, we force the initial values here.
+        ## this should only be executed when the form is blank (i.e., initially)
+        qd = data.copy()
+        qd.setdefault('xaxis',axesform.fields.get('xaxis').initial)
+        qd.setdefault('yaxis',axesform.fields.get('yaxis').initial)
+        qd.setdefault('series',axesform.fields.get('series').initial)
+        axesform = AxesForm(modelFields,qd)
 
-        return render(request,'xgds_data/searchChosenModel.html', 
-                              {'title': 'Search '+modelName,
-                               'module': moduleName,
-                               'model': modelName,
-                               'debug' :  debug,
-                               'count' : resultCount,
-#                               'resultsPage': resultsPage,
-                               'datetimefields' : datetimefields,
-                               "formset" : formset,
-                               'axesform' : axesform},
-                              )
+    return render(request,'xgds_data/searchChosenModel.html', 
+                          {'title': 'Search '+modelName,
+                           'module': moduleName,
+                           'model': modelName,
+                           'debug' :  debug,
+                           'count' : resultCount,
+                           'datetimefields' : datetimefields,
+                           "formset" : formset,
+                           'axesform' : axesform},
+                          )
 
 def plotQueryResults(request, moduleName, modelName, start, end):
     """
@@ -467,11 +556,30 @@ def plotQueryResults(request, moduleName, modelName, start, end):
     
     formset = tmpFormSet(data)
     if formset.is_valid():  
+        ## a lot of this code mimics what is in searchChosenModel
+        ## should figure out a way of centralizing instead of copying
+        scorer = sortFormula(myModel,formset)
         filters = makeFilters(formset)
         objs = myModel.objects.filter(filters)
-        scorer = sortFormula(myModel,formset,objs)
         if (scorer) :
             objs = objs.extra(select={'score': scorer}, order_by = ['-score'])
+        if (scorer) :
+            ## estimate number of matches from random sample
+            cpass = 0.0
+            tableSize = objs.count()
+            thresh = sortThreshold()
+            sample = randomSample(myModel._meta.db_table,scorer,10000)
+            for x in sample :
+                if (x[0] >= thresh) :
+                    cpass = cpass + 1
+            ##query = query[0:round(tableSize*cpass/len(sample))]
+            resultCount = tableSize*cpass/len(sample)
+            ## make it look approximate
+            if (resultCount > 0) :
+                resultCount = int(round(resultCount/pow(10,floor(log10(resultCount)))) 
+                                  * pow(10,floor(log10(resultCount))))
+        else :
+            resultCount = objs.count()
         objs = objs[start:end]
         ##print(objs.query)
         ##plotdata = list(myModel.objects.filter(filters).values())
@@ -494,7 +602,7 @@ def plotQueryResults(request, moduleName, modelName, start, end):
                     x[k] = seriesValues[k][x[k]]
         
         debug = []
-        resultCount = myModel.objects.filter(filters).count()     
+        #resultCount = myModel.objects.filter(filters).count()     
         shownCount = len(pldata) 
     else:
         debug = [ (x,formset.errors[x]) for x in formset.errors ]
@@ -520,23 +628,3 @@ def plotQueryResults(request, moduleName, modelName, start, end):
                            'axesform' : axesform},
                           )
 
-
-SKIP_APP_REGEXES = [re.compile(p) for p in settings.XGDS_DATA_SEARCH_SKIP_APP_PATTERNS]
-
-
-def isSkippedApp(appName):
-    return any((r.match(appName) for r in SKIP_APP_REGEXES))
-
-
-def hasModels(appName):
-    return len(get_models(get_app(appName))) != 0
-
-
-def chooseSearchApp(request):
-    apps = [app.__name__ for app in get_apps()]
-    apps = [re.sub('\.models$', '', app) for app in apps]
-    apps = [app for app in apps
-            if (not isSkippedApp(app)) and hasModels(app)]
-    return render(request,
-                  'xgds_data/chooseSearchApp.html',
-                  {'apps': apps})

@@ -167,7 +167,7 @@ $('select[name|="series"]').change( function() { makePlot(data,names); } );
 	{% else %}
 		{{ count }}
 	{% endif %}
-	out of {{ count }} total</div>
+	out of about {{ count }} total</div>
 	{% if start|add:"0" > 0 %}
 		<input type="submit" value="Previous Records" id="prev" title="Refresh page with previous records"/>
 	{% else %}
