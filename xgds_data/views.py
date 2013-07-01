@@ -585,7 +585,7 @@ def plotQueryResults(request, moduleName, modelName, start, end):
         ##plotdata = list(myModel.objects.filter(filters).values())
         ##pldata = [x.__str__() for x in myModel.objects.filter(filters)]
         ## objs = myModel.objects.filter(filters)[5:100]
-        plotdata = [ dict([(fld.column,fld.value_from_object(x)) for fld in modelFields ]) for x in objs]
+        plotdata = [ dict([(fld.attname,fld.value_from_object(x)) for fld in modelFields ]) for x in objs]
         pldata = [x.__str__() for x in objs]
         ##pldata = [x.denominator.__str__() for x in objs]
         

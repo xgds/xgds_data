@@ -52,7 +52,7 @@ function makePlot(data,names) {
 		var s = data[i][series];
 		if (!s) {
 			// presumably this is when no series has been chosen
-			s = '<i>none given</i>';
+			s = '<i>unspecified</i>';
 		}
 		if (plotData[s] == undefined) {
 			plotData[s] = {
