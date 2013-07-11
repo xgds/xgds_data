@@ -162,10 +162,10 @@ $('select[name|="series"]').change( function() { makePlot(data,names); } );
 	<div id="legend"></div>
 	<HR>
 	<div>Plotting records {{ start|add:"1" }} through 
-	{% if count > end|add:"1" %}
-		{{ end|add:"1" }} 
+	{% if count > end|add:"0" %}
+		{{ end }} 
 	{% else %}
-		{{ count }}
+		{{ count }} 
 	{% endif %}
 	out of about {{ count }} total</div>
 	{% if start|add:"0" > 0 %}
@@ -173,7 +173,7 @@ $('select[name|="series"]').change( function() { makePlot(data,names); } );
 	{% else %}
 		<input type="submit" value="Previous Records" id="prev" title="There are no previous records" disabled/>
 	{% endif %}
-	{% if count > end|add:"1" %}
+	{% if count > end|add:"0" %}
 	 	<input type="submit" value="Next Records" id="next" title="Refresh page with next records"/>
 	{% else %}
 	 	<input type="submit" value="Next Records" id="next" title="There are no next records" disabled/> 
