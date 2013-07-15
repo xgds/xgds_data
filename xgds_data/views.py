@@ -440,7 +440,6 @@ def searchChosenModel(request, moduleName, modelName):
                     writer.writerow( [csvEncode(getattr(r,f)) for f in fnames if hasattr(r,f) ] )
                 return response
             elif (mode == 'query'):  
-                print(query.query)
                 if (scorer) :
                     ## estimate number of matches from random sample
                     cpass = 0.0
