@@ -5,14 +5,17 @@
 # __END_LICENSE__
 
 from django.conf.urls.defaults import url, patterns
+from xgds_data import views
 
 urlpatterns = patterns(
     'xgds_data.views',
 
-    url(r'^advancedSearch/$', 'searchIndex',
-        name='xgds_data_searchIndex'),
-    url(r'^advancedSearch/(?P<modelName>[^/]+)/$', 'searchModel',
-        name='xgds_data_searchModel'),
+    url(r'^$', views.index, name='index'),
+
+##    url(r'^advancedSearch/$', 'searchIndex',
+##        name='xgds_data_searchIndex'),
+##    url(r'^advancedSearch/(?P<modelName>[^/]+)/$', 'searchModel',
+##        name='xgds_data_searchModel'),
 
     url(r'^search/$', 'chooseSearchApp',
         name='xgds_data_searchChooseApp'),
@@ -25,6 +28,11 @@ urlpatterns = patterns(
     url(r'^search/plot/(?P<moduleName>[^/]+)/(?P<modelName>[^/]+)/(?P<start>\d+)/(?P<end>\d+)/$', 'plotQueryResults',
         name='xgds_data_searchPlotQueryResults'),
 
+    url(r'^similar/(?P<moduleName>[^/]+)/(?P<modelName>[^/]+)/', 'searchSimilar',
+        name='xgds_data_searchSimilar'),
+    url(r'^similar/(?P<moduleName>[^/]+)/(?P<modelName>[^/]+)/(?P<args>[^/]+)$', 'searchSimilar',
+        name='xgds_data_searchSimilar'),
+                       
     # legacy urls
     url(r'^chooseSearchModel/(?P<moduleName>[^/]+)/$', 'chooseSearchModel',
         name='xgds_data_chooseSearchModel_orig'),

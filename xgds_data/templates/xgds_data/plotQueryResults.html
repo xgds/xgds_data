@@ -109,11 +109,20 @@ function plothoverHandler(event, pos, item) {
     }
 }
 
-var foo;
 $('select[name|="xaxis"]').change( function() { makePlot(data,names); } );
 $('select[name|="yaxis"]').change( function() { makePlot(data,names); } );
 $('select[name|="series"]').change( function() { makePlot(data,names); } );
 	
+function cgiArgs(alist) {
+	var list = [];
+
+	for (name in alist) {
+		list.push( encodeURIComponent(name) + '=' + encodeURIComponent(alist[name]) );
+	}
+
+	return list.join('&');
+}
+
   var timeFields = {{ timeFields|safe }};
   var data = {{ plotData|safe }} ; 
   var names = {{ labels|safe }} ; 
@@ -121,7 +130,8 @@ $('select[name|="series"]').change( function() { makePlot(data,names); } );
   $("#results_plot").bind("plothover", plothoverHandler);
   $("#results_plot").bind("plotclick", function (event, pos, item) {
 	    if (item) {
-	        foo = data[parseInt(seriesToIndex[item.series.label][item.dataIndex])];  	
+	        var args = data[parseInt(seriesToIndex[item.series.label][item.dataIndex])];  	
+	        self.location = "{% url xgds_data_searchSimilar module model %}?"+cgiArgs(args);
 	    }
 	});
 

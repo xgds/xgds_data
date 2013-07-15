@@ -25,7 +25,7 @@ from xgds_data import settings
 from inspect import isclass, getmembers, getmodule
 from django.db.models import Q
 from django.db.models.fields import DateTimeField, DateField, DecimalField, FloatField, IntegerField, TimeField
-from django.forms.models import ModelMultipleChoiceField
+from django.forms.models import ModelMultipleChoiceField, model_to_dict
 from django.forms.fields import ChoiceField
 from django import forms
 from django.db.models import Model 
@@ -34,106 +34,13 @@ import datetime
 import calendar
 from math import pow,floor,log10
 
+def index(request):
+    return HttpResponse("Hello, world. You're at the xgds_data index.")
+
 # from django import forms ## need to get this out of here and back into form
 
-def getModelInfo(qualifiedName, model):
-    return {
-        'name': model.__name__,
-        'qualifiedName': qualifiedName
-    }
-
-SEARCH_MODELS = dict([(name, getModelByName(name))
-                      for name in settings.XGDS_DATA_SEARCH_MODELS])
-
-MODELS_INFO = [getModelInfo(qualifiedName, model)
-              for qualifiedName, model in SEARCH_MODELS.iteritems()]
-
-
-def searchIndex(request):
-    return render_to_response('xgds_data/searchIndex.html',
-                              {'models': MODELS_INFO},
-                              context_instance=RequestContext(request))
-
-
-def searchModel(request, modelName):
-    if request.method not in ('GET', 'POST'):
-        return HttpResponseNotAllowed(['GET', 'POST'])
-
-    model = SEARCH_MODELS[modelName]
-    tableName = model._meta.db_table
-    modelInfo = getModelInfo(modelName, model)
-
-    fieldLookup = dict(((field.name, field)
-                        for field in model._meta._fields()))
-    timestampField = None
-    for field in ('timestampSeconds', 'timestamp'):
-        if field in fieldLookup:
-            timestampField = field
-            break
-
-    if request.method == 'POST':
-        form = QueryForm(request.POST)
-        assert form.is_valid()
-        userQuery = form.cleaned_data['query']
-        escapedUserQuery = re.sub(r'%', '%%', userQuery)
-        mostRecentFirst = form.cleaned_data['mostRecentFirst']
-
-        prefix = 'SELECT * FROM %s ' % tableName
-        countPrefix = 'SELECT COUNT(*) FROM %s ' % tableName
-        order = ''
-        if mostRecentFirst and timestampField:
-            order += ' ORDER BY %s DESC ' % timestampField
-        limit = ' LIMIT 100'
-
-        countQuery = countPrefix + escapedUserQuery
-        sqlQuery = prefix + escapedUserQuery + order + limit
-        # escape % signs, interpreted by Django raw() as template format
-
-        styledSql = (prefix
-                     + '<span style="color: blue; font-weight: bold">%s</span>' % userQuery
-                     + order
-                     + limit)
-
-
-        try:
-            cursor = connection.cursor()
-            cursor.execute(countQuery)
-            count = cursor.fetchone()[0]
-
-            matches = list(model.objects.raw(sqlQuery))
-
-            wasError = False
-        except DatabaseError:
-            sys.stderr.write(traceback.format_exc())
-            wasError = True
-            result = {
-                'sql': styledSql,
-                'summary': 'database error!',
-                'matches': [],
-            }
-        if not wasError:
-            result = {
-                'sql': styledSql,
-                'summary': '%s matches (showing at most 100)' % count,
-                'matches': matches,
-            }
-    else:
-        # GET method
-        form = QueryForm()
-        result = None
-    return render_to_response('xgds_data/searchModel.html',
-                              {'model': modelInfo,
-                               'models': MODELS_INFO,
-                               'form': form,
-                               'result': result},
-                              context_instance=RequestContext(request))
-
-
-SKIP_APP_REGEXES = [re.compile(p) for p in settings.XGDS_DATA_SEARCH_SKIP_APP_PATTERNS]
-
-
 def isSkippedApp(appName):
-    return any((r.match(appName) for r in SKIP_APP_REGEXES))
+    return (appName.find('django') > -1)
 
 
 def hasModels(appName):
@@ -223,14 +130,15 @@ def makeFilters(formset):
                         pass
                     else :
                         negate = form.cleaned_data[base+'_operator'] == 'NOT IN'
-                        if (loval != None and hival != None and field.endswith('_lo')) :
-                            ## range query- handle on _lo to prevent from doing it twice
-                            ## this aren't simple Q objects so don't set clause variable
-                            if (negate) :
-                                negate = False
-                                subfilter &= Q(**{ base+'__lt' : loval }) | Q(**{ base+'__gt' : hival })
-                            else :
-                                subfilter &= Q(**{ base+'__gte' : loval }) & Q(**{ base+'__lte' : hival })
+                        if (loval != None and hival != None) :
+                            if (field.endswith('_lo')) :
+                                ## range query- handle on _lo to prevent from doing it twice
+                                ## this aren't simple Q objects so don't set clause variable
+                                if (negate) :
+                                    negate = False
+                                    subfilter &= Q(**{ base+'__lt' : loval }) | Q(**{ base+'__gt' : hival })
+                                else :
+                                    subfilter &= Q(**{ base+'__gte' : loval }) & Q(**{ base+'__lte' : hival })
                         elif (loval != None) :
                             clause = Q(**{ base+'__gte' : loval })
                         elif (hival != None) :
@@ -343,7 +251,6 @@ def countMatches(table,expression,where,threshold):
     sql = 'select sum({1} >= {3}) from {0} {2};'.format(table,expression,where,threshold)
     cursor = connection.cursor()
     cursor.execute(sql)
-    print(sql)
     return cursor.fetchone()[0]
     
 def medianEval(table,expression,size) :
@@ -357,8 +264,13 @@ def scoreNumeric(model,field,lorange,hirange,tableSize) :
     """
         provide a score for a numeric clause that ranges from 1 (best) to 0 (worst)
         """   
-    return "1 /(1 + {0}/{1})".format(baseScore(field,lorange,hirange),
-                        medianEval(model._meta.db_table,baseScore(field,lorange,hirange),tableSize)) 
+    median = medianEval(model._meta.db_table,baseScore(field,lorange,hirange),tableSize)
+    if (median == 0) :
+        ## would get divide by zero with standard formula below
+        ## defining 0/x == 0 always, limit of standard formula leads to special case for 0, below.
+        return "({0} = {1})".format(baseScore(field,lorange,hirange),median) 
+    else :
+        return "1 /(1 + {0}/{1})".format(baseScore(field,lorange,hirange),median) 
     #return "1-(1 + {1}) /(2 + 2 * {0})".format(baseScore(field,lorange,hirange),
     #                    medianEval(model._meta.db_table,baseScore(field,lorange,hirange),tableSize)) 
 
@@ -416,7 +328,56 @@ def divineWhereClause(pre,post):
     ## This icky hack is the best I could come up with, comparing the Django created query with filters
     ## to the same without
     return post[([ pre[i] == post[i] for i in range(0,len(pre)) ].index(False)):(len(post)-[ pre[len(pre) - i - 1] == post[len(post) - i - 1] for i in range(0,len(pre)) ].index(False))]
-                    
+
+def searchSimilar(request, moduleName, modelName):
+    """
+        Launch point for finding more items like this one
+        """
+    modelmodule = get_app(moduleName)
+    myModel = getattr(modelmodule,modelName)
+    modelFields = myModel._meta.fields
+    tmpFormClass = specializedSearchForm(myModel)
+    tmpFormSet = formset_factory(tmpFormClass, extra=0)
+    debug = []
+    if request.method == 'POST' :
+        data = request.POST;
+    else:
+        data = request.GET
+    me = myModel.objects.get(pk=data.get(myModel._meta.auto_field.attname))
+    defaults = dict()
+    aForm = tmpFormClass()
+    medict = model_to_dict(me)
+    for fld in medict.keys() :
+        if ((aForm.fields.has_key(fld+'_operator')) and (aForm.fields[fld+'_operator'].choices.count(('IN~', 'IN~')))) :
+            defaults[fld+'_operator'] = 'IN~'
+            if (aForm.fields.has_key(fld)) :
+                defaults[fld] = medict[fld]
+            if (aForm.fields.has_key(fld+'_lo')) :
+                defaults[fld+'_lo'] = medict[fld]
+            if (aForm.fields.has_key(fld+'_hi')) :
+                defaults[fld+'_hi'] = medict[fld]
+    
+    formset = tmpFormSet(initial=[defaults])
+    resultCount = None
+    datetimefields = []
+    for x in modelFields :
+        if isinstance(x,DateTimeField) :
+            for y in [0,1] :
+                datetimefields.append(formsetifyFieldName(y,x.name))
+    axesform = AxesForm(modelFields,data)  
+    
+    return render(request,'xgds_data/searchChosenModel.html', 
+                      {'title': 'Search '+modelName,
+                       'module': moduleName,
+                       'model': modelName,
+                       'debug' :  debug,
+                       'count' : resultCount,
+                       'datetimefields' : datetimefields,
+                       "formset" : formset,
+                       'axesform' : axesform},
+                      )
+
+
 def searchChosenModel(request, moduleName, modelName):
     """
         Search over the fields of the selected model
@@ -479,23 +440,24 @@ def searchChosenModel(request, moduleName, modelName):
                     writer.writerow( [csvEncode(getattr(r,f)) for f in fnames if hasattr(r,f) ] )
                 return response
             elif (mode == 'query'):  
-                    if (scorer) :
-                        ## estimate number of matches from random sample
-                        cpass = 0.0
-                        tableSize = query.count()
-                        thresh = sortThreshold()
-                        sample = randomSample(myModel._meta.db_table,scorer,10000)
-                        for x in sample :
-                            if (x[0] >= thresh) :
-                                cpass = cpass + 1
-                        ##query = query[0:round(tableSize*cpass/len(sample))]
-                        resultCount = tableSize*cpass/len(sample)
-                        ## make it look approximate
-                        if (resultCount > 0) :
-                            resultCount = int(round(resultCount/pow(10,floor(log10(resultCount)))) 
-                                              * pow(10,floor(log10(resultCount))))  
-                    else :
-                        resultCount = query.count()                   
+                print(query.query)
+                if (scorer) :
+                    ## estimate number of matches from random sample
+                    cpass = 0.0
+                    tableSize = query.count()
+                    thresh = sortThreshold()
+                    sample = randomSample(myModel._meta.db_table,scorer,10000)
+                    for x in sample :
+                        if (x[0] >= thresh) :
+                            cpass = cpass + 1
+                    ##query = query[0:round(tableSize*cpass/len(sample))]
+                    resultCount = tableSize*cpass/len(sample)
+                    ## make it look approximate
+                    if (resultCount > 0) :
+                        resultCount = int(round(resultCount/pow(10,floor(log10(resultCount)))) 
+                                          * pow(10,floor(log10(resultCount))))  
+                else :
+                    resultCount = query.count()                   
         else:
             debug = formset.errors
     else:
