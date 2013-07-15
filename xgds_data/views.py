@@ -24,7 +24,7 @@ from xgds_data import settings
                 
 from inspect import isclass, getmembers, getmodule
 from django.db.models import Q
-from django.db.models.fields import DateTimeField, DateField, DecimalField, FloatField, IntegerField, TimeField
+from django.db.models.fields import DateTimeField, DateField, PositiveIntegerField, PositiveSmallIntegerField, TimeField
 from django.forms.models import ModelMultipleChoiceField, model_to_dict
 from django.forms.fields import ChoiceField
 from django import forms
@@ -360,6 +360,14 @@ def scoreNumeric(model,field,lorange,hirange,tableSize) :
     """
         provide a score for a numeric clause that ranges from 1 (best) to 0 (worst)
         """   
+    ## Yuk ... need to convert if field is unsigned
+    unsigned = False
+    for f in model._meta.fields :
+        if ((f.attname == field) and (isinstance(f,PositiveIntegerField) or 
+                                      isinstance(f,PositiveSmallIntegerField))) :
+            unsigned = True
+    if (unsigned) :
+        field = "cast({0} as SIGNED)".format(field)
     median = medianEval(model._meta.db_table,baseScore(field,lorange,hirange),tableSize)
     if (median == 0) :
         ## would get divide by zero with standard formula below
