@@ -21,8 +21,9 @@ from django.db.models import get_app, get_apps, get_models, Min, Max
 from xgds_data.models import getModelByName
 from xgds_data.forms import QueryForm, SearchForm, AxesForm
 from xgds_data import settings
+if settings.XGDS_DATA_LOG_ENABLED :
+    from xgds_data.models import RequestLog, RequestArgument, ResponseLog, ResponseArgument, ResponseList
                 
-from inspect import isclass, getmembers, getmodule
 from django.db.models import Q
 from django.db.models.fields import DateTimeField, DateField, PositiveIntegerField, PositiveSmallIntegerField, TimeField
 from django.forms.models import ModelMultipleChoiceField, model_to_dict
@@ -32,12 +33,10 @@ from django.db.models import Model
 from django.forms.formsets import formset_factory
 import datetime
 import calendar
-from math import pow,floor,log10
+from math import pow,floor,log10,log
 
 def index(request):
     return HttpResponse("Hello, world. You're at the xgds_data index.")
-
-# from django import forms ## need to get this out of here and back into form
 
 def getModelInfo(qualifiedName, model):
     return {
@@ -433,10 +432,55 @@ def divineWhereClause(pre,post):
     ## to the same without
     return post[([ pre[i] == post[i] for i in range(0,len(pre)) ].index(False)):(len(post)-[ pre[len(pre) - i - 1] == post[len(post) - i - 1] for i in range(0,len(pre)) ].index(False))]
 
+def recordRequest(request):
+    """
+        Logs the request in the database
+        """
+    if settings.XGDS_DATA_LOG_ENABLED :
+        if request.method == 'POST' :
+            data = request.POST;
+        else:
+            data = request.GET
+        reqlog = RequestLog.create(request)
+        reqlog.save()
+        for key in data :
+            arg = RequestArgument.objects.create(request=reqlog,name=key,value=data.get(key))
+            arg.save()
+        return reqlog
+    else :
+        return None
+                      
+def recordList(reslog,results) :
+    """
+        Logs a ranked list of results
+        """
+    if settings.XGDS_DATA_LOG_ENABLED :
+        if (len(results) > 0) :
+            ranks = range(1,min(201,len(results)))
+            ranks.extend([(2**p) for p in range(8,1+int(floor(log(len(results),2))))])
+            ranks.append(len(results))
+            items = [ ResponseList(response = reslog, rank = r, fclass = str(results[r-1].__class__), fid = results[r-1].id ) \
+                     for r in ranks ]
+            ResponseList.objects.bulk_create(items)
+
+def log_and_render(request, reqlog, template, rendargs, nolog = [], listing = None):
+    """
+        Logs the response in the database and returns the rendered page
+        """
+    if settings.XGDS_DATA_LOG_ENABLED :
+        reslog = ResponseLog.objects.create(request = reqlog, template = template)
+        for key in rendargs :
+            if (nolog.count(key) == 0) :
+                ResponseArgument.objects.create(response=reslog,name=key,value=rendargs.get(key).__str__()[:1024])
+        if (listing) :
+            recordList(reslog,listing)
+    return render(request,template,rendargs)
+
 def searchSimilar(request, moduleName, modelName):
     """
         Launch point for finding more items like this one
         """
+    reqlog = recordRequest(request)
     modelmodule = get_app(moduleName)
     myModel = getattr(modelmodule,modelName)
     modelFields = myModel._meta.fields
@@ -470,22 +514,22 @@ def searchSimilar(request, moduleName, modelName):
                 datetimefields.append(formsetifyFieldName(y,x.name))
     axesform = AxesForm(modelFields,data)  
     
-    return render(request,'xgds_data/searchChosenModel.html', 
+    return log_and_render(request,reqlog,'xgds_data/searchChosenModel.html', 
                       {'title': 'Search '+modelName,
                        'module': moduleName,
                        'model': modelName,
                        'debug' :  debug,
                        'count' : resultCount,
                        'datetimefields' : datetimefields,
-                       "formset" : formset,
+                       'formset' : formset,
                        'axesform' : axesform},
-                      )
-
-
+                      nolog = ['formset','axesform'])
+    
 def searchChosenModel(request, moduleName, modelName):
     """
         Search over the fields of the selected model
         """
+    reqlog = recordRequest(request)
     modelmodule = get_app(moduleName)
     myModel = getattr(modelmodule,modelName)
     modelFields = myModel._meta.fields
@@ -542,6 +586,9 @@ def searchChosenModel(request, moduleName, modelName):
                 writer.writerow(fnames)
                 for r in results:
                     writer.writerow( [csvEncode(getattr(r,f)) for f in fnames if hasattr(r,f) ] )
+                if settings.XGDS_DATA_LOG_ENABLED :
+                    reslog = ResponseLog.objects.create(request = reqlog)
+                    recordList(reslog,results)
                 return response
             elif (mode == 'query'):  
                 if (scorer) :
@@ -586,22 +633,22 @@ def searchChosenModel(request, moduleName, modelName):
         qd.setdefault('yaxis',axesform.fields.get('yaxis').initial)
         qd.setdefault('series',axesform.fields.get('series').initial)
         axesform = AxesForm(modelFields,qd)
-
-    return render(request,'xgds_data/searchChosenModel.html', 
-                          {'title': 'Search '+modelName,
+    return log_and_render(request, reqlog, 'xgds_data/searchChosenModel.html',
+                   {'title': 'Search '+modelName,
                            'module': moduleName,
                            'model': modelName,
-                           'debug' :  debug,
+                           'debug' : debug,
                            'count' : resultCount,
                            'datetimefields' : datetimefields,
-                           "formset" : formset,
+                           'formset' : formset,
                            'axesform' : axesform},
-                          )
+                    nolog = ['formset','axesform'])
 
 def plotQueryResults(request, moduleName, modelName, start, end):
     """
         Plot the results of a query
         """
+    reqlog = recordRequest(request)
     modelmodule = __import__('.'.join([moduleName,'models'])).models
     myModel = getattr(modelmodule,modelName)
     modelFields = myModel._meta.fields
@@ -628,7 +675,6 @@ def plotQueryResults(request, moduleName, modelName, start, end):
         objs = myModel.objects.filter(filters)
         if (scorer) :
             objs = objs.extra(select={'score': scorer}, order_by = ['-score'])
-        if (scorer) :
             ## estimate number of matches from random sample
             cpass = 0.0
             tableSize = objs.count()
@@ -674,13 +720,14 @@ def plotQueryResults(request, moduleName, modelName, start, end):
         resultCount = None
         pldata = []
         plotdata = []
+        objs = []
 
     megahandler = lambda obj: calendar.timegm(obj.timetuple()) * 1000 \
             if isinstance(obj, datetime.datetime) else obj.__str__() if isinstance(obj,Model) else None
-    return render(request,'xgds_data/plotQueryResults.html', 
-                          {'plotData': json.dumps(plotdata,default=megahandler),
-                           'labels': pldata,
-                           'timeFields': json.dumps(timeFields),
+    return log_and_render(request, reqlog, 'xgds_data/plotQueryResults.html',
+                   {'plotData' : json.dumps(plotdata,default=megahandler),
+                    'labels' : pldata,
+                    'timeFields': json.dumps(timeFields),
                            'title': 'Plot '+modelName,
                            'module': moduleName,
                            'model': modelName,
@@ -691,5 +738,6 @@ def plotQueryResults(request, moduleName, modelName, start, end):
                            'showncount' : shownCount,
                            "formset" : formset,
                            'axesform' : axesform},
-                          )
+                    nolog = ['plotData','labels','formset','axesform'],
+                    listing = objs)
 

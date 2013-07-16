@@ -34,3 +34,5 @@ XGDS_DATA_SEARCH_SKIP_APP_PATTERNS = (
     r'^geocam.*',
     r'^pipeline$',
 )
+
+XGDS_DATA_LOG_ENABLED = False
