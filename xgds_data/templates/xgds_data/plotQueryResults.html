@@ -63,8 +63,19 @@ function makePlot(data,names) {
 			};
             seriesToIndex[s] = [];
 		}
-		plotData[s].data.push([ data[i][xaxis], data[i][yaxis] ]);
-        //seriesToIndex[s].push(names[i]);
+		//plotData[s].data.push([ data[i][xaxis], data[i][yaxis] ]);
+		var xval, yval;
+		if (xaxis == 'Rank') {
+			xval = i;
+		} else {
+			xval = data[i][xaxis];
+		}
+		if (yaxis == 'Rank') {
+			yval = i;
+		} else {
+			yval = data[i][yaxis];
+		}
+		plotData[s].data.push([ xval, yval ]);
 		seriesToIndex[s].push(i);
 	}
 	var plotArray = [];

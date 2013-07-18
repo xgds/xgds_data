@@ -135,7 +135,7 @@ class AxesForm(forms.Form):
             elif ((not isinstance(x,AutoField)) and (x.model.objects.values(x.name).order_by().distinct().count() <= 100)) :
                 seriesablefields.append(x);
         if (len(chartablefields) > 1) :
-            datachoices = tuple( (x.name,x.name) for x in chartablefields)
+            datachoices = tuple( (x,x) for x in ['Rank']) + tuple( (x.name,x.name) for x in chartablefields)
             serieschoices = [(None,'None')]
             for x in seriesablefields :
                 if isinstance(x,RelatedField) :
