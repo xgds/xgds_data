@@ -21,7 +21,8 @@ from django.db.models import get_app, get_apps, get_models, Min, Max
 from xgds_data.models import getModelByName
 from xgds_data.forms import QueryForm, SearchForm, AxesForm
 from xgds_data import settings
-if settings.XGDS_DATA_LOG_ENABLED :
+from xgds_data.models import logEnabled
+if logEnabled() :
     from xgds_data.models import RequestLog, RequestArgument, ResponseLog, ResponseArgument, ResponseList
                 
 from django.db.models import Q
@@ -135,6 +136,7 @@ SKIP_APP_REGEXES = [re.compile(p) for p in settings.XGDS_DATA_SEARCH_SKIP_APP_PA
 
 
 def isSkippedApp(appName):
+    ## return (appName.find('django') > -1)
     return any((r.match(appName) for r in SKIP_APP_REGEXES))
 
 
@@ -149,7 +151,7 @@ def chooseSearchApp(request):
             if (not isSkippedApp(app)) and hasModels(app)]
     return render(request,
                   'xgds_data/chooseSearchApp.html',
-                  {'apps': apps})
+                  {'title': 'Search Apps','apps': apps})
 
 
 
@@ -436,7 +438,7 @@ def recordRequest(request):
     """
         Logs the request in the database
         """
-    if settings.XGDS_DATA_LOG_ENABLED :
+    if logEnabled() :
         if request.method == 'POST' :
             data = request.POST;
         else:
@@ -454,7 +456,7 @@ def recordList(reslog,results) :
     """
         Logs a ranked list of results
         """
-    if settings.XGDS_DATA_LOG_ENABLED :
+    if logEnabled() :
         if (len(results) > 0) :
             ranks = range(1,min(201,len(results)))
             ranks.extend([(2**p) for p in range(8,1+int(floor(log(len(results),2))))])
@@ -467,7 +469,7 @@ def log_and_render(request, reqlog, template, rendargs, nolog = [], listing = No
     """
         Logs the response in the database and returns the rendered page
         """
-    if settings.XGDS_DATA_LOG_ENABLED :
+    if logEnabled() :
         reslog = ResponseLog.objects.create(request = reqlog, template = template)
         for key in rendargs :
             if (nolog.count(key) == 0) :
@@ -586,7 +588,7 @@ def searchChosenModel(request, moduleName, modelName):
                 writer.writerow(fnames)
                 for r in results:
                     writer.writerow( [csvEncode(getattr(r,f)) for f in fnames if hasattr(r,f) ] )
-                if settings.XGDS_DATA_LOG_ENABLED :
+                if logEnabled() :
                     reslog = ResponseLog.objects.create(request = reqlog)
                     recordList(reslog,results)
                 return response

@@ -10,6 +10,9 @@ from django.db import models
 from datetime import datetime
 from xgds_data import settings
 
+def logEnabled():
+    return (hasattr(settings, 'XGDS_DATA_LOG_ENABLED') and 
+            settings.XGDS_DATA_LOG_ENABLED)
 
 def getModelByName(name):
     appName, modelName = name.split('.', 1)
@@ -32,7 +35,7 @@ def get_client_ip(request):
         ip = request.META.get('REMOTE_ADDR')
     return ip
 
-if settings.XGDS_DATA_LOG_ENABLED :
+if logEnabled() :
     class RequestLog(models.Model):
         timestampSeconds = models.DateTimeField(blank=False, default=datetime.utcnow())
         path = models.CharField(max_length=256, blank=False)

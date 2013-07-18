@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 {% load nav %}
-{% block siteSection %}{{ siteSection }}{% endblock %}
+{% block siteSection %}{{ title }}{% endblock %}
 {% block nav %}
    {{ block.super }}
    {% endblock %}
@@ -13,7 +13,7 @@
 
 
 {% block contents %}
-<h2>{{ siteSection }}</h2>
+<h2>{{ title }}</h2>
 Pick app to search:
 <ul>
 {% for app in apps %}
