@@ -188,12 +188,7 @@ function cgiArgs(alist) {
 	<div id="results_plot" style="width:800px;height:450px"></div>
 	<div id="legend"></div>
 	<HR>
-	<div>Plotting records {{ start|add:"1" }} through 
-	{% if count > end|add:"0" %}
-		{{ end }} 
-	{% else %}
-		{{ count }} 
-	{% endif %}
+	<div>Plotting records {{ start|add:"1" }} through {{ start|add:showncount }} 
 	out of about {{ count }} total</div>
 	{% if start|add:"0" > 0 %}
 		<input type="submit" value="Previous Records" id="prev" title="Refresh page with previous records"/>

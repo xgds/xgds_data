@@ -199,7 +199,7 @@ def formsetifyFieldName(i,fname):
         """
     return '-'.join(['form',str(i),fname])
 
-def makeFilters(formset):
+def makeFilters(formset,soft=True):
     """
         Helper for searchChosenModel; figures out restrictions given a formset
         """
@@ -222,7 +222,7 @@ def makeFilters(formset):
                     loval = form.cleaned_data[base+'_lo']
                     hival = form.cleaned_data[base+'_hi']                    
                     operator = form.cleaned_data[base+'_operator']
-                    if (operator == 'IN~') :
+                    if ((operator == 'IN~') and soft) :
                         ## this isn't a restriction, so ignore
                         pass
                     else :
@@ -346,9 +346,27 @@ def countMatches(table,expression,where,threshold):
         Get the full count of records matching the restriction; can be slow
         """
     sql = 'select sum({1} >= {3}) from {0} {2};'.format(table,expression,where,threshold)
+    print(sql)
     cursor = connection.cursor()
     cursor.execute(sql)
     return cursor.fetchone()[0]
+
+def countApproxMatches(table,scorer,maxSize,threshold):
+    """
+        Take a guess as to how many records match by examining a random sample
+        """
+    cpass = 0.0
+    sample = randomSample(table,scorer,10000)
+    for x in sample :
+        if (x[0] >= threshold) :
+            cpass = cpass + 1
+    ##query = query[0:round(maxSize*cpass/len(sample))]
+    resultCount = maxSize*cpass/len(sample)
+    ## make it look approximate
+    if (resultCount > 0) :
+        resultCount = int(round(resultCount/pow(10,floor(log10(resultCount)))) 
+                          * pow(10,floor(log10(resultCount)))) 
+    return resultCount
     
 def medianEval(table,expression,size) :
     """
@@ -546,7 +564,12 @@ def searchChosenModel(request, moduleName, modelName):
     mode = data.get('mode',False)
     filters = None
     resultCount = None
-    
+    hardCount = None
+    soft = True
+    if (mode == 'csvhard') :
+        soft = False
+        mode = 'csv'
+
     if (mode == 'addform') :
         formCount = int(data['form-TOTAL_FORMS'])
         ## this is very strange, but the extra forms don't come up with the right defaults
@@ -567,8 +590,9 @@ def searchChosenModel(request, moduleName, modelName):
         formCount = int(data['form-TOTAL_FORMS'])
         formset = tmpFormSet(data)
         if formset.is_valid():              
-            filters = makeFilters(formset)
+            filters = makeFilters(formset,soft)
             query = myModel.objects.filter(filters)
+            hardquery = myModel.objects.filter(makeFilters(formset,False))
             scorer = sortFormula(myModel, formset)
             if (scorer) :
                 query = query.extra(select={'score': scorer}, order_by = ['-score'])
@@ -594,22 +618,11 @@ def searchChosenModel(request, moduleName, modelName):
                 return response
             elif (mode == 'query'):  
                 if (scorer) :
-                    ## estimate number of matches from random sample
-                    cpass = 0.0
-                    tableSize = query.count()
-                    thresh = sortThreshold()
-                    sample = randomSample(myModel._meta.db_table,scorer,10000)
-                    for x in sample :
-                        if (x[0] >= thresh) :
-                            cpass = cpass + 1
-                    ##query = query[0:round(tableSize*cpass/len(sample))]
-                    resultCount = tableSize*cpass/len(sample)
-                    ## make it look approximate
-                    if (resultCount > 0) :
-                        resultCount = int(round(resultCount/pow(10,floor(log10(resultCount)))) 
-                                          * pow(10,floor(log10(resultCount))))  
+                    resultCount = countApproxMatches(myModel._meta.db_table,scorer,query.count(),sortThreshold())
+                    hardCount = hardquery.count() 
                 else :
-                    resultCount = query.count()                   
+                    resultCount = query.count() 
+                    hardCount = resultCount                  
         else:
             debug = formset.errors
     else:
@@ -641,12 +654,13 @@ def searchChosenModel(request, moduleName, modelName):
                            'model': modelName,
                            'debug' : debug,
                            'count' : resultCount,
+                           'exactCount' : hardCount,
                            'datetimefields' : datetimefields,
                            'formset' : formset,
                            'axesform' : axesform},
                     nolog = ['formset','axesform'])
 
-def plotQueryResults(request, moduleName, modelName, start, end):
+def plotQueryResults(request, moduleName, modelName, start, end, soft=True):
     """
         Plot the results of a query
         """
@@ -660,6 +674,7 @@ def plotQueryResults(request, moduleName, modelName, start, end):
         data = request.POST;
     else:
         data = request.GET
+    soft = (soft == True) or (soft == 'True')
     
     axesform = AxesForm(modelFields,data);
     timeFields = []
@@ -673,27 +688,19 @@ def plotQueryResults(request, moduleName, modelName, start, end):
         ## a lot of this code mimics what is in searchChosenModel
         ## should figure out a way of centralizing instead of copying
         scorer = sortFormula(myModel,formset)
-        filters = makeFilters(formset)
+        filters = makeFilters(formset,soft)
         objs = myModel.objects.filter(filters)
         if (scorer) :
             objs = objs.extra(select={'score': scorer}, order_by = ['-score'])
-            ## estimate number of matches from random sample
-            cpass = 0.0
-            tableSize = objs.count()
-            thresh = sortThreshold()
-            sample = randomSample(myModel._meta.db_table,scorer,10000)
-            for x in sample :
-                if (x[0] >= thresh) :
-                    cpass = cpass + 1
-            ##query = query[0:round(tableSize*cpass/len(sample))]
-            resultCount = tableSize*cpass/len(sample)
-            ## make it look approximate
-            if (resultCount > 0) :
-                resultCount = int(round(resultCount/pow(10,floor(log10(resultCount)))) 
-                                  * pow(10,floor(log10(resultCount))))
+            ## resultCount = countApproxMatches(myModel._meta.db_table,scorer,objs.count(),sortThreshold())
+            resultCount = countMatches(myModel._meta.db_table,
+                                                     scorer,
+                                                     divineWhereClause(myModel.objects.all().query.__str__(),
+                                                                       myModel.objects.filter(filters).query.__str__()),
+                                                     sortThreshold())
         else :
             resultCount = objs.count()
-        objs = objs[start:end]
+        objs = objs[start:min(end,resultCount)]
         ##print(objs.query)
         ##plotdata = list(myModel.objects.filter(filters).values())
         ##pldata = [x.__str__() for x in myModel.objects.filter(filters)]

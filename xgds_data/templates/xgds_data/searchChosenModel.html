@@ -32,8 +32,15 @@ $("#query").click(function() {
 $("#csv").click(function() {
 	submitform('csv');
 });
+$("#csvhard").click(function() {
+	submitform('csvhard');
+});
 $("#plot").click(function() {
 	document.QueryForm.action = "{% url xgds_data_searchPlotQueryResults module model 0 10000 %}";
+	document.QueryForm.submit();
+});
+$("#plothard").click(function() {
+	document.QueryForm.action = "{% url xgds_data_searchPlotQueryResults module model 'exact' 0 10000 %}";
 	document.QueryForm.submit();
 });
   </script>
@@ -65,24 +72,54 @@ $("#plot").click(function() {
     <table>
 	{{ form.as_table }}
     </table>
-    <HR>
+ 
 {% endfor %}
 
 <input type="submit" value="Search" id="query" />
 <input type="submit" value="Add Disjunction" id="addform" /> 
     
 {% if count %}
-    <input type="submit" value="Download CSV" id="csv" /> 
+	<HR>
+	About {{ count }} matching records
+	{% if exactCount == 0 %}
+		(no
+	{% else %}
+		({{ exactCount }}
+	{% endif %}
+	exact
+	{% if exactCount == 1 %}
+		match)
+	{% else %}
+		matches)
+	{% endif %}
+	<BR />
+	{% if count > 0 %}
+    	<input type="submit" value="Download All Matches" id="csv" />
+    {% else %}
+    	<input type="submit" value="Download All Matches" id="csv" disabled />
+    {% endif %}
+    {% if exactCount > 0 %}
+    	<input type="submit" value="Download Exact Matches" id="csvhard" />
+    {% else %}
+    	<input type="submit" value="Download Exact Matches" id="csvhard" disabled />
+    {% endif %}
     {% if axesform %}
 	    {% if count > 10000 %}
-	    <input type="submit" value="Plot First 10000 Results" id="plot" title="Plot limited to 10000 records" /> 
+	    	<input type="submit" value="Plot Matches" id="plot" title="Plot limited to 10000 records" /> 
+	    {% elif count > 0 %}
+	    	<input type="submit" value="Plot Matches" id="plot"/> 
 	    {% else %}
-	    <input type="submit" value="Plot Results" id="plot"/> 
+	    	<input type="submit" value="Plot Matches" id="plot" disabled /> 
+	    {% endif %}
+	    {% if exactCount > 10000 %}
+	    	<input type="submit" value="Plot Exact Matches" id="plothard" title="Plot limited to 10000 records" /> 
+	    {% elif exactCount > 0 %}
+	    	<input type="submit" value="Plot Exact Matches" id="plothard"/> 
+	    {% else %}
+	    	<input type="submit" value="Plot Exact Matches" id="plothard" disabled />
 	    {% endif %}
     {% endif %}
-	<HR>
-	About {{ count }} records found <BR />
-	
+    	
 	{% if resultsPage %}
 		{% if resultsPage.has_previous %}
 			{{resultsPage.previous_page_number}}>
@@ -97,7 +134,7 @@ $("#plot").click(function() {
 
 {% elif formset.cleaned_data %}
 	<HR>
-	No records found 
+	No records match 
 {% endif %}
 </form>
 
