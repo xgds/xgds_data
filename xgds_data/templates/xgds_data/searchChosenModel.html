@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% load url from future %}
 {% load nav %}
 {% block siteSection %}{{ title }}{% endblock %}
 {% block nav %}
@@ -36,11 +37,11 @@ $("#csvhard").click(function() {
 	submitform('csvhard');
 });
 $("#plot").click(function() {
-	document.QueryForm.action = "{% url xgds_data_searchPlotQueryResults module model 0 10000 %}";
+	document.QueryForm.action = "{% url 'xgds_data_searchPlotQueryResults' module model 0 10000 %}";
 	document.QueryForm.submit();
 });
 $("#plothard").click(function() {
-	document.QueryForm.action = "{% url xgds_data_searchPlotQueryResults module model 'exact' 0 10000 %}";
+	document.QueryForm.action = "{% url 'xgds_data_searchPlotQueryResults' module model 'exact' 0 10000 %}";
 	document.QueryForm.submit();
 });
   </script>
@@ -58,7 +59,7 @@ $("#plothard").click(function() {
 {% for d in debug %}
 	<span>{{ d }}</span>
 {% endfor %}
-<form name='QueryForm' action="{% url xgds_data_searchChosenModel module model %}" method="post">
+<form name='QueryForm' action="{% url 'xgds_data_searchChosenModel' module model %}" method="post">
   <input type="hidden" name="mode" value="query">
   
 {% if axesform %}

@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% load url from future %}
 {% load nav %}
 {% block siteSection %}{{ title }}{% endblock %}
 {% block nav %}
@@ -17,7 +18,7 @@
 Pick app to search:
 <ul>
 {% for app in apps %}
-  <li class="navLink"><a href="{% url xgds_data_searchChooseModel app %}">{{ app }}</a></li>
+  <li class="navLink"><a href="{% url 'xgds_data_searchChooseModel' app %}">{{ app }}</a></li>
 {% endfor %}
 </ul>
 {% endblock %}

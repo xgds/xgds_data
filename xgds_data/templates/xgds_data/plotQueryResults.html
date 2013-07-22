@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% load url from future %}
 {% load nav %}
 {% block siteSection %}{{ title }}{% endblock %}
 {% block nav %}
@@ -142,7 +143,7 @@ function cgiArgs(alist) {
   $("#results_plot").bind("plotclick", function (event, pos, item) {
 	    if (item) {
 	        var args = data[parseInt(seriesToIndex[item.series.label][item.dataIndex])];  	
-	        self.location = "{% url xgds_data_searchSimilar module model %}?"+cgiArgs(args);
+	        self.location = "{% url 'xgds_data_searchSimilar' module model %}?"+cgiArgs(args);
 	    }
 	});
 
@@ -157,7 +158,7 @@ function cgiArgs(alist) {
 {% for d in debug %}
 <span>{{ d }}</span>
 {% endfor %}
-<form name='PlotForm' action="{% url xgds_data_searchPlotQueryResults module model %}" method="post">
+<form name='PlotForm' action="{% url 'xgds_data_searchPlotQueryResults' module model %}" method="post">
   <input type="hidden" name="mode" value="query">
     {{ formset.management_form }}
     {% for form in formset %}
