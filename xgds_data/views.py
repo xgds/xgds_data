@@ -358,7 +358,6 @@ def countMatches(table,expression,where,threshold):
         Get the full count of records matching the restriction; can be slow
         """
     sql = 'select sum({1} >= {3}) from {0} {2};'.format(table,expression,where,threshold)
-    print(sql)
     cursor = connection.cursor()
     cursor.execute(sql)
     return cursor.fetchone()[0]
@@ -676,6 +675,8 @@ def plotQueryResults(request, moduleName, modelName, start, end, soft=True):
     """
         Plot the results of a query
         """
+    start = int(start)
+    end = int(end)
     reqlog = recordRequest(request)
     modelmodule = __import__('.'.join([moduleName,'models'])).models
     myModel = getattr(modelmodule,modelName)
@@ -704,7 +705,7 @@ def plotQueryResults(request, moduleName, modelName, start, end, soft=True):
         objs = myModel.objects.filter(filters)
         if (scorer) :
             objs = objs.extra(select={'score': scorer}, order_by = ['-score'])
-            ## resultCount = countApproxMatches(myModel._meta.db_table,scorer,objs.count(),sortThreshold())
+            ##resultCount = countApproxMatches(myModel._meta.db_table,scorer,objs.count(),sortThreshold())
             resultCount = countMatches(myModel._meta.db_table,
                                                      scorer,
                                                      divineWhereClause(myModel.objects.all().query.__str__(),
