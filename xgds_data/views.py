@@ -36,8 +36,13 @@ import datetime
 import calendar
 from math import pow,floor,log10,log
 
+from itertools import chain
+
 def index(request):
     return HttpResponse("Hello, world. You're at the xgds_data index.")
+
+def hasModels(appName):
+    return len(get_models(get_app(appName))) != 0
 
 def getModelInfo(qualifiedName, model):
     return {
@@ -45,8 +50,28 @@ def getModelInfo(qualifiedName, model):
         'qualifiedName': qualifiedName
     }
 
-SEARCH_MODELS = dict([(name, getModelByName(name))
-                      for name in settings.XGDS_DATA_SEARCH_MODELS])
+if (hasattr(settings, 'XGDS_DATA_SEARCH_SKIP_APP_PATTERNS')) :
+    SKIP_APP_REGEXES = [re.compile(p) for p in settings.XGDS_DATA_SEARCH_SKIP_APP_PATTERNS]
+    
+def isSkippedApp(appName):
+    try :
+        return any((r.match(appName) for r in SKIP_APP_REGEXES))
+    except NameError:
+        return (appName.find('django') > -1)
+    
+def searchModelsDefault():
+    """
+        Pick out some reasonable search models if none were explicitly listed
+        """
+    nestedModels = [get_models(app) for app in get_apps() 
+              if not isSkippedApp(app.__name__) and len(get_models(app)) != 0]
+    return dict([(model.__name__, model) for model in list(chain(*nestedModels)) if not model._meta.abstract ])
+    
+if (hasattr(settings, 'XGDS_DATA_SEARCH_MODELS')) :
+    SEARCH_MODELS = dict([(name, getModelByName(name))
+                          for name in settings.XGDS_DATA_SEARCH_MODELS])
+else :
+    SEARCH_MODELS = searchModelsDefault()
 
 MODELS_INFO = [getModelInfo(qualifiedName, model)
               for qualifiedName, model in SEARCH_MODELS.iteritems()]
@@ -130,19 +155,6 @@ def searchModel(request, modelName):
                                'form': form,
                                'result': result},
                               context_instance=RequestContext(request))
-
-
-SKIP_APP_REGEXES = [re.compile(p) for p in settings.XGDS_DATA_SEARCH_SKIP_APP_PATTERNS]
-
-
-def isSkippedApp(appName):
-    ## return (appName.find('django') > -1)
-    return any((r.match(appName) for r in SKIP_APP_REGEXES))
-
-
-def hasModels(appName):
-    return len(get_models(get_app(appName))) != 0
-
 
 def chooseSearchApp(request):
     apps = [app.__name__ for app in get_apps()]

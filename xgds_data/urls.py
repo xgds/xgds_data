@@ -12,10 +12,10 @@ urlpatterns = patterns(
 
     url(r'^$', views.index, name='index'),
 
-##    url(r'^advancedSearch/$', 'searchIndex',
-##        name='xgds_data_searchIndex'),
-##    url(r'^advancedSearch/(?P<modelName>[^/]+)/$', 'searchModel',
-##        name='xgds_data_searchModel'),
+    url(r'^advancedSearch/$', 'searchIndex',
+        name='xgds_data_searchIndex'),
+    url(r'^advancedSearch/(?P<modelName>[^/]+)/$', 'searchModel',
+        name='xgds_data_searchModel'),
 
     url(r'^search/$', 'chooseSearchApp',
         name='xgds_data_searchChooseApp'),
