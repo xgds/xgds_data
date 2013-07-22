@@ -81,17 +81,21 @@ $("#plothard").click(function() {
     
 {% if count %}
 	<HR>
-	About {{ count }} matching records
-	{% if exactCount == 0 %}
-		(no
+	{% if count == exactCount %}
+		{{ count }} matching records
 	{% else %}
-		({{ exactCount }}
-	{% endif %}
-	exact
-	{% if exactCount == 1 %}
-		match)
-	{% else %}
-		matches)
+		About {{ count }} matching records
+		{% if exactCount == 0 %}
+			(no
+		{% else %}
+			({{ exactCount }}
+		{% endif %}
+		exact
+		{% if exactCount == 1 %}
+			match)
+		{% else %}
+			matches)
+		{% endif %}
 	{% endif %}
 	<BR />
 	{% if count > 0 %}
@@ -99,10 +103,12 @@ $("#plothard").click(function() {
     {% else %}
     	<input type="submit" value="Download All Matches" id="csv" disabled />
     {% endif %}
-    {% if exactCount > 0 %}
-    	<input type="submit" value="Download Exact Matches" id="csvhard" />
-    {% else %}
-    	<input type="submit" value="Download Exact Matches" id="csvhard" disabled />
+    {% if count != exactCount %}
+	    {% if exactCount > 0 %}
+	    	<input type="submit" value="Download Exact Matches" id="csvhard" />
+	    {% else %}
+	    	<input type="submit" value="Download Exact Matches" id="csvhard" disabled />
+	    {% endif %}
     {% endif %}
     {% if axesform %}
 	    {% if count > 10000 %}
@@ -112,12 +118,14 @@ $("#plothard").click(function() {
 	    {% else %}
 	    	<input type="submit" value="Plot Matches" id="plot" disabled /> 
 	    {% endif %}
-	    {% if exactCount > 10000 %}
-	    	<input type="submit" value="Plot Exact Matches" id="plothard" title="Plot limited to 10000 records" /> 
-	    {% elif exactCount > 0 %}
-	    	<input type="submit" value="Plot Exact Matches" id="plothard"/> 
-	    {% else %}
-	    	<input type="submit" value="Plot Exact Matches" id="plothard" disabled />
+	    {% if count != exactCount %}
+		    {% if exactCount > 10000 %}
+		    	<input type="submit" value="Plot Exact Matches" id="plothard" title="Plot limited to 10000 records" /> 
+		    {% elif exactCount > 0 %}
+		    	<input type="submit" value="Plot Exact Matches" id="plothard"/> 
+		    {% else %}
+		    	<input type="submit" value="Plot Exact Matches" id="plothard" disabled />
+		    {% endif %}
 	    {% endif %}
     {% endif %}
     	
