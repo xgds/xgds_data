@@ -357,7 +357,11 @@ def countMatches(table,expression,where,threshold):
     """
         Get the full count of records matching the restriction; can be slow
         """
-    sql = 'select sum({1} >= {3}) from {0} {2};'.format(table,expression,where,threshold)
+    if (where) :
+        sql = 'select sum({1} >= {3}) from {0} {2};'.format(table,expression,where,threshold)
+    else :
+        sql = 'select sum({1} >= {2}) from {0};'.format(table,expression,threshold) 
+    print(sql)
     cursor = connection.cursor()
     cursor.execute(sql)
     return cursor.fetchone()[0]
@@ -461,7 +465,11 @@ def divineWhereClause(pre,post):
     ## unfortunately there did not appear to be an easy way to do this
     ## This icky hack is the best I could come up with, comparing the Django created query with filters
     ## to the same without
-    return post[([ pre[i] == post[i] for i in range(0,len(pre)) ].index(False)):(len(post)-[ pre[len(pre) - i - 1] == post[len(post) - i - 1] for i in range(0,len(pre)) ].index(False))]
+    if (pre == post) :
+        ## should mean that there is no where clause
+        return None
+    else :
+        return post[([ pre[i] == post[i] for i in range(0,len(pre)) ].index(False)):(len(post)-[ pre[len(pre) - i - 1] == post[len(post) - i - 1] for i in range(0,len(pre)) ].index(False))]
 
 def recordRequest(request):
     """
