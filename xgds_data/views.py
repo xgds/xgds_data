@@ -26,9 +26,12 @@ if logEnabled() :
     from xgds_data.models import RequestLog, RequestArgument, ResponseLog, ResponseArgument, ResponseList
                 
 from django.db.models import Q
-from django.db.models.fields import DateTimeField, DateField, PositiveIntegerField, PositiveSmallIntegerField, TimeField
+from django.db.models.fields import DateTimeField, DateField, PositiveIntegerField, PositiveSmallIntegerField, TimeField, related
+from django.db.models.fields.related import ForeignKey
 from django.forms.models import ModelMultipleChoiceField, model_to_dict
-from django.forms.fields import ChoiceField
+import django.forms.fields
+#from django.forms.fields import ChoiceField
+#from django.forms.fields import DateTimeField
 from django import forms
 from django.db.models import Model 
 from django.forms.formsets import formset_factory
@@ -37,6 +40,8 @@ import calendar
 from math import pow,floor,log10,log
 
 from itertools import chain
+from django.core.paginator import Paginator
+from django.utils.html import escape
 
 def index(request):
     return HttpResponse("Hello, world. You're at the xgds_data index.")
@@ -211,6 +216,62 @@ def formsetifyFieldName(i,fname):
         """
     return '-'.join(['form',str(i),fname])
 
+def divineWhereClause(myModel,filters,formset):
+    """
+        Pulls out the where clause and quotes the likely literals. Probably really brittle and should be replaced
+        """
+    post = str(myModel.objects.filter(filters).query)
+    wherestart = post.find(' WHERE ')
+    newwhere = ' WHERE '
+    for seg in re.compile("( [AO][NR]D? )").split(post[(wherestart+7):]) :
+        eqpos = seg.find('= ')
+        if (eqpos > -1) :
+            quotable = seg.rstrip(') ')[(eqpos+1):].strip()
+            quotepos = seg.find(quotable)
+            newseg = seg[:quotepos]+'"'+quotable+'"'+seg[(quotepos+len(quotable)):]
+        else :
+            newseg = seg
+        newwhere = newwhere + newseg
+        
+    return newwhere
+
+
+def walkQ(qstmt):
+    """
+        A somewhat aborted attempt to piece together the corresponding sql from a Q object
+        """
+    if (isinstance(qstmt,Q)) :
+        con = ' '+qstmt.connector+' '
+        return '('+con.join([walkQ(x) for x in qstmt.children])+')'
+    elif (isinstance(qstmt,tuple)) :
+        subjpred,obj = qstmt
+        doubleunderscorepos = subjpred.rfind('__')
+        if (doubleunderscorepos) :
+            subj = subjpred[:(doubleunderscorepos)]
+            pred = subjpred[(doubleunderscorepos+2):]
+            if (pred == 'lt') :
+                pred = '<'
+            elif (pred == 'gt') :
+                pred = '>'
+            elif (pred == 'gte') :
+                pred = '>='
+            elif (pred == 'lte') :
+                pred = '<='
+            elif (pred == 'in') :
+                pred = 'IN'
+            elif (pred == 'exact') :
+                pred = '='
+            elif (pred == 'icontains') :
+                pred = 'ILIKE'
+            if (not isinstance(obj, (int, long, float, complex))) :
+                obj = '"' + str(obj) + '"'
+            return '(' + ' '.join([subj,pred,str(obj)]) + ')'
+        else :
+            print("Cannot parse Q statement: "+str(qstmt))
+    else :
+        print("Encountered unexpected type"+qstmt.__class__)
+        return '1 != 1'
+    
 def makeFilters(formset,soft=True):
     """
         Helper for searchChosenModel; figures out restrictions given a formset
@@ -350,6 +411,7 @@ def randomSample(table,expression,size,offset = None, limit = None) :
         sql = 'select {1} as score from {0} JOIN ({2}) AS r2 USING (id) order by score limit {3},{4};'.format(
             table,expression,randselect,offset,limit )
     cursor = connection.cursor()
+    ## print(sql)
     cursor.execute(sql)
     return cursor.fetchall()
 
@@ -357,11 +419,11 @@ def countMatches(table,expression,where,threshold):
     """
         Get the full count of records matching the restriction; can be slow
         """
+    cursor = connection.cursor()
     if (where) :
         sql = 'select sum({1} >= {3}) from {0} {2};'.format(table,expression,where,threshold)
     else :
         sql = 'select sum({1} >= {2}) from {0};'.format(table,expression,threshold) 
-    cursor = connection.cursor()
     cursor.execute(sql)
     return cursor.fetchone()[0]
 
@@ -377,9 +439,11 @@ def countApproxMatches(table,scorer,maxSize,threshold):
     ##query = query[0:round(maxSize*cpass/len(sample))]
     resultCount = maxSize*cpass/len(sample)
     ## make it look approximate
-    if (resultCount > 0) :
+    if (resultCount > 10) :
         resultCount = int(round(resultCount/pow(10,floor(log10(resultCount)))) 
                           * pow(10,floor(log10(resultCount)))) 
+    elif (resultCount > 0) :
+        resultCount = 10
     return resultCount
     
 def medianEval(table,expression,size) :
@@ -387,7 +451,10 @@ def medianEval(table,expression,size) :
         Quick mysql-y way of estimating the median from a sample
         """
     sampleSize = min(size,1000)
-    return randomSample(table,expression,sampleSize,sampleSize/2,1)[0][0]
+    result = ()
+    while (len(result) == 0) :
+        result = randomSample(table,expression,sampleSize,sampleSize/2,1)
+    return result[0][0]
 
 def scoreNumeric(model,field,lorange,hirange,tableSize) :
     """
@@ -399,6 +466,9 @@ def scoreNumeric(model,field,lorange,hirange,tableSize) :
         if ((f.attname == field) and (isinstance(f,PositiveIntegerField) or 
                                       isinstance(f,PositiveSmallIntegerField))) :
             unsigned = True
+    ## Add table designation to properly resolve a field name that has another SQL interpretation
+    ## (for instance, a field name 'long')
+    field = model._meta.db_table + '.' + field
     if (unsigned) :
         field = "cast({0} as SIGNED)".format(field)
     median = medianEval(model._meta.db_table,baseScore(field,lorange,hirange),tableSize)
@@ -452,24 +522,7 @@ def sortThreshold() :
         """
     ## rather arbitrary cutoff, which would return 30% of results if scores are uniform
     return 0.7
-
-def divineWhereClause(pre,post):
-    """
-        Extracts the where clause from post by comparing it to pre, which should be the same query without filters. Probably brittle.
-        """
-    ## this disgusting function is the culmination of hours of frustration
-    ## Sometimes raw sql is needed, for instance, counting the records that have a certain computed value
-    ## Since I already had code that created Django filters, I wanted to get the corresponding SQL of the
-    ## where clause rather than duplicate that logic in generating raw SQL.
-    ## unfortunately there did not appear to be an easy way to do this
-    ## This icky hack is the best I could come up with, comparing the Django created query with filters
-    ## to the same without
-    if (pre == post) :
-        ## should mean that there is no where clause
-        return None
-    else :
-        return post[([ pre[i] == post[i] for i in range(0,len(pre)) ].index(False)):(len(post)-[ pre[len(pre) - i - 1] == post[len(post) - i - 1] for i in range(0,len(pre)) ].index(False))]
-
+    
 def recordRequest(request):
     """
         Logs the request in the database
@@ -529,15 +582,20 @@ def searchSimilar(request, moduleName, modelName):
         data = request.POST;
     else:
         data = request.GET
-    me = myModel.objects.get(pk=data.get(myModel._meta.auto_field.attname))
+    me = myModel.objects.get(pk=data.get(myModel._meta.pk.attname))
     defaults = dict()
     aForm = tmpFormClass()
     medict = model_to_dict(me)
+    
     for fld in medict.keys() :
-        if ((aForm.fields.has_key(fld+'_operator')) and (aForm.fields[fld+'_operator'].choices.count(('IN~', 'IN~')))) :
-            defaults[fld+'_operator'] = 'IN~'
+#        if ((aForm.fields.has_key(fld+'_operator')) and (aForm.fields[fld+'_operator'].choices.count(('IN~', 'IN~')))) :
+        if (aForm.fields.has_key(fld+'_operator')) :
+            if (aForm.fields[fld+'_operator'].choices.count(('IN~', 'IN~'))) :
+                defaults[fld+'_operator'] = 'IN~'
+            else :
+                defaults[fld+'_operator'] = '='
             if (aForm.fields.has_key(fld)) :
-                defaults[fld] = medict[fld]
+                defaults[fld] = str(medict[fld])
             if (aForm.fields.has_key(fld+'_lo')) :
                 defaults[fld+'_lo'] = medict[fld]
             if (aForm.fields.has_key(fld+'_hi')) :
@@ -550,9 +608,12 @@ def searchSimilar(request, moduleName, modelName):
         if isinstance(x,DateTimeField) :
             for y in [0,1] :
                 datetimefields.append(formsetifyFieldName(y,x.name))
-    axesform = AxesForm(modelFields,data)  
+    axesform = AxesForm(modelFields,data)
+    template = 'xgds_data/searchChosenModel.html'
+    if (hasattr(settings, 'XGDS_DATA_SEARCH_TEMPLATES')) :
+        template = settings.XGDS_DATA_SEARCH_TEMPLATES.get(modelName,template)
     
-    return log_and_render(request,reqlog,'xgds_data/searchChosenModel.html', 
+    return log_and_render(request,reqlog,template, 
                       {'title': 'Search '+modelName,
                        'module': moduleName,
                        'model': modelName,
@@ -580,6 +641,9 @@ def searchChosenModel(request, moduleName, modelName):
         data = request.GET
     formCount = 1
     mode = data.get('mode',False)
+    page = data.get('pageno',1)
+    results = None
+    resultsPage = None
     filters = None
     resultCount = None
     hardCount = None
@@ -598,7 +662,7 @@ def searchChosenModel(request, moduleName, modelName):
             if isinstance(field,ModelMultipleChoiceField) :
                 val = [ unicode(x.id) for x in field.initial ]
                 newdata.setlist(formsetifyFieldName(formCount,fname),val)
-            elif ((not isinstance(field,ChoiceField)) & (not field.initial)) :
+            elif ((not isinstance(field,forms.ChoiceField)) & (not field.initial)) :
                 newdata[formsetifyFieldName(formCount,fname)] = unicode('')
             else :
                 newdata[formsetifyFieldName(formCount,fname)] = unicode(field.initial)
@@ -617,11 +681,11 @@ def searchChosenModel(request, moduleName, modelName):
             if (mode == 'csv'):                
                 results = query.all()
                 if (scorer) :
-                    results = results[0:countMatches(myModel._meta.db_table,
-                                                     scorer,
-                                                     divineWhereClause(myModel.objects.all().query.__str__(),
-                                                                       myModel.objects.filter(filters).query.__str__()),
-                                                     sortThreshold())]
+                    limit = countMatches(myModel._meta.db_table,
+                                 scorer,
+                                 divineWhereClause(myModel,filters,formset),
+                                 sortThreshold())
+                    results = results[0:limit]
                 fnames = [f.column for f in modelFields ]      
                 response = HttpResponse(content_type='text/csv')
                 # if you want to download instead of display in browser  
@@ -638,9 +702,14 @@ def searchChosenModel(request, moduleName, modelName):
                 if (scorer) :
                     resultCount = countApproxMatches(myModel._meta.db_table,scorer,query.count(),sortThreshold())
                     hardCount = hardquery.count() 
+                    if (resultCount < hardCount) :
+                        resultCount = hardCount
                 else :
                     resultCount = query.count() 
-                    hardCount = resultCount                  
+                    hardCount = resultCount    
+                resultsPages = Paginator(query, 30)
+                resultsPage = resultsPages.page(page) 
+                results = resultsPages.page(page).object_list         
         else:
             debug = formset.errors
     else:
@@ -666,7 +735,10 @@ def searchChosenModel(request, moduleName, modelName):
         qd.setdefault('yaxis',axesform.fields.get('yaxis').initial)
         qd.setdefault('series',axesform.fields.get('series').initial)
         axesform = AxesForm(modelFields,qd)
-    return log_and_render(request, reqlog, 'xgds_data/searchChosenModel.html',
+    template = 'xgds_data/searchChosenModel.html'
+    if (hasattr(settings, 'XGDS_DATA_SEARCH_TEMPLATES')) :
+        template = settings.XGDS_DATA_SEARCH_TEMPLATES.get(modelName,template)
+    return log_and_render(request, reqlog, template,
                    {'title': 'Search '+modelName,
                            'module': moduleName,
                            'model': modelName,
@@ -675,7 +747,11 @@ def searchChosenModel(request, moduleName, modelName):
                            'exactCount' : hardCount,
                            'datetimefields' : datetimefields,
                            'formset' : formset,
-                           'axesform' : axesform},
+                           'axesform' : axesform,
+                           'page' : page,
+                           'results': results,
+                           'resultsPage': resultsPage,
+                           },
                     nolog = ['formset','axesform'])
 
 def plotQueryResults(request, moduleName, modelName, start, end, soft=True):
@@ -715,8 +791,7 @@ def plotQueryResults(request, moduleName, modelName, start, end, soft=True):
             ##resultCount = countApproxMatches(myModel._meta.db_table,scorer,objs.count(),sortThreshold())
             resultCount = countMatches(myModel._meta.db_table,
                                                      scorer,
-                                                     divineWhereClause(myModel.objects.all().query.__str__(),
-                                                                       myModel.objects.filter(filters).query.__str__()),
+                                                     divineWhereClause(myModel,filters,formset),
                                                      sortThreshold())
         else :
             resultCount = objs.count()
@@ -725,21 +800,28 @@ def plotQueryResults(request, moduleName, modelName, start, end, soft=True):
         ##plotdata = list(myModel.objects.filter(filters).values())
         ##pldata = [x.__str__() for x in myModel.objects.filter(filters)]
         ## objs = myModel.objects.filter(filters)[5:100]
-        plotdata = [ dict([(fld.attname,fld.value_from_object(x)) for fld in modelFields ]) for x in objs]
+        megahandler = lambda obj: calendar.timegm(obj.timetuple()) * 1000 if isinstance(obj, datetime.datetime) \
+            else escape(obj.__str__()) if isinstance(obj,Model) \
+            else obj if isinstance(obj, (int, long, float, complex)) \
+            else escape(obj)
+        plotdata = [ dict([(fld.attname,megahandler(fld.value_from_object(x))) for fld in modelFields ]) for x in objs]
         pldata = [x.__str__() for x in objs]
         ##pldata = [x.denominator.__str__() for x in objs]
         
         ## the following code determines if there are any foreign keys that can be selected, and if so,
         ## replaces the corresponding values (which will be ids) with the string representation
         seriesChoices = dict(axesform.fields['series'].choices)
-        seriesValues = dict([ (m.column, dict([ (getattr(x,x._meta.pk.name),x.__str__()) 
+        seriesValues = dict([ (m.column, dict([ (getattr(x,x._meta.pk.name),escape(x.__str__())) 
                                          for x in m.rel.to.objects.all() ]) ) 
                        for m in modelFields if (m.rel != None) and (seriesChoices.has_key(m.column)) ])
 
         for x in plotdata :
             for k in seriesValues.keys() :
                 if (x[k] != None) :
-                    x[k] = seriesValues[k][x[k]]
+                    try :
+                        x[k] = seriesValues[k][x[k]]
+                    except :
+                        x[k] = str(x[k]) ##seriesValues[k][seriesValues[k].keys()[0]]
         
         debug = []
         #resultCount = myModel.objects.filter(filters).count()     

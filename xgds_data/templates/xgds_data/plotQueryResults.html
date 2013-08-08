@@ -190,7 +190,7 @@ function cgiArgs(alist) {
 	<div id="legend"></div>
 	<HR>
 	<div>Plotting records {{ start|add:"1" }} through {{ start|add:showncount }} 
-	out of about {{ count }} total</div>
+	out of {{ count }} total</div>
 	{% if start|add:"0" > 0 %}
 		<input type="submit" value="Previous Records" id="prev" title="Refresh page with previous records"/>
 	{% else %}
