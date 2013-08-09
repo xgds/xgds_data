@@ -222,16 +222,19 @@ def divineWhereClause(myModel,filters,formset):
         """
     post = str(myModel.objects.filter(filters).query)
     wherestart = post.find(' WHERE ')
-    newwhere = ' WHERE '
-    for seg in re.compile("( [AO][NR]D? )").split(post[(wherestart+7):]) :
-        eqpos = seg.find('= ')
-        if (eqpos > -1) :
-            quotable = seg.rstrip(') ')[(eqpos+1):].strip()
-            quotepos = seg.find(quotable)
-            newseg = seg[:quotepos]+'"'+quotable+'"'+seg[(quotepos+len(quotable)):]
-        else :
-            newseg = seg
-        newwhere = newwhere + newseg
+    if (wherestart > -1) :
+        newwhere = ' WHERE '
+        for seg in re.compile("( [AO][NR]D? )").split(post[(wherestart+7):]) :
+            eqpos = seg.find('= ')
+            if (eqpos > -1) :
+                quotable = seg.rstrip(') ')[(eqpos+1):].strip()
+                quotepos = seg.find(quotable)
+                newseg = seg[:quotepos]+'"'+quotable+'"'+seg[(quotepos+len(quotable)):]
+            else :
+                newseg = seg
+            newwhere = newwhere + newseg
+    else :
+        newwhere = None
         
     return newwhere
 
@@ -744,6 +747,7 @@ def searchChosenModel(request, moduleName, modelName):
                            'model': modelName,
                            'debug' : debug,
                            'count' : resultCount,
+                           'expert' : False,
                            'exactCount' : hardCount,
                            'datetimefields' : datetimefields,
                            'formset' : formset,
