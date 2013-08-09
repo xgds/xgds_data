@@ -128,18 +128,6 @@ $("#plothard").click(function() {
 		    {% endif %}
 	    {% endif %}
     {% endif %}
-    	
-	{% if resultsPage %}
-		{% if resultsPage.has_previous %}
-			{{resultsPage.previous_page_number}}>
-			   <b><------</b></a>
-		{% endif %}
-		 Page {{ resultsPage.number }} of {{ resultsPage.paginator.num_pages }}
-		{% if resultsPage.has_next %}
-			{{resultsPage.next_page_number}}
-			   <b>------></b></a>
-		{% endif %}
-	{% endif %}
 
 {% elif formset.cleaned_data %}
 	<HR>
