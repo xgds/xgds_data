@@ -414,7 +414,6 @@ def randomSample(table,expression,size,offset = None, limit = None) :
         sql = 'select {1} as score from {0} JOIN ({2}) AS r2 USING (id) order by score limit {3},{4};'.format(
             table,expression,randselect,offset,limit )
     cursor = connection.cursor()
-    ## print(sql)
     cursor.execute(sql)
     return cursor.fetchall()
 
@@ -475,7 +474,9 @@ def scoreNumeric(model,field,lorange,hirange,tableSize) :
     if (unsigned) :
         field = "cast({0} as SIGNED)".format(field)
     median = medianEval(model._meta.db_table,baseScore(field,lorange,hirange),tableSize)
-    if (median == 0) :
+    if (median == None) :
+        return '1'
+    elif (median == 0) :
         ## would get divide by zero with standard formula below
         ## defining 0/x == 0 always, limit of standard formula leads to special case for 0, below.
         return "({0} = {1})".format(baseScore(field,lorange,hirange),median) 
@@ -627,7 +628,7 @@ def searchSimilar(request, moduleName, modelName):
                        'axesform' : axesform},
                       nolog = ['formset','axesform'])
     
-def searchChosenModel(request, moduleName, modelName):
+def searchChosenModel(request, moduleName, modelName, expert=False):
     """
         Search over the fields of the selected model
         """
@@ -651,6 +652,7 @@ def searchChosenModel(request, moduleName, modelName):
     resultCount = None
     hardCount = None
     soft = True
+    #expert = (soft != None) and (soft == 'True')
     if (mode == 'csvhard') :
         soft = False
         mode = 'csv'
@@ -747,7 +749,7 @@ def searchChosenModel(request, moduleName, modelName):
                            'model': modelName,
                            'debug' : debug,
                            'count' : resultCount,
-                           'expert' : False,
+                           'expert' : expert,
                            'exactCount' : hardCount,
                            'datetimefields' : datetimefields,
                            'formset' : formset,
