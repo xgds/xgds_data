@@ -108,6 +108,35 @@ class SearchForm(forms.Form):
                 ofieldname = mfield.name+'_operator'
                 ofield = forms.forms.BoundField(self,self.fields[ofieldname],ofieldname)
                 row = u'<tr><td style="text-align:right; font-weight:bold;">%(label)s</td><td>%(ofield)s</td>' %  { 
+                                                                'label': unicode(mfield.verbose_name), 
+                                                                'ofield' :  unicode(ofield.as_hidden()) }
+                if ((isinstance(mfield, fields.DateTimeField)) or 
+                    (isinstance(mfield, fields.FloatField)) or
+                    (isinstance(mfield, fields.IntegerField)) or
+                    (isinstance(mfield, fields.PositiveIntegerField))) :
+                    loname, hiname = mfield.name+'_lo', mfield.name+'_hi'
+                    fieldlo = forms.forms.BoundField(self,self.fields[loname],loname)
+                    fieldhi = forms.forms.BoundField(self,self.fields[hiname],hiname)
+                    row = row + u'<td>%(fieldlo)s</td><td>up to</td><td>%(fieldhi)s</td>' %  { 
+                        'fieldlo': unicode(fieldlo), 'fieldhi': unicode(fieldhi) }
+                else :
+                    bfield = forms.forms.BoundField(self,self.fields[mfield.name],mfield.name)
+                    row = row + u'<td colspan=3>%(field)s</td>' %  { 'field': unicode(bfield) }
+                    
+                row = row + u'</tr>'
+                output.append(row)            
+        return mark_safe(u'\n'.join(output))
+    
+    def as_expert_table(self):
+        output  = []       
+            
+        for mfield in self.model._meta.fields :
+            if (self.fields.has_key(mfield.name) or
+                (self.fields.has_key(mfield.name+'_lo') and
+                 self.fields.has_key(mfield.name+'_hi'))) :
+                ofieldname = mfield.name+'_operator'
+                ofield = forms.forms.BoundField(self,self.fields[ofieldname],ofieldname)
+                row = u'<tr><td style="text-align:right; font-weight:bold;">%(label)s</td><td>%(ofield)s</td>' %  { 
                                                                 'label': unicode(mfield.name), 'ofield' :  unicode(ofield) }
                 if ((isinstance(mfield, fields.DateTimeField)) or 
                     (isinstance(mfield, fields.FloatField)) or

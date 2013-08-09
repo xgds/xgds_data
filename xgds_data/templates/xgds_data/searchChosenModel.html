@@ -20,6 +20,19 @@
 	document.QueryForm["mode"].value = mode;
     document.QueryForm.submit();
   }
+  function changemode(isExpert)
+  {
+	if (!isExpert) {
+		var allOperators = $("[id$=_operator]");
+		for (var i=0; i < allOperators.length; i++) {
+			allOperators[i].value = allOperators[i].options[0].value;
+		}
+		document.QueryForm.action = "{% url 'xgds_data_searchChosenModel' module model %}";
+	} else {
+		document.QueryForm.action = "{% url 'xgds_data_searchChosenModel' module model 'expert' %}";
+	}
+    document.QueryForm.submit();
+  }
 {% for f in datetimefields %}
   $('#id_{{f}}_lo').datetimepicker({addSliderAccess: false});
   $('#id_{{f}}_hi').datetimepicker({addSliderAccess: false});
@@ -35,6 +48,12 @@ $("#csv").click(function() {
 });
 $("#csvhard").click(function() {
 	submitform('csvhard');
+});
+$("#simple").click(function() {
+	changemode(false);
+});
+$("#expert").click(function() {
+	changemode(true);
 });
 $("#plot").click(function() {
 	document.QueryForm.action = "{% url 'xgds_data_searchPlotQueryResults' module model 0 10000 %}";
@@ -54,12 +73,23 @@ $("#plothard").click(function() {
 {% endblock %}
 
 
-{% block contents %}						
-<h2>{{ title }}</h2>  
+{% block contents %}	
+<div style="text-align:right;">
+{% if expert %}
+	<A id="simple">Change to Simple</A>
+{% else %}
+	<A id="expert">Change to Advanced</A>
+{% endif %}
+</div>
+<h2>{{ title }}</h2>  	
 {% for d in debug %}
 	<span>{{ d }}</span>
 {% endfor %}
-<form name='QueryForm' action="{% url 'xgds_data_searchChosenModel' module model %}" method="post">
+{% if expert %}
+	<form name='QueryForm' action="{% url 'xgds_data_searchChosenModel' module model 'expert' %}" method="post">
+{% else %}
+	<form name='QueryForm' action="{% url 'xgds_data_searchChosenModel' module model %}" method="post">
+{% endif %}
   <input type="hidden" name="mode" value="query">
   
 {% if axesform %}
@@ -71,13 +101,19 @@ $("#plothard").click(function() {
 {{ formset.management_form }}
 {% for form in formset %}
     <table>
-	{{ form.as_table }}
+    {% if expert %}
+		{{ form.as_expert_table }}
+	{% else %}
+		{{ form.as_table }}
+	{% endif %}
     </table>
  
 {% endfor %}
 
 <input type="submit" value="Search" id="query" />
-<input type="submit" value="Add Disjunction" id="addform" /> 
+{% if expert %}
+	<input type="submit" value="Add Disjunction" id="addform" /> 
+{% endif %}
     
 {% if count %}
 	<HR>
