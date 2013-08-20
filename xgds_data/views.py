@@ -532,10 +532,7 @@ def recordRequest(request):
         Logs the request in the database
         """
     if logEnabled() :
-        if request.method == 'POST' :
-            data = request.POST;
-        else:
-            data = request.GET
+        data = request.REQUEST
         reqlog = RequestLog.create(request)
         reqlog.save()
         for key in data :
@@ -582,10 +579,7 @@ def searchSimilar(request, moduleName, modelName):
     tmpFormClass = specializedSearchForm(myModel)
     tmpFormSet = formset_factory(tmpFormClass, extra=0)
     debug = []
-    if request.method == 'POST' :
-        data = request.POST;
-    else:
-        data = request.GET
+    data = request.REQUEST
     me = myModel.objects.get(pk=data.get(myModel._meta.pk.attname))
     defaults = dict()
     aForm = tmpFormClass()
@@ -639,10 +633,7 @@ def searchChosenModel(request, moduleName, modelName, expert=False):
     tmpFormClass = specializedSearchForm(myModel)
     tmpFormSet = formset_factory(tmpFormClass)
     debug = []
-    if request.method == 'POST' :
-        data = request.POST;
-    else:
-        data = request.GET
+    data = request.REQUEST
     formCount = 1
     mode = data.get('mode',False)
     page = data.get('pageno',1)
@@ -735,10 +726,10 @@ def searchChosenModel(request, moduleName, modelName, expert=False):
         ## this will mess everything up
         ## thus, we force the initial values here.
         ## this should only be executed when the form is blank (i.e., initially)
-        qd = data.copy()
-        qd.setdefault('xaxis',axesform.fields.get('xaxis').initial)
-        qd.setdefault('yaxis',axesform.fields.get('yaxis').initial)
-        qd.setdefault('series',axesform.fields.get('series').initial)
+        qd = {'xaxis' : axesform.fields.get('xaxis').initial,
+              'yaxis' : axesform.fields.get('yaxis').initial,
+              'series' : axesform.fields.get('series').initial}
+        qd.update(data)
         axesform = AxesForm(modelFields,qd)
     template = 'xgds_data/searchChosenModel.html'
     if (hasattr(settings, 'XGDS_DATA_SEARCH_TEMPLATES')) :
@@ -772,10 +763,7 @@ def plotQueryResults(request, moduleName, modelName, start, end, soft=True):
     modelFields = myModel._meta.fields
     tmpFormClass = specializedSearchForm(myModel)
     tmpFormSet = formset_factory(tmpFormClass)   
-    if request.method == 'POST' :
-        data = request.POST;
-    else:
-        data = request.GET
+    data = request.REQUEST
     soft = (soft == True) or (soft == 'True')
     
     axesform = AxesForm(modelFields,data);

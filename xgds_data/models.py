@@ -7,8 +7,10 @@
 import sys
 
 from django.db import models
+from django.contrib.auth.models import User
 from datetime import datetime
 from xgds_data import settings
+
 
 def logEnabled():
     return (hasattr(settings, 'XGDS_DATA_LOG_ENABLED') and 
@@ -37,14 +39,27 @@ def get_client_ip(request):
 
 if logEnabled() :
     class RequestLog(models.Model):
-        timestampSeconds = models.DateTimeField(blank=False, default=datetime.utcnow())
+        timestampSeconds = models.DateTimeField(blank=False)
         path = models.CharField(max_length=256, blank=False)
         ipaddress = models.CharField(max_length=256, blank=False)
-        user = models.CharField(max_length=256, blank=False)  # probably can be a foreign key
+        #user = models.CharField(max_length=64, blank=False)  # probably can be a foreign key
+        user = models.ForeignKey(User, null=True, blank=True)
+        session = models.CharField(max_length=64, null=True, blank=True) 
+        referer = models.CharField(max_length=256, null=True, blank=True) 
+        user_agent = models.CharField(max_length=256, null=True, blank=True) 
         
         @classmethod
         def create(cls, request):
-            rlog = cls(path=request.path,ipaddress=get_client_ip(request),user=request.user.__str__())
+            ref = request.META.get('HTTP_REFERER',None)
+            uagent = request.META.get('HTTP_USER_AGENT',None)
+            uzer = request.user
+            if (uzer.id == None) :
+                uzer = None
+            
+            # rlog = cls(path=request.path,ipaddress=get_client_ip(request),user=request.user.__str__())
+            rlog = cls(timestampSeconds=datetime.utcnow(),
+                       path=request.path,ipaddress=get_client_ip(request),user=uzer,
+                       session=request.session.session_key,referer=ref,user_agent=uagent)
             return rlog
     
         def __unicode__(self):
