@@ -636,8 +636,14 @@ def searchChosenModel(request, moduleName, modelName, expert=False):
     data = request.REQUEST
     formCount = 1
     mode = data.get('mode',False)
-    page = data.get('pageno',1)
+    page = data.get('pageno',None)
+    if page :
+        picks = [int(p) for p in data.getlist('picks')]
+    else :
+        page = 1
+        picks = []
     results = None
+    resultids = None
     resultsPage = None
     filters = None
     resultCount = None
@@ -705,7 +711,8 @@ def searchChosenModel(request, moduleName, modelName, expert=False):
                     hardCount = resultCount    
                 resultsPages = Paginator(query, 30)
                 resultsPage = resultsPages.page(page) 
-                results = resultsPages.page(page).object_list         
+                results = resultsPages.page(page).object_list
+                resultids = [r.id for r in results]
         else:
             debug = formset.errors
     else:
@@ -747,7 +754,9 @@ def searchChosenModel(request, moduleName, modelName, expert=False):
                            'axesform' : axesform,
                            'page' : page,
                            'results': results,
+                           'resultids': resultids,
                            'resultsPage': resultsPage,
+                           'picks' : picks,
                            },
                     nolog = ['formset','axesform'])
 
