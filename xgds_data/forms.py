@@ -173,13 +173,13 @@ class AxesForm(forms.Form):
             elif ((not isinstance(x,AutoField)) and (x.model.objects.values(x.name).order_by().distinct().count() <= 100)) :
                 seriesablefields.append(x);
         if (len(chartablefields) > 1) :
-            datachoices = tuple( (x,x) for x in ['Rank']) + tuple( (x.name,x.name) for x in chartablefields)
+            datachoices = tuple( (x,x) for x in ['Rank']) + tuple( (x.name,x.verbose_name) for x in chartablefields)
             serieschoices = [(None,'None')]
             for x in seriesablefields :
                 if isinstance(x,RelatedField) :
-                    serieschoices.append( (x.name+'_id',x.name) )
+                    serieschoices.append( (x.name,x.verbose_name) )
                 else :
-                    serieschoices.append( (x.name, x.name) )
+                    serieschoices.append( (x.name, x.verbose_name) )
             self.fields['xaxis'] = forms.ChoiceField(choices=datachoices,required=True,initial=chartablefields[0].name)
             self.fields['yaxis'] = forms.ChoiceField(choices=datachoices,required=True,initial=chartablefields[1].name)
             self.fields['series'] = forms.ChoiceField(choices=tuple(serieschoices),required=True,initial=serieschoices[0][0])

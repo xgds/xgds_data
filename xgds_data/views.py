@@ -712,7 +712,7 @@ def searchChosenModel(request, moduleName, modelName, expert=False):
                 resultsPages = Paginator(query, 30)
                 resultsPage = resultsPages.page(page) 
                 results = resultsPages.page(page).object_list
-                resultids = [r.id for r in results]
+                resultids = [getattr(r,myModel._meta.pk.name) for r in results]
         else:
             debug = formset.errors
     else:
@@ -807,17 +807,17 @@ def plotQueryResults(request, moduleName, modelName, start, end, soft=True):
             else escape(obj.__str__()) if isinstance(obj,Model) \
             else obj if isinstance(obj, (int, long, float, complex)) \
             else escape(obj)
-        plotdata = [ dict([(fld.attname,megahandler(fld.value_from_object(x))) for fld in modelFields ]) for x in objs]
+        plotdata = [ dict([(fld.verbose_name,megahandler(fld.value_from_object(x))) for fld in modelFields ]) 
+                    for x in objs]
         pldata = [x.__str__() for x in objs]
         ##pldata = [x.denominator.__str__() for x in objs]
         
         ## the following code determines if there are any foreign keys that can be selected, and if so,
         ## replaces the corresponding values (which will be ids) with the string representation
         seriesChoices = dict(axesform.fields['series'].choices)
-        seriesValues = dict([ (m.column, dict([ (getattr(x,x._meta.pk.name),escape(x.__str__())) 
+        seriesValues = dict([ (m.verbose_name, dict([ (getattr(x,x._meta.pk.name),escape(x.__str__())) 
                                          for x in m.rel.to.objects.all() ]) ) 
-                       for m in modelFields if (m.rel != None) and (seriesChoices.has_key(m.column)) ])
-
+                       for m in modelFields if (m.rel != None) and (seriesChoices.has_key(m.name)) ])
         for x in plotdata :
             for k in seriesValues.keys() :
                 if (x[k] != None) :
