@@ -17,6 +17,11 @@
   <script type="text/javascript">
   function submitform(mode)
   {
+	if ($('#simple').length == 0) {
+		document.QueryForm.action = "{% url 'xgds_data_searchChosenModel' module model %}";
+	} else {
+		document.QueryForm.action = "{% url 'xgds_data_searchChosenModel' module model 'expert' %}";
+	}
 	document.QueryForm["mode"].value = mode;
     document.QueryForm.submit();
   }
@@ -63,6 +68,11 @@ $("#plothard").click(function() {
 	document.QueryForm.action = "{% url 'xgds_data_searchPlotQueryResults' module model 'exact' 0 10000 %}";
 	document.QueryForm.submit();
 });
+
+function clearResults() { $('#results').html("") }
+
+$('input').change(clearResults);
+$('select').change(clearResults);
   </script>
   
   <script language="javascript" type="text/javascript"
@@ -114,7 +124,8 @@ $("#plothard").click(function() {
 {% if expert %}
 	<input type="submit" value="Add Disjunction" id="addform" /> 
 {% endif %}
-    
+
+ <div id='results'>    
 {% if count %}
 	<HR>
 	{% if count == exactCount %}
@@ -169,6 +180,7 @@ $("#plothard").click(function() {
 	<HR>
 	No records match 
 {% endif %}
+</div>
 </form>
 
 {% endblock %}
