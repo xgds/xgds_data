@@ -58,8 +58,8 @@ if logEnabled() :
             
             # rlog = cls(path=request.path,ipaddress=get_client_ip(request),user=request.user.__str__())
             rlog = cls(timestampSeconds=datetime.utcnow(),
-                       path=request.path,ipaddress=get_client_ip(request),user=uzer,
-                       session=request.session.session_key,referer=ref,user_agent=uagent)
+                       path=request.path[0:254],ipaddress=get_client_ip(request)[0:254],user=uzer,
+                       session=request.session.session_key[0:62],referer=ref[0:254],user_agent=uagent[0:254])
             return rlog
     
         def __unicode__(self):
