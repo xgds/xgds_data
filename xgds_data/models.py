@@ -25,6 +25,15 @@ def getModelByName(name):
     print dir(modelsModule)
     return getattr(modelsModule, modelName)
 
+def truncate(val,limit):
+    """
+        shortens the value if need be so that it does not exceed db limit
+        """
+    if (val == None) :
+        return None
+    else :
+        return val[0:(limit-2)] # save an extra space because the db seems to want that
+
 ## taken from http://stackoverflow.com/questions/4581789/how-do-i-get-user-ip-address-in-django
 def get_client_ip(request):
     """
@@ -58,8 +67,10 @@ if logEnabled() :
             
             # rlog = cls(path=request.path,ipaddress=get_client_ip(request),user=request.user.__str__())
             rlog = cls(timestampSeconds=datetime.utcnow(),
-                       path=request.path[0:254],ipaddress=get_client_ip(request)[0:254],user=uzer,
-                       session=request.session.session_key[0:62],referer=ref[0:254],user_agent=uagent[0:254])
+                       path=truncate(request.path,256),
+                       ipaddress=truncate(get_client_ip(request),256),user=uzer,
+                       session=truncate(request.session.session_key,64),
+                       referer=truncate(ref,256),user_agent=truncate(uagent,256))
             return rlog
     
         def __unicode__(self):
