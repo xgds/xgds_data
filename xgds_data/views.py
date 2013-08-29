@@ -555,7 +555,7 @@ def recordList(reslog,results) :
                      for r in ranks ]
             ResponseList.objects.bulk_create(items)
 
-def log_and_render(request, reqlog, template, rendargs, nolog = [], listing = None):
+def log_and_render(request, reqlog, template, rendargs, content_type = settings.DEFAULT_CONTENT_TYPE, nolog = [], listing = None):
     """
         Logs the response in the database and returns the rendered page
         """
@@ -566,7 +566,7 @@ def log_and_render(request, reqlog, template, rendargs, nolog = [], listing = No
                 ResponseArgument.objects.create(response=reslog,name=key,value=rendargs.get(key).__str__()[:1024])
         if (listing) :
             recordList(reslog,listing)
-    return render(request,template,rendargs)
+    return render(request,template,rendargs, content_type = content_type)
 
 def searchSimilar(request, moduleName, modelName):
     """
@@ -758,7 +758,8 @@ def searchChosenModel(request, moduleName, modelName, expert=False):
                            'resultsPage': resultsPage,
                            'picks' : picks,
                            },
-                    nolog = ['formset','axesform'])
+                    nolog = ['formset','axesform','results','resultsids'],
+                    listing = results)
 
 def plotQueryResults(request, moduleName, modelName, start, end, soft=True):
     """
