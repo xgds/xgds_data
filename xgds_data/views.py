@@ -435,28 +435,40 @@ def countApproxMatches(table,scorer,maxSize,threshold):
         """
     cpass = 0.0
     sample = randomSample(table,scorer,10000)
-    for x in sample :
-        if (x[0] >= threshold) :
-            cpass = cpass + 1
-    ##query = query[0:round(maxSize*cpass/len(sample))]
-    resultCount = maxSize*cpass/len(sample)
-    ## make it look approximate
-    if (resultCount > 10) :
-        resultCount = int(round(resultCount/pow(10,floor(log10(resultCount)))) 
-                          * pow(10,floor(log10(resultCount)))) 
-    elif (resultCount > 0) :
-        resultCount = 10
-    return resultCount
+    if (len(sample) == 0) :
+        return 0
+    else :
+        for x in sample :
+            if (x[0] >= threshold) :
+                cpass = cpass + 1
+        ##query = query[0:round(maxSize*cpass/len(sample))]
+        resultCount = maxSize*cpass/len(sample)
+        ## make it look approximate
+        if (resultCount > 10) :
+            resultCount = int(round(resultCount/pow(10,floor(log10(resultCount)))) 
+                              * pow(10,floor(log10(resultCount)))) 
+        elif (resultCount > 0) :
+            resultCount = 10
+        return resultCount
     
-def medianEval(table,expression,size) :
+def medianEval(model,expression,size) :
     """
         Quick mysql-y way of estimating the median from a sample
         """
-    sampleSize = min(size,1000)
-    result = ()
-    while (len(result) == 0) :
-        result = randomSample(table,expression,sampleSize,sampleSize/2,1)
-    return result[0][0]
+    if (model.objects.count() == 0) :
+        return None
+    else :
+        sampleSize = min(size,1000)
+        result = ()
+        triesLeft = 100
+        while ((len(result) == 0) and (triesLeft > 0)) :
+            ## not sure why, but sometimes nothing is returned
+            result = randomSample(model._meta.db_table,expression,sampleSize,sampleSize/2,1)
+            triesLeft = triesLeft - 1
+        if (len(result) == 0) :
+            return None
+        else :
+            return result[0][0]
 
 def scoreNumeric(model,field,lorange,hirange,tableSize) :
     """
@@ -473,7 +485,7 @@ def scoreNumeric(model,field,lorange,hirange,tableSize) :
     field = model._meta.db_table + '.' + field
     if (unsigned) :
         field = "cast({0} as SIGNED)".format(field)
-    median = medianEval(model._meta.db_table,baseScore(field,lorange,hirange),tableSize)
+    median = medianEval(model,baseScore(field,lorange,hirange),tableSize)
     if (median == None) :
         return '1'
     elif (median == 0) :
@@ -485,13 +497,13 @@ def scoreNumeric(model,field,lorange,hirange,tableSize) :
     #return "1-(1 + {1}) /(2 + 2 * {0})".format(baseScore(field,lorange,hirange),
     #                    medianEval(model._meta.db_table,baseScore(field,lorange,hirange),tableSize)) 
 
-def desiredRanges(model, formset):
+def desiredRanges(forms):
     """
         Pulls out the approximate (soft) constraints from the form
         """
     desiderata = dict()
     ## forms are interpreted as internally conjunctive, externally disjunctive
-    for form in formset:
+    for form in forms:
         for field in form.cleaned_data :
             if form.cleaned_data[field] != None:
                 if (field.endswith('_operator') and (form.cleaned_data[field] == 'IN~')) :
@@ -512,7 +524,7 @@ def sortFormula(model, formset) :
     """
         Helper for searchChosenModel; comes up with a formula for ordering the results
         """
-    desiderata = desiredRanges(model, formset)
+    desiderata = desiredRanges(formset)
     if (len(desiderata) > 0) :
         tableSize = model.objects.count()
         formula = ' + '.join([scoreNumeric(model,b,desiderata[b][0],desiderata[b][1],tableSize) for b in desiderata.keys()])
