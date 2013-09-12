@@ -296,7 +296,7 @@ def makeFilters(formset,soft=True):
                 elif (field.endswith('_lo') or field.endswith('_hi')):
                     base = field[:-3]
                     loval = form.cleaned_data[base+'_lo']
-                    hival = form.cleaned_data[base+'_hi']                    
+                    hival = form.cleaned_data[base+'_hi']                
                     operator = form.cleaned_data[base+'_operator']
                     if ((operator == 'IN~') and soft) :
                         ## this isn't a restriction, so ignore
@@ -304,6 +304,11 @@ def makeFilters(formset,soft=True):
                     else :
                         negate = form.cleaned_data[base+'_operator'] == 'NOT IN'
                         if (loval != None and hival != None) :
+                            if (loval > hival) :
+                                ## hi and lo are reversed, assume that is a mistake
+                                swap = loval
+                                loval = hival
+                                hival = swap
                             if (field.endswith('_lo')) :
                                 ## range query- handle on _lo to prevent from doing it twice
                                 ## this aren't simple Q objects so don't set clause variable
@@ -504,6 +509,11 @@ def desiredRanges(model, formset):
                             loval = 'min'
                         if ((hival == None) or (hival == 'None')) :
                             hival = 'max'
+                        if ((loval != 'min') and (hival != 'max') and (loval > hival)) :
+                            ## hi and lo are reversed, assume that is a mistake
+                            swap = loval
+                            loval = hival
+                            hival = swap
                         if ((loval != 'min') or (hival != 'max')) :
                             desiderata[base] = [loval,hival]
     return desiderata;
