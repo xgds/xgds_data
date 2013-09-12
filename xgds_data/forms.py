@@ -154,6 +154,9 @@ class SearchForm(forms.Form):
                 row = row + u'</tr>'
                 output.append(row)            
         return mark_safe(u'\n'.join(output))
+    
+    def modelVerboseName(self):
+        return self.model._meta.verbose_name
 
 class AxesForm(forms.Form):
     """
