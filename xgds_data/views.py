@@ -221,6 +221,9 @@ def divineWhereClause(myModel,filters,formset):
         Pulls out the where clause and quotes the likely literals. Probably really brittle and should be replaced
         """
     post = str(myModel.objects.filter(filters).query)
+    orderbystart = post.find(' ORDER BY ')
+    if (orderbystart > -1) :
+        post = post[:orderbystart]
     wherestart = post.find(' WHERE ')
     if (wherestart > -1) :
         newwhere = ' WHERE '

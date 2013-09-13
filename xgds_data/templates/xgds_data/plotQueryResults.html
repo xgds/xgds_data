@@ -13,9 +13,9 @@
   <script language="javascript" type="text/javascript"
 	  src="{{ STATIC_URL }}jquery/ui/jquery-ui-1.8.12.custom.js"></script>
   <script language="javascript" type="text/javascript"
-	  src="{{ STATIC_URL }}external/js/jquery.flot.min.js"></script>
+	  src="http://www.flotcharts.org/flot/jquery.flot.js"></script>
   <script language="javascript" type="text/javascript"
-	  src="{{ STATIC_URL }}external/js/jquery.flot.threshold.min.js"></script>
+	  src="http://www.flotcharts.org/flot/jquery.flot.time.js"></script>
 
 {% if count %}
 <script language="javascript" type="text/javascript">
@@ -98,7 +98,7 @@ function makePlot(data,names) {
 	  return $.plot($("#results_plot"),
 			plotArray,
 			  {series: {shadowSize: 0, lines: {lineWidth:1}},
-			   grid: { hoverable: true, clickable: true },
+			   grid: { hoverable: true, clickable: true, backgroundColor: '#929292' },
 			   yaxis: { mode: ymode  },
 			   xaxis: { mode: xmode },
 				legend : {
@@ -154,7 +154,7 @@ function cgiArgs(alist) {
 
 
 {% block contents %}						
-<h2>{{ title }}</h2>  
+<h2>{{ title }}</h2> Fusscakes
 {% for d in debug %}
 <span>{{ d }}</span>
 {% endfor %}
