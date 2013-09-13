@@ -410,17 +410,19 @@ def baseScore(field,lorange,hirange) :
         ##return "greatest(0,least({1}-{0},{0}-{2}))".format(field,lorange,hirange)
         return "greatest(0,{1}-{0},{0}-{2})".format(field,lorange,hirange)
 
-def randomSample(table,expression,size,offset = None, limit = None) :
+def randomSample(model,expression,size,offset = None, limit = None) :
     """
         Selects a random set of records, assuming even distibution of ids; not very Django-y
         """
-    randselect = '(SELECT CEIL(RAND() * (SELECT MAX(id) FROM {0})) AS id from {0} limit {1})'.format(table,size)
+    table = model._meta.db_table
+    pkname = model._meta.pk.attname
+    randselect = '(SELECT CEIL(RAND() * (SELECT MAX({1}) FROM {0})) AS {1} from {0} limit {2})'.format(table,pkname,size)
     if ((offset == None) or (limit == None)) :
-        sql = 'select {1} as score from {0} JOIN ({2}) AS r2 USING (id) order by score;'.format(
-            table,expression,randselect)
+        sql = 'select {2} as score from {0} JOIN ({3}) AS r2 USING ({1}) order by score;'.format(
+            table,pkname,expression,randselect)
     else :
-        sql = 'select {1} as score from {0} JOIN ({2}) AS r2 USING (id) order by score limit {3},{4};'.format(
-            table,expression,randselect,offset,limit )
+        sql = 'select {2} as score from {0} JOIN ({3}) AS r2 USING ({1}) order by score limit {4},{5};'.format(
+            table,pkname,expression,randselect,offset,limit )
     cursor = connection.cursor()
     cursor.execute(sql)
     return cursor.fetchall()
@@ -437,12 +439,12 @@ def countMatches(table,expression,where,threshold):
     cursor.execute(sql)
     return cursor.fetchone()[0]
 
-def countApproxMatches(table,scorer,maxSize,threshold):
+def countApproxMatches(model,scorer,maxSize,threshold):
     """
         Take a guess as to how many records match by examining a random sample
         """
     cpass = 0.0
-    sample = randomSample(table,scorer,10000)
+    sample = randomSample(model,scorer,10000)
     if (len(sample) == 0) :
         return 0
     else :
@@ -471,7 +473,7 @@ def medianEval(model,expression,size) :
         triesLeft = 100
         while ((len(result) == 0) and (triesLeft > 0)) :
             ## not sure why, but sometimes nothing is returned
-            result = randomSample(model._meta.db_table,expression,sampleSize,sampleSize/2,1)
+            result = randomSample(model,expression,sampleSize,sampleSize/2,1)
             triesLeft = triesLeft - 1
         if (len(result) == 0) :
             return None
@@ -727,7 +729,7 @@ def searchChosenModel(request, moduleName, modelName, expert=False):
                 return response
             elif (mode == 'query'):  
                 if (scorer) :
-                    resultCount = countApproxMatches(myModel._meta.db_table,scorer,query.count(),sortThreshold())
+                    resultCount = countApproxMatches(myModel,scorer,query.count(),sortThreshold())
                     hardCount = hardquery.count() 
                     if (resultCount < hardCount) :
                         resultCount = hardCount
