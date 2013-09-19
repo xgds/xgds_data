@@ -835,7 +835,7 @@ def plotQueryResults(request, moduleName, modelName, start, end, soft=True):
             else escape(obj.__str__()) if isinstance(obj,Model) \
             else obj if isinstance(obj, (int, long, float, complex)) \
             else escape(obj)
-        plotdata = [ dict([(fld.verbose_name,megahandler(fld.value_from_object(x))) for fld in modelFields ]) 
+        plotdata = [ dict([(fld.name,megahandler(fld.value_from_object(x))) for fld in modelFields ]) 
                     for x in objs]
         pldata = [x.__str__() for x in objs]
         ##pldata = [x.denominator.__str__() for x in objs]
@@ -843,7 +843,7 @@ def plotQueryResults(request, moduleName, modelName, start, end, soft=True):
         ## the following code determines if there are any foreign keys that can be selected, and if so,
         ## replaces the corresponding values (which will be ids) with the string representation
         seriesChoices = dict(axesform.fields['series'].choices)
-        seriesValues = dict([ (m.verbose_name, dict([ (getattr(x,x._meta.pk.name),escape(x.__str__())) 
+        seriesValues = dict([ (m.name, dict([ (getattr(x,x._meta.pk.name),escape(x.__str__())) 
                                          for x in m.rel.to.objects.all() ]) ) 
                        for m in modelFields if (m.rel != None) and (seriesChoices.has_key(m.name)) ])
         for x in plotdata :
