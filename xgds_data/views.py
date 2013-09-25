@@ -686,7 +686,8 @@ def searchChosenModel(request, moduleName, modelName, expert=False):
         ## this is very strange, but the extra forms don't come up with the right defaults
         ## create a new form and read what the initial values should be
         blankForm = tmpFormClass()      
-        newdata = data.copy()
+        #newdata = data.copy()
+        newdata = dict(data)
         for fname, field in blankForm.fields.iteritems() :
             if isinstance(field,ModelMultipleChoiceField) :
                 val = [ unicode(x.id) for x in field.initial ]
