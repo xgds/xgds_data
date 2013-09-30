@@ -196,7 +196,10 @@ $('select').change(clearResults);
 <div style = "position:absolute;top:0px;width:100%;overflow-x:scroll;z-index:1;"> 
 
     <table class="ResultList">
-	<tr><td style="visibility:hidden;"><input type="checkbox" id="pick_master" /></td>
+	<tr>
+	{% if checkable %}
+		<td style="visibility:hidden;"><input type="checkbox" /></td>
+	{% endif %}
 	<td style="visibility:hidden;">Record</td>
 	  {% for x in displayFields %}
 	  <td>{{ x.verbose_name }}</td>
@@ -204,13 +207,15 @@ $('select').change(clearResults);
 	  </tr>
 	{% for result in results %}
 	<tr>
+		{% if checkable %}
 		<td style="visibility:hidden;">
-		{% if result.id in picks %}
-		<input type="checkbox" id="pick_{{result.id}}" name="picks" value="{{result.id}}" CHECKED />
-		{% else %}
-	    <input type="checkbox" id="pick_{{result.id}}" name="picks" value="{{result.id}}"/>
-	    {% endif %}
-	     </td>
+			{% if result.id in picks %}
+			<input type="checkbox" id="pick_{{result.id}}" name="picks" value="{{result.id}}" CHECKED />
+			{% else %}
+		    <input type="checkbox" id="pick_{{result.id}}" name="picks" value="{{result.id}}"/>
+		    {% endif %}
+		     </td>
+	     {% endif %}
 	   <td>{{result}}</td>
  	 {% for x in displayFields %}
 	  <td>
@@ -225,7 +230,10 @@ $('select').change(clearResults);
 <div style = "position:relative;top:0px;width:100%;overflow-x:hidden;z-index:1;"> 
 	
 	    <table class="ResultListFixed">
-	<tr><td style="background-color:#d3e9ff;"><input type="checkbox" id="pick_master" /></td>
+	<tr>
+	{% if checkable %}
+	<td style="background-color:#d3e9ff;"><input type="checkbox" id="pick_master" /></td>
+	{% endif %}
 	<td style="background-color:#d3e9ff;">Record</td>
 	  {% for x in displayFields %}
 	  <td style="visibility:hidden;">{{ x.verbose_name }}</td>
@@ -233,17 +241,19 @@ $('select').change(clearResults);
 	  </tr>
 	{% for result in results %}
 	<tr>
-		{% if forloop.counter|modulo:2 == 1 %}
-			<td style="background-color:#d3e9ff;">
+		{% if checkable %}
+			{% if forloop.counter|modulo:2 == 1 %}
+				<td style="background-color:#d3e9ff;">
+				{% else %}
+				<td style="background-color:#ffffff;">
+			{% endif %}
+			{% if result.id in picks %}
+			<input type="checkbox" id="pick_{{result.id}}" name="picks" value="{{result.id}}" CHECKED />
 			{% else %}
-			<td style="background-color:#ffffff;">
-		{% endif %}
-		{% if result.id in picks %}
-		<input type="checkbox" id="pick_{{result.id}}" name="picks" value="{{result.id}}" CHECKED />
-		{% else %}
-	    <input type="checkbox" id="pick_{{result.id}}" name="picks" value="{{result.id}}"/>
+		    <input type="checkbox" id="pick_{{result.id}}" name="picks" value="{{result.id}}"/>
+		    {% endif %}
+		     </td>
 	    {% endif %}
-	     </td>
 	   	{% if forloop.counter|modulo:2 == 1 %}
 			<td style="background-color:#d3e9ff;">
 			{% else %}
