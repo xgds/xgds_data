@@ -1,4 +1,6 @@
 {% extends "base.html" %}
+{% load xgds_data_extras %}
+
 {% load url from future %}
 {% load nav %}
 {% block siteSection %}{{ title }}{% endblock %}
@@ -10,6 +12,7 @@
   {{ block.super }}
   <link rel="stylesheet" type="text/css" 
         href="{{ STATIC_URL }}style/jquery-ui.css" ></link>
+  <link rel="stylesheet" type="text/css" href="{{ STATIC_URL }}style/ResultList.css" ></link>
   <script language="javascript" type="text/javascript"
 	  src="{{ STATIC_URL }}jquery/ui/jquery-ui-1.8.12.custom.js"></script>
   <script language="javascript" type="text/javascript"
@@ -38,6 +41,11 @@
 	}
     document.QueryForm.submit();
   }
+  function gotoPage(page) {
+		$("#id_pageno")[0].value = page.toString();
+		submitform('query');
+	}
+  
 {% for f in datetimefields %}
   $('#id_{{f}}_lo').datetimepicker({addSliderAccess: false});
   $('#id_{{f}}_hi').datetimepicker({addSliderAccess: false});
@@ -67,6 +75,12 @@ $("#plot").click(function() {
 $("#plothard").click(function() {
 	document.QueryForm.action = "{% url 'xgds_data_searchPlotQueryResults' module model 'exact' 0 10000 %}";
 	document.QueryForm.submit();
+});
+$("#prevpage").click(function() {
+	gotoPage({{ resultsPage.previous_page_number }});
+});
+$("#nextpage").click(function() {
+	gotoPage({{ resultsPage.next_page_number }});
 });
 
 function clearResults() { $('#results').html("") }
@@ -101,6 +115,7 @@ $('select').change(clearResults);
 	<form name='QueryForm' action="{% url 'xgds_data_searchChosenModel' module model %}" method="post">
 {% endif %}
   <input type="hidden" name="mode" value="query">
+  <input type="hidden" name="pageno" id="id_pageno">
   
 {% if axesform %}
     {% for field in axesform %}
@@ -175,6 +190,92 @@ $('select').change(clearResults);
 		    {% endif %}
 	    {% endif %}
     {% endif %}
+    
+    <div style="position:relative;">
+
+<div style = "position:absolute;top:0px;width:100%;overflow-x:scroll;z-index:1;"> 
+
+    <table class="ResultList">
+	<tr><td style="visibility:hidden;"><input type="checkbox" id="pick_master" /></td>
+	<td style="visibility:hidden;">Record</td>
+	  {% for x in displayFields %}
+	  <td>{{ x.verbose_name }}</td>
+	  {% endfor %}
+	  </tr>
+	{% for result in results %}
+	<tr>
+		<td style="visibility:hidden;">
+		{% if result.id in picks %}
+		<input type="checkbox" id="pick_{{result.id}}" name="picks" value="{{result.id}}" CHECKED />
+		{% else %}
+	    <input type="checkbox" id="pick_{{result.id}}" name="picks" value="{{result.id}}"/>
+	    {% endif %}
+	     </td>
+	   <td>{{result}}</td>
+ 	 {% for x in displayFields %}
+	  <td>
+	  {{ result|getattribute:x.name }}
+	  </td>
+	  {% endfor %}
+	</tr>
+	{% endfor %}
+	</table>
+</div>
+
+<div style = "position:relative;top:0px;width:100%;overflow-x:hidden;z-index:1;"> 
+	
+	    <table class="ResultListFixed">
+	<tr><td style="background-color:#d3e9ff;"><input type="checkbox" id="pick_master" /></td>
+	<td style="background-color:#d3e9ff;">Record</td>
+	  {% for x in displayFields %}
+	  <td style="visibility:hidden;">{{ x.verbose_name }}</td>
+	  {% endfor %}
+	  </tr>
+	{% for result in results %}
+	<tr>
+		{% if forloop.counter|modulo:2 == 1 %}
+			<td style="background-color:#d3e9ff;">
+			{% else %}
+			<td style="background-color:#ffffff;">
+		{% endif %}
+		{% if result.id in picks %}
+		<input type="checkbox" id="pick_{{result.id}}" name="picks" value="{{result.id}}" CHECKED />
+		{% else %}
+	    <input type="checkbox" id="pick_{{result.id}}" name="picks" value="{{result.id}}"/>
+	    {% endif %}
+	     </td>
+	   	{% if forloop.counter|modulo:2 == 1 %}
+			<td style="background-color:#d3e9ff;">
+			{% else %}
+			<td style="background-color:#ffffff;">
+		{% endif %}
+	   {{result}}</td>
+ 	 {% for x in displayFields %}
+	  <td style="visibility:hidden;">
+	  {{ result|getattribute:x.name }}
+	  </td>
+	  {% endfor %}
+	</tr>
+	{% endfor %}
+	</table>
+	
+	</div>
+
+<BR />
+
+</div>
+
+		{% if resultsPage.has_previous %}
+			<input type="submit" value="Previous" id="prevpage"/>
+		{% else %}
+			<input type="submit" value="Previous" id="prevpage" disabled />
+		{% endif %}
+		<span>Page {{ page }}</span>
+		{% if resultsPage.has_next %}
+			<input type="submit" value="Next" id="nextpage"/>
+		{% else %}
+			<input type="submit" value="Next" id="nextpage" disabled />
+		{% endif %}
 
 {% elif formset.cleaned_data %}
 	<HR>

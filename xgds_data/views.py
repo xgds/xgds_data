@@ -43,6 +43,7 @@ from itertools import chain
 from django.core.paginator import Paginator
 from django.utils.html import escape
 
+
 def index(request):
     return HttpResponse("Hello, world. You're at the xgds_data index.")
 
@@ -648,7 +649,7 @@ def searchSimilar(request, moduleName, modelName):
                        'formset' : formset,
                        'axesform' : axesform},
                       nolog = ['formset','axesform'])
-    
+
 def searchChosenModel(request, moduleName, modelName, expert=False):
     """
         Search over the fields of the selected model
@@ -737,7 +738,7 @@ def searchChosenModel(request, moduleName, modelName, expert=False):
                 else :
                     resultCount = query.count() 
                     hardCount = resultCount    
-                resultsPages = Paginator(query, 30)
+                resultsPages = Paginator(query, 10)
                 resultsPage = resultsPages.page(page) 
                 results = resultsPages.page(page).object_list
                 resultids = [getattr(r,myModel._meta.pk.name) for r in results]
@@ -778,6 +779,7 @@ def searchChosenModel(request, moduleName, modelName, expert=False):
                            'expert' : expert,
                            'exactCount' : hardCount,
                            'datetimefields' : datetimefields,
+                           'displayFields' : [ x for x in modelFields if not x.primary_key ],
                            'formset' : formset,
                            'axesform' : axesform,
                            'page' : page,
