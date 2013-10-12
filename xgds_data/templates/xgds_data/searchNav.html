@@ -2,5 +2,5 @@
 
 <div>Choose model:</div>
 {% for model in models %}
-  <div class="navLink"><a href="{% url xgds_data_searchModel model.qualifiedName %}">{{ model.qualifiedName }}</a></div>
+  <div class="navLink"><a href="{% url 'xgds_data_searchModel' model.qualifiedName %}">{{ model.qualifiedName }}</a></div>
 {% endfor %}
