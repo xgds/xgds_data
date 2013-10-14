@@ -13,7 +13,7 @@ from xgds_data import settings
 
 
 def logEnabled():
-    return (hasattr(settings, 'XGDS_DATA_LOG_ENABLED') and 
+    return (hasattr(settings, 'XGDS_DATA_LOG_ENABLED') and
             settings.XGDS_DATA_LOG_ENABLED)
 
 def getModelByName(name):
@@ -53,10 +53,10 @@ if logEnabled() :
         ipaddress = models.CharField(max_length=256, blank=False)
         #user = models.CharField(max_length=64, blank=False)  # probably can be a foreign key
         user = models.ForeignKey(User, null=True, blank=True)
-        session = models.CharField(max_length=64, null=True, blank=True) 
-        referer = models.CharField(max_length=256, null=True, blank=True) 
-        user_agent = models.CharField(max_length=256, null=True, blank=True) 
-        
+        session = models.CharField(max_length=64, null=True, blank=True)
+        referer = models.CharField(max_length=256, null=True, blank=True)
+        user_agent = models.CharField(max_length=256, null=True, blank=True)
+
         @classmethod
         def create(cls, request):
             ref = request.META.get('HTTP_REFERER',None)
@@ -64,7 +64,7 @@ if logEnabled() :
             uzer = request.user
             if (uzer.id == None) :
                 uzer = None
-            
+
             # rlog = cls(path=request.path,ipaddress=get_client_ip(request),user=request.user.__str__())
             rlog = cls(timestampSeconds=datetime.utcnow(),
                        path=truncate(request.path,256),
@@ -72,25 +72,25 @@ if logEnabled() :
                        session=truncate(request.session.session_key,64),
                        referer=truncate(ref,256),user_agent=truncate(uagent,256))
             return rlog
-    
+
         def __unicode__(self):
             return 'Request %s:%s' % (self.id, self.path)
-    
+
     class RequestArgument(models.Model):
         request = models.ForeignKey(RequestLog, null=False, blank=False)
         name = models.CharField(max_length=256, blank=False)
         value = models.TextField(blank=True)
-        
+
     class ResponseLog(models.Model):
         timestampSeconds = models.DateTimeField(blank=False, default=datetime.utcnow())
         request = models.ForeignKey(RequestLog, null=False, blank=False)
         template = models.CharField(max_length=256, blank=True)
-    
+
     class ResponseArgument(models.Model):
         response = models.ForeignKey(ResponseLog, null=False, blank=False)
         name = models.CharField(max_length=256, blank=False)
         value = models.CharField(max_length=1024, blank=True)
-        
+
     class ResponseList(models.Model):
         response = models.ForeignKey(ResponseLog, null=False, blank=False)
         rank = models.PositiveIntegerField(blank=False)

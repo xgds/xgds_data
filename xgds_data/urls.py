@@ -36,7 +36,7 @@ urlpatterns = patterns(
         name='xgds_data_searchSimilar'),
     url(r'^similar/(?P<moduleName>[^/]+)/(?P<modelName>[^/]+)/(?P<args>[^/]+)$', 'searchSimilar',
         name='xgds_data_searchSimilar'),
-                       
+
     # legacy urls
     url(r'^chooseSearchModel/(?P<moduleName>[^/]+)/$', 'chooseSearchModel',
         name='xgds_data_chooseSearchModel_orig'),

@@ -97,64 +97,64 @@ class SearchForm(forms.Form):
                 ## put the field name in as the default just to tell me, the programmer, that this
                 ## class isn't properly dealt with yet.
                 self.fields[field.name] = forms.CharField(initial=longname,required=False)
-                                   
+
     def as_table(self):
-        output  = []       
-            
+        output  = []
+
         for mfield in self.model._meta.fields :
             if (self.fields.has_key(mfield.name) or
                 (self.fields.has_key(mfield.name+'_lo') and
                  self.fields.has_key(mfield.name+'_hi'))) :
                 ofieldname = mfield.name+'_operator'
                 ofield = forms.forms.BoundField(self,self.fields[ofieldname],ofieldname)
-                row = u'<tr><td style="text-align:right; font-weight:bold;">%(label)s</td><td>%(ofield)s</td>' %  { 
-                                                                'label': unicode(mfield.verbose_name), 
+                row = u'<tr><td style="text-align:right; font-weight:bold;">%(label)s</td><td>%(ofield)s</td>' %  {
+                                                                'label': unicode(mfield.verbose_name),
                                                                 'ofield' :  unicode(ofield.as_hidden()) }
-                if ((isinstance(mfield, fields.DateTimeField)) or 
+                if ((isinstance(mfield, fields.DateTimeField)) or
                     (isinstance(mfield, fields.FloatField)) or
                     (isinstance(mfield, fields.IntegerField)) or
                     (isinstance(mfield, fields.PositiveIntegerField))) :
                     loname, hiname = mfield.name+'_lo', mfield.name+'_hi'
                     fieldlo = forms.forms.BoundField(self,self.fields[loname],loname)
                     fieldhi = forms.forms.BoundField(self,self.fields[hiname],hiname)
-                    row = row + u'<td>%(fieldlo)s</td><td>up to</td><td>%(fieldhi)s</td>' %  { 
+                    row = row + u'<td>%(fieldlo)s</td><td>up to</td><td>%(fieldhi)s</td>' %  {
                         'fieldlo': unicode(fieldlo), 'fieldhi': unicode(fieldhi) }
                 else :
                     bfield = forms.forms.BoundField(self,self.fields[mfield.name],mfield.name)
                     row = row + u'<td colspan=3>%(field)s</td>' %  { 'field': unicode(bfield) }
-                    
+
                 row = row + u'</tr>'
-                output.append(row)            
+                output.append(row)
         return mark_safe(u'\n'.join(output))
-    
+
     def as_expert_table(self):
-        output  = []       
-            
+        output  = []
+
         for mfield in self.model._meta.fields :
             if (self.fields.has_key(mfield.name) or
                 (self.fields.has_key(mfield.name+'_lo') and
                  self.fields.has_key(mfield.name+'_hi'))) :
                 ofieldname = mfield.name+'_operator'
                 ofield = forms.forms.BoundField(self,self.fields[ofieldname],ofieldname)
-                row = u'<tr><td style="text-align:right; font-weight:bold;">%(label)s</td><td>%(ofield)s</td>' %  { 
+                row = u'<tr><td style="text-align:right; font-weight:bold;">%(label)s</td><td>%(ofield)s</td>' %  {
                                                                 'label': unicode(mfield.name), 'ofield' :  unicode(ofield) }
-                if ((isinstance(mfield, fields.DateTimeField)) or 
+                if ((isinstance(mfield, fields.DateTimeField)) or
                     (isinstance(mfield, fields.FloatField)) or
                     (isinstance(mfield, fields.IntegerField)) or
                     (isinstance(mfield, fields.PositiveIntegerField))) :
                     loname, hiname = mfield.name+'_lo', mfield.name+'_hi'
                     fieldlo = forms.forms.BoundField(self,self.fields[loname],loname)
                     fieldhi = forms.forms.BoundField(self,self.fields[hiname],hiname)
-                    row = row + u'<td>%(fieldlo)s</td><td>up to</td><td>%(fieldhi)s</td>' %  { 
+                    row = row + u'<td>%(fieldlo)s</td><td>up to</td><td>%(fieldhi)s</td>' %  {
                         'fieldlo': unicode(fieldlo), 'fieldhi': unicode(fieldhi) }
                 else :
                     bfield = forms.forms.BoundField(self,self.fields[mfield.name],mfield.name)
                     row = row + u'<td colspan=3>%(field)s</td>' %  { 'field': unicode(bfield) }
-                    
+
                 row = row + u'</tr>'
-                output.append(row)            
+                output.append(row)
         return mark_safe(u'\n'.join(output))
-    
+
     def modelVerboseName(self):
         return self.model._meta.verbose_name
 
@@ -186,5 +186,3 @@ class AxesForm(forms.Form):
             self.fields['xaxis'] = forms.ChoiceField(choices=datachoices,required=True,initial=chartablefields[0].name)
             self.fields['yaxis'] = forms.ChoiceField(choices=datachoices,required=True,initial=chartablefields[1].name)
             self.fields['series'] = forms.ChoiceField(choices=tuple(serieschoices),required=True,initial=serieschoices[0][0])
-
-        
