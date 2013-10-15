@@ -16,6 +16,7 @@ def logEnabled():
     return (hasattr(settings, 'XGDS_DATA_LOG_ENABLED') and
             settings.XGDS_DATA_LOG_ENABLED)
 
+
 def getModelByName(name):
     appName, modelName = name.split('.', 1)
     modelsName = appName + '.models'
@@ -25,14 +26,16 @@ def getModelByName(name):
     print dir(modelsModule)
     return getattr(modelsModule, modelName)
 
-def truncate(val,limit):
+
+def truncate(val, limit):
     """
         shortens the value if need be so that it does not exceed db limit
         """
-    if (val == None) :
+    if val is None:
         return None
-    else :
-        return val[0:(limit-2)] # save an extra space because the db seems to want that
+    else:
+        return val[0:(limit - 2)]  # save an extra space because the db seems to want that
+
 
 ## taken from http://stackoverflow.com/questions/4581789/how-do-i-get-user-ip-address-in-django
 def get_client_ip(request):
@@ -46,7 +49,7 @@ def get_client_ip(request):
         ip = request.META.get('REMOTE_ADDR')
     return ip
 
-if logEnabled() :
+if logEnabled():
     class RequestLog(models.Model):
         timestampSeconds = models.DateTimeField(blank=False)
         path = models.CharField(max_length=256, blank=False)
@@ -59,18 +62,20 @@ if logEnabled() :
 
         @classmethod
         def create(cls, request):
-            ref = request.META.get('HTTP_REFERER',None)
-            uagent = request.META.get('HTTP_USER_AGENT',None)
+            ref = request.META.get('HTTP_REFERER', None)
+            uagent = request.META.get('HTTP_USER_AGENT', None)
             uzer = request.user
-            if (uzer.id == None) :
+            if uzer.id is None:
                 uzer = None
 
             # rlog = cls(path=request.path,ipaddress=get_client_ip(request),user=request.user.__str__())
             rlog = cls(timestampSeconds=datetime.utcnow(),
-                       path=truncate(request.path,256),
-                       ipaddress=truncate(get_client_ip(request),256),user=uzer,
-                       session=truncate(request.session.session_key,64),
-                       referer=truncate(ref,256),user_agent=truncate(uagent,256))
+                       path=truncate(request.path, 256),
+                       ipaddress=truncate(get_client_ip(request), 256),
+                       user=uzer,
+                       session=truncate(request.session.session_key, 64),
+                       referer=truncate(ref, 256),
+                       user_agent=truncate(uagent, 256))
             return rlog
 
         def __unicode__(self):
