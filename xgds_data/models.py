@@ -5,10 +5,11 @@
 # __END_LICENSE__
 
 import sys
+from datetime import datetime
 
 from django.db import models
 from django.contrib.auth.models import User
-from datetime import datetime
+
 from xgds_data import settings
 
 
