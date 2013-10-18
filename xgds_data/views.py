@@ -25,11 +25,13 @@ from django.db.models import Q
 from django.db.models.fields import DateTimeField, DateField, PositiveIntegerField, PositiveSmallIntegerField, TimeField
 from django.forms.models import ModelMultipleChoiceField, model_to_dict
 from django import forms
-from django.db.models import Model
+from django.db.models import Model 
 from django.forms.formsets import formset_factory
 from django.core.paginator import Paginator
 from django.utils.html import escape
 
+
+from xgds_data.introspection import modelFields
 from xgds_data.models import getModelByName
 from xgds_data.forms import QueryForm, SearchForm, AxesForm
 from xgds_data import settings
@@ -41,14 +43,11 @@ if logEnabled():
                                   ResponseArgument,
                                   ResponseList)
 
-
 def index(request):
     return HttpResponse("Hello, world. You're at the xgds_data index.")
 
-
 def hasModels(appName):
     return len(get_models(get_app(appName))) != 0
-
 
 def getModelInfo(qualifiedName, model):
     return {
@@ -58,15 +57,13 @@ def getModelInfo(qualifiedName, model):
 
 if (hasattr(settings, 'XGDS_DATA_SEARCH_SKIP_APP_PATTERNS')):
     SKIP_APP_REGEXES = [re.compile(_p) for _p in settings.XGDS_DATA_SEARCH_SKIP_APP_PATTERNS]
-
-
+    
 def isSkippedApp(appName):
     try:
         return any((r.match(appName) for r in SKIP_APP_REGEXES))
     except NameError:
         return (appName.find('django') > -1)
-
-
+    
 def searchModelsDefault():
     """
     Pick out some reasonable search models if none were explicitly listed
@@ -75,7 +72,7 @@ def searchModelsDefault():
                     for app in get_apps()
                     if not isSkippedApp(app.__name__) and get_models(app)]
     return dict([(model.__name__, model) for model in list(chain(*nestedModels)) if not model._meta.abstract])
-
+    
 if (hasattr(settings, 'XGDS_DATA_SEARCH_MODELS')):
     SEARCH_MODELS = dict([(name, getModelByName(name))
                           for name in settings.XGDS_DATA_SEARCH_MODELS])
@@ -84,7 +81,6 @@ else:
 
 MODELS_INFO = [getModelInfo(_qname, _model)
                for _qname, _model in SEARCH_MODELS.iteritems()]
-
 
 def searchIndex(request):
     return render_to_response('xgds_data/searchIndex.html',
@@ -131,6 +127,7 @@ def searchModel(request, modelName):
                      + order
                      + limit)
 
+
         try:
             cursor = connection.cursor()
             cursor.execute(countQuery)
@@ -164,7 +161,6 @@ def searchModel(request, modelName):
                                'result': result},
                               context_instance=RequestContext(request))
 
-
 def chooseSearchApp(request):
     apps = [app.__name__ for app in get_apps()]
     apps = [re.sub(r'\.models$', '', app) for app in apps]
@@ -188,8 +184,7 @@ def chooseSearchModel(request, moduleName):
                    'module': moduleName,
                    'models': sorted(models)}
                   )
-
-
+    
 def csvEncode(something):
     """
     csvlib can't deal with non-ascii unicode, thus, this function
@@ -199,8 +194,7 @@ def csvEncode(something):
         # return something.encode("utf-8")
     else:
         return something
-
-
+    
 def specializedSearchForm(myModel):
     """
     Returns form class for the given model, so you don't have to pass the model to the constructor
@@ -220,13 +214,11 @@ def specializedSearchForm(myModel):
     tmpFormClass.__init__ = initMethod
     return tmpFormClass
 
-
 def formsetifyFieldName(i, fname):
     """
     Returns the field name for the ith form and given fname
     """
     return '-'.join(['form', str(i), fname])
-
 
 def divineWhereClause(myModel, filters, formset):
     """
@@ -252,7 +244,7 @@ def divineWhereClause(myModel, filters, formset):
             newwhere = newwhere + newseg
     else:
         newwhere = None
-
+        
     return newwhere
 
 
@@ -291,16 +283,15 @@ def walkQ(qstmt):
     else:
         print("Encountered unexpected type" + qstmt.__class__)
         return '1 != 1'
-
-
+    
 def makeFilters(formset, soft=True):
     """
     Helper for searchChosenModel; figures out restrictions given a formset
     """
     filters = None
-    ##if (threshold == 1) :
+    ##if (threshold == 1):
     ##    filters = None
-    ##else :
+    ##else:
     ##    filters = Q(**{ 'score__gte' : threshold } )
     ## forms are interpreted as internally conjunctive, externally disjunctive
     for form in formset:
@@ -369,8 +360,7 @@ def makeFilters(formset, soft=True):
         else:
             filters = subfilter
     return filters
-
-
+        
 def scoreNumericOLD(field, val, minimum, maximum):
     """
     provide a score for a numeric clause that ranges from 1 (best) to 0 (worst)
@@ -387,7 +377,7 @@ def scoreNumericOLD(field, val, minimum, maximum):
     else:
         lorange = val
         hirange = val
-
+        
     def mktimeIfNeeded(d):
         if isinstance(d, datetime.datetime):
             return time.mktime(d.timetuple())
@@ -398,7 +388,7 @@ def scoreNumericOLD(field, val, minimum, maximum):
     hirange = mktimeIfNeeded(hirange)
     minimum = mktimeIfNeeded(minimum)
     maximum = mktimeIfNeeded(maximum)
-
+            
     if ((lorange <= minimum) and (maximum <= hirange)):
         return '1'
     else:
@@ -407,7 +397,6 @@ def scoreNumericOLD(field, val, minimum, maximum):
                         lorange,
                         hirange,
                         max(0, lorange - minimum, maximum - hirange)))
-
 
 def baseScore(field, lorange, hirange):
     """
@@ -423,7 +412,7 @@ def baseScore(field, lorange, hirange):
     ## perhaps could swap lo, hi if lo > hi
     if (timeConversion):
         field = 'UNIX_TIMESTAMP({0})'.format(field)
-
+    
     if lorange == hirange:
         return "abs({0}-{1})".format(field, lorange)
     elif lorange == 'min':
@@ -434,15 +423,17 @@ def baseScore(field, lorange, hirange):
         ##return "greatest(0,least({1}-{0},{0}-{2}))".format(field, lorange, hirange)
         return "greatest(0,{1}-{0},{0}-{2})".format(field, lorange, hirange)
 
-
 def randomSample(model, expression, size, offset=None, limit=None):
     """
     Selects a random set of records, assuming even distibution of ids; not very Django-y
     """
     table = model._meta.db_table
     pkname = model._meta.pk.attname
-    randselect = '(SELECT CEIL(RAND() * (SELECT MAX({1}) FROM {0})) AS {1} from {0} limit {2})'.format(table, pkname, size)
-    if (offset is None) or (limit is None):
+    randselect = 'SELECT {1} from {0} WHERE {2} IS NOT NULL ORDER BY RAND() limit {3}'.format(table, pkname, expression, size)
+    ## turns out mysql has a direct way of selecting random ways; below is a more complicated way that requires
+    ## consecutive ids, etc
+    #randselect = '(SELECT CEIL(RAND() * (SELECT MAX({1}) FROM {0})) AS {1} from {0} limit {2})'.format(table, pkname, size)
+    if (offset == None) or (limit == None):
         sql = ('select {2} as score from {0} JOIN ({3}) AS r2 USING ({1}) order by score;'
                .format(table, pkname, expression, randselect))
     else:
@@ -451,7 +442,6 @@ def randomSample(model, expression, size, offset=None, limit=None):
     cursor = connection.cursor()
     cursor.execute(sql)
     return cursor.fetchall()
-
 
 def countMatches(table, expression, where, threshold):
     """
@@ -465,7 +455,6 @@ def countMatches(table, expression, where, threshold):
     cursor.execute(sql)
     return cursor.fetchone()[0]
 
-
 def countApproxMatches(model, scorer, maxSize, threshold):
     """
     Take a guess as to how many records match by examining a random sample
@@ -478,7 +467,7 @@ def countApproxMatches(model, scorer, maxSize, threshold):
         for x in sample:
             if x[0] >= threshold:
                 cpass = cpass + 1
-        ##query = query[0:round(maxSize*cpass/len(sample))]
+        ##query = query[0:round(maxSize * cpass / len(sample))]
         resultCount = maxSize * cpass / len(sample)
         ## make it look approximate
         if resultCount > 10:
@@ -487,8 +476,7 @@ def countApproxMatches(model, scorer, maxSize, threshold):
         elif resultCount > 0:
             resultCount = 10
         return resultCount
-
-
+    
 def medianEval(model, expression, size):
     """
     Quick mysql-y way of estimating the median from a sample
@@ -508,16 +496,15 @@ def medianEval(model, expression, size):
         else:
             return result[0][0]
 
-
 def scoreNumeric(model, field, lorange, hirange, tableSize):
     """
     provide a score for a numeric clause that ranges from 1 (best) to 0 (worst)
     """
     ## Yuk ... need to convert if field is unsigned
     unsigned = False
-    for f in model._meta.fields:
+    for f in modelFields(model):
         if ((f.attname == field) and
-                isinstance(f, (PositiveIntegerField, PositiveSmallIntegerField))):
+            isinstance(f, (PositiveIntegerField, PositiveSmallIntegerField))):
             unsigned = True
     ## Add table designation to properly resolve a field name that has another SQL interpretation
     ## (for instance, a field name 'long')
@@ -534,8 +521,7 @@ def scoreNumeric(model, field, lorange, hirange, tableSize):
     else:
         return "1 /(1 + {0}/{1})".format(baseScore(field, lorange, hirange), median)
     #return "1-(1 + {1}) /(2 + 2 * {0})".format(baseScore(field, lorange, hirange),
-    #                    medianEval(model._meta.db_table,baseScore(field, lorange, hirange),tableSize))
-
+    #                    medianEval(model._meta.db_table, baseScore(field, lorange, hirange), tableSize))
 
 def desiredRanges(frms):
     """
@@ -565,7 +551,6 @@ def desiredRanges(frms):
                     desiderata[base] = [loval, hival]
     return desiderata
 
-
 def sortFormula(model, formset):
     """
     Helper for searchChosenModel; comes up with a formula for ordering the results
@@ -578,15 +563,13 @@ def sortFormula(model, formset):
     else:
         return None
 
-
 def sortThreshold():
     """
     Guess on a good threshold to cutoff the search results
     """
     ## rather arbitrary cutoff, which would return 30% of results if scores are uniform
     return 0.7
-
-
+    
 def recordRequest(request):
     """
     Logs the request in the database
@@ -601,8 +584,7 @@ def recordRequest(request):
         return reqlog
     else:
         return None
-
-
+                      
 def recordList(reslog, results):
     """
     Logs a ranked list of results
@@ -615,10 +597,9 @@ def recordList(reslog, results):
             items = [ResponseList(response=reslog,
                                   rank=r,
                                   fclass=str(results[r - 1].__class__),
-                                  fid=results[r - 1].id)
+                                  fid = results[r - 1].id )
                      for r in ranks]
             ResponseList.objects.bulk_create(items)
-
 
 def log_and_render(request, reqlog, template, rendargs,
                    content_type=settings.DEFAULT_CONTENT_TYPE,
@@ -638,7 +619,6 @@ def log_and_render(request, reqlog, template, rendargs,
             recordList(reslog, listing)
     return render(request, template, rendargs, content_type=content_type)
 
-
 def searchSimilar(request, moduleName, modelName):
     """
     Launch point for finding more items like this one
@@ -646,7 +626,7 @@ def searchSimilar(request, moduleName, modelName):
     reqlog = recordRequest(request)
     modelmodule = get_app(moduleName)
     myModel = getattr(modelmodule, modelName)
-    modelFields = myModel._meta.fields
+    myFields = modelFields(myModel)
     tmpFormClass = specializedSearchForm(myModel)
     tmpFormSet = formset_factory(tmpFormClass, extra=0)
     debug = []
@@ -655,7 +635,7 @@ def searchSimilar(request, moduleName, modelName):
     defaults = dict()
     aForm = tmpFormClass()
     medict = model_to_dict(me)
-
+    
     for fld in medict.keys():
         op = fld + '_operator'
         f = aForm.fields.get(op, None)
@@ -677,30 +657,29 @@ def searchSimilar(request, moduleName, modelName):
         hi = fld + '_hi'
         if hi in aForm.fields:
             defaults[hi] = medict[fld]
-
+    
     formset = tmpFormSet(initial=[defaults])
     resultCount = None
     datetimefields = []
-    for x in modelFields:
+    for x in myFields:
         if isinstance(x, DateTimeField):
             for y in [0, 1]:
                 datetimefields.append(formsetifyFieldName(y, x.name))
-    axesform = AxesForm(modelFields, data)
+    axesform = AxesForm(myFields, data)
     template = 'xgds_data/searchChosenModel.html'
     if (hasattr(settings, 'XGDS_DATA_SEARCH_TEMPLATES')):
         template = settings.XGDS_DATA_SEARCH_TEMPLATES.get(modelName, template)
-
+    
     return log_and_render(request, reqlog, template,
-                          {'title': 'Search ' + modelName,
+                          {'title': 'Search '+modelName,
                            'module': moduleName,
                            'model': modelName,
-                           'debug': debug,
+                           'debug':  debug,
                            'count': resultCount,
                            'datetimefields': datetimefields,
                            'formset': formset,
                            'axesform': axesform},
-                          nolog=['formset', 'axesform'])
-
+                          nolog = ['formset', 'axesform'])
 
 def searchChosenModel(request, moduleName, modelName, expert=False):
     """
@@ -709,7 +688,7 @@ def searchChosenModel(request, moduleName, modelName, expert=False):
     reqlog = recordRequest(request)
     modelmodule = get_app(moduleName)
     myModel = getattr(modelmodule, modelName)
-    modelFields = myModel._meta.fields
+    myFields = modelFields(myModel)
     tmpFormClass = specializedSearchForm(myModel)
     tmpFormSet = formset_factory(tmpFormClass)
     debug = []
@@ -738,17 +717,17 @@ def searchChosenModel(request, moduleName, modelName, expert=False):
         formCount = int(data['form-TOTAL_FORMS'])
         ## this is very strange, but the extra forms don't come up with the right defaults
         ## create a new form and read what the initial values should be
-        blankForm = tmpFormClass()      
+        blankForm = tmpFormClass()
         #newdata = data.copy()
         newdata = dict(data)
-        for fname, field in blankForm.fields.iteritems() :
-            if isinstance(field,ModelMultipleChoiceField) :
+        for fname, field in blankForm.fields.iteritems():
+            if isinstance(field, ModelMultipleChoiceField):
                 val = [ unicode(x.id) for x in field.initial ]
-                newdata.setlist(formsetifyFieldName(formCount,fname),val)
-            elif ((not isinstance(field,forms.ChoiceField)) & (not field.initial)) :
-                newdata[formsetifyFieldName(formCount,fname)] = unicode('')
-            else :
-                newdata[formsetifyFieldName(formCount,fname)] = unicode(field.initial)
+                newdata.setlist(formsetifyFieldName(formCount, fname), val)
+            elif ((not isinstance(field, forms.ChoiceField)) & (not field.initial)):
+                newdata[formsetifyFieldName(formCount, fname)] = unicode('')
+            else:
+                newdata[formsetifyFieldName(formCount, fname)] = unicode(field.initial)
         newdata['form-TOTAL_FORMS'] = unicode(formCount  + 1 )
         formset = tmpFormSet(newdata)  # but passing data nullifies extra
     elif ((mode == 'query') or (mode == 'csv')):
@@ -769,10 +748,10 @@ def searchChosenModel(request, moduleName, modelName, expert=False):
                                          divineWhereClause(myModel, filters, formset),
                                          sortThreshold())
                     results = results[0:limit]
-                fnames = [f.column for f in modelFields]
+                fnames = [f.column for f in myFields]
                 response = HttpResponse(content_type='text/csv')
                 # if you want to download instead of display in browser
-                # response['Content-Disposition'] = 'attachment; filename='+modelName+'.csv'
+                # response['Content-Disposition'] = 'attachment; filename='+modelName + '.csv'
                 writer = csv.writer(response)
                 writer.writerow(fnames)
                 for r in results:
@@ -784,29 +763,34 @@ def searchChosenModel(request, moduleName, modelName, expert=False):
                 return response
             elif (mode == 'query'):
                 if scorer:
-                    resultCount = countApproxMatches(myModel, scorer, query.count(), sortThreshold())
+                    ## resultCount = countApproxMatches(myModel, scorer, query.count(), sortThreshold())
+                    resultCount = countMatches(myModel._meta.db_table,
+                                 scorer,
+                                 divineWhereClause(myModel, filters, formset),
+                                 sortThreshold())
                     hardCount = hardquery.count()
                     if resultCount < hardCount:
                         resultCount = hardCount
-                else :
-                    resultCount = query.count() 
-                    hardCount = resultCount    
+                    query = query[0:resultCount]
+                else:
+                    resultCount = query.count()
+                    hardCount = resultCount
                 resultsPages = Paginator(query, 10)
-                resultsPage = resultsPages.page(page) 
+                resultsPage = resultsPages.page(page)
                 results = resultsPages.page(page).object_list
                 resultids = [getattr(r, myModel._meta.pk.name) for r in results]
         else:
             debug = formset.errors
     else:
         formset = tmpFormSet()
-
+                
     datetimefields = []
-    for x in modelFields:
+    for x in myFields :
         if isinstance(x, DateTimeField):
             for y in range(0, formCount + 1):
                 datetimefields.append(formsetifyFieldName(y, x.name))
-    axesform = AxesForm(modelFields, data)
-
+    axesform = AxesForm(myFields, data)
+        
     if (not axesform.fields.get('yaxis')):
         ## if yaxis is not defined, then we can't really plot
         axesform = None
@@ -819,12 +803,12 @@ def searchChosenModel(request, moduleName, modelName, expert=False):
               'yaxis': axesform.fields.get('yaxis').initial,
               'series': axesform.fields.get('series').initial}
         qd.update(data)
-        axesform = AxesForm(modelFields, qd)
+        axesform = AxesForm(myFields, qd)
     template = 'xgds_data/searchChosenModel.html'
     if (hasattr(settings, 'XGDS_DATA_SEARCH_TEMPLATES')):
         template = settings.XGDS_DATA_SEARCH_TEMPLATES.get(modelName, template)
     return log_and_render(request, reqlog, template,
-                   {'title': 'Search '+modelName,
+                          {'title': 'Search '+ modelName,
                            'module': moduleName,
                            'model': modelName,
                            'debug' : debug,
@@ -832,7 +816,7 @@ def searchChosenModel(request, moduleName, modelName, expert=False):
                            'expert' : expert,
                            'exactCount' : hardCount,
                            'datetimefields' : datetimefields,
-                           'displayFields' : [ x for x in modelFields if not x.primary_key ],
+                           'displayFields' : [ x for x in myFields if not x.primary_key ],
                            'formset' : formset,
                            'axesform' : axesform,
                            'page' : page,
@@ -840,10 +824,10 @@ def searchChosenModel(request, moduleName, modelName, expert=False):
                            'resultids': resultids,
                            'resultsPage': resultsPage,
                            'picks' : picks,
+                           'checkable' : True,
                            },
-                    nolog = ['formset','axesform','results','resultsids'],
+                    nolog = ['formset', 'axesform', 'results', 'resultsids'],
                     listing = results)
-
 
 def plotQueryResults(request, moduleName, modelName, start, end, soft=True):
     """
@@ -854,19 +838,19 @@ def plotQueryResults(request, moduleName, modelName, start, end, soft=True):
     reqlog = recordRequest(request)
     modelmodule = __import__('.'.join([moduleName, 'models'])).models
     myModel = getattr(modelmodule, modelName)
-    modelFields = myModel._meta.fields
+    myFields = modelFields(myModel)
     tmpFormClass = specializedSearchForm(myModel)
     tmpFormSet = formset_factory(tmpFormClass)
     data = request.REQUEST
     soft = soft in (True, 'True')
-
-    axesform = AxesForm(modelFields, data)
+    
+    axesform = AxesForm(myFields, data);
     fieldDict = {x.name: x
-                 for x in modelFields}
+                 for x in myFields}
     timeFields = [fieldName
                   for fieldName, fieldVal in fieldDict.iteritems()
                   if isinstance(fieldVal, (DateField, TimeField))]
-
+    
     formset = tmpFormSet(data)
     if formset.is_valid():
         ## a lot of this code mimics what is in searchChosenModel
@@ -874,9 +858,9 @@ def plotQueryResults(request, moduleName, modelName, start, end, soft=True):
         scorer = sortFormula(myModel, formset)
         filters = makeFilters(formset, soft)
         objs = myModel.objects.filter(filters)
-        if scorer:
-            objs = objs.extra(select={'score': scorer}, order_by=['-score'])
-            ##resultCount = countApproxMatches(myModel._meta.db_table,scorer,objs.count(),sortThreshold())
+        if scorer :
+            objs = objs.extra(select={'score': scorer}, order_by = ['-score'])
+            ##resultCount = countApproxMatches(myModel._meta.db_table, scorer, objs.count(), sortThreshold())
             resultCount = countMatches(myModel._meta.db_table,
                                        scorer,
                                        divineWhereClause(myModel, filters, formset),
@@ -899,12 +883,12 @@ def plotQueryResults(request, moduleName, modelName, start, end, soft=True):
             else:
                 return escape(obj)
 
-        plotdata = [{fld.name: megahandler(fld.value_from_object(x))
-                     for fld in modelFields}
+        plotdata = [{fld.name:megahandler(fld.value_from_object(x))
+                     for fld in myFields}
                     for x in objs]
         pldata = [str(x) for x in objs]
         ##pldata = [str(x.denominator) for x in objs]
-
+        
         ## the following code determines if there are any foreign keys that can be selected, and if so,
         ## replaces the corresponding values (which will be ids) with the string representation
         seriesChoices = dict(axesform.fields['series'].choices)
@@ -914,7 +898,7 @@ def plotQueryResults(request, moduleName, modelName, start, end, soft=True):
                     for x in modelField.rel.to.objects.all()}
 
         seriesValues = {m.name: getRelated(m)
-                        for m in modelFields
+                        for m in myFields
                         if (m.rel is not None and
                             m.name in seriesChoices)}
         for x in plotdata:
@@ -924,7 +908,7 @@ def plotQueryResults(request, moduleName, modelName, start, end, soft=True):
                         x[k] = seriesValues[k][x[k]]
                     except:  # pylint: disable=W0702
                         x[k] = str(x[k])  # seriesValues[k][seriesValues[k].keys()[0]]
-
+        
         debug = []
         #resultCount = myModel.objects.filter(filters).count()
         shownCount = len(pldata)
@@ -944,20 +928,20 @@ def plotQueryResults(request, moduleName, modelName, start, end, soft=True):
             return None
 
     return log_and_render(request, reqlog, 'xgds_data/plotQueryResults.html',
-                          {
-                              'plotData': json.dumps(plotdata, default=megahandler2),
-                              'labels': pldata,
-                              'timeFields': json.dumps(timeFields),
-                              'title': 'Plot ' + modelName,
-                              'module': moduleName,
-                              'model': modelName,
-                              'start': start,
-                              'end': end,
-                              'debug': debug,
-                              'count': resultCount,
-                              'showncount': shownCount,
-                              "formset": formset,
-                              'axesform': axesform
-                          },
-                          nolog=['plotData', 'labels', 'formset', 'axesform'],
-                          listing=objs)
+                          {'plotData' : json.dumps(plotdata, default=megahandler2),
+                           'labels' : pldata,
+                           'timeFields': json.dumps(timeFields),
+                           'title': 'Plot ' + modelName,
+                           'module': moduleName,
+                           'model': modelName,
+                           'start' : start,
+                           'end' : end,
+                           'debug' :  debug,
+                           'count' : resultCount,
+                           'showncount' : shownCount,
+                           "formset" : formset,
+                           'axesform' : axesform
+                           },
+                    nolog = ['plotData', 'labels', 'formset', 'axesform'],
+                    listing = objs)
+

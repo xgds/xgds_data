@@ -10,8 +10,8 @@ from django.utils.safestring import mark_safe
 from django.db.models.fields import AutoField, DateField, DecimalField, FloatField, IntegerField, TimeField
 from django.db.models.fields.related import RelatedField
 
+from xgds_data.introspection import modelFields
 # pylint: disable=R0924
-
 
 class QueryForm(forms.Form):
     query = forms.CharField(max_length=256, required=False,
@@ -33,7 +33,7 @@ class SearchForm(forms.Form):
                           ('NOT IN', 'NOT IN'))
         categoricalOperators = (('=', '='),
                                 ('!=', '!='))
-        for field in (mymodel._meta.fields):
+        for field in (modelFields(mymodel)):
             if isinstance(field, fields.AutoField):
                 pass  # nothing
             elif isinstance(field, fields.BooleanField):
@@ -66,7 +66,8 @@ class SearchForm(forms.Form):
                                       required=True)
                 self.fields[field.name + '_lo'] = forms.FloatField(required=False)
                 self.fields[field.name + '_hi'] = forms.FloatField(required=False)
-            elif isinstance(field, fields.related.ForeignKey):
+            elif (isinstance(field, fields.related.ForeignKey) or
+                  isinstance(field, fields.related.ManyToManyField)) :
                 if field.model.objects.values(field.name).order_by().distinct().count() > 1000:
                     ## should deal with differently, probably text box
                     pass
