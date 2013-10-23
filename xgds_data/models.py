@@ -11,12 +11,7 @@ from django.db import models
 from django.contrib.auth.models import User
 
 from xgds_data import settings
-
-
-def logEnabled():
-    return (hasattr(settings, 'XGDS_DATA_LOG_ENABLED') and
-            settings.XGDS_DATA_LOG_ENABLED)
-
+from xgds_data.logconfig import logEnabled
 
 def getModelByName(name):
     appName, modelName = name.split('.', 1)
@@ -102,3 +97,4 @@ if logEnabled():
         rank = models.PositiveIntegerField(blank=False)
         fclass = models.CharField(max_length=1024, blank=True)
         fid = models.PositiveIntegerField(blank=False)  # might be risky to assume this is always a pos int
+

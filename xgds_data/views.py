@@ -30,7 +30,10 @@ from xgds_data import settings
 from xgds_data.introspection import modelFields
 from xgds_data.models import getModelByName
 from xgds_data.forms import QueryForm, SearchForm, AxesForm
-from xgds_data.logging import recordRequest, recordList, log_and_render, logEnabled, ResponseLog
+from xgds_data.logging import recordRequest, recordList, log_and_render
+from xgds_data.logconfig import logEnabled
+if logEnabled():
+    from xgds_data.models import ResponseLog
 from xgds_data.search import makeFilters, sortFormula, countMatches, countApproxMatches, \
     divineWhereClause, sortThreshold
 

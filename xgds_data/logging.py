@@ -9,14 +9,15 @@ from math import floor, log
 from django.shortcuts import render 
 
 from xgds_data import settings
-from xgds_data.models import logEnabled
+from xgds_data.logconfig import logEnabled
+   
 if logEnabled():
     from xgds_data.models import (RequestLog,
                                   RequestArgument,
                                   ResponseLog,
                                   ResponseArgument,
                                   ResponseList)
-
+    
 def recordRequest(request):
     """
     Logs the request in the database
