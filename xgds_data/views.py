@@ -34,7 +34,7 @@ from xgds_data.logging import recordRequest, recordList, log_and_render
 from xgds_data.logconfig import logEnabled
 if logEnabled():
     from xgds_data.models import ResponseLog
-from xgds_data.search import makeFilters, sortFormula, countMatches, countApproxMatches, \
+from xgds_data.search import makeFilters, sortFormula, countMatches, \
     divineWhereClause, sortThreshold
 
 def index(request):
@@ -214,7 +214,7 @@ def formsetifyFieldName(i, fname):
     """
     return '-'.join(['form', str(i), fname])
 
-def searchSimilar(request, moduleName, modelName):
+def searchSimilar(request, moduleName, modelName, pkid):
     """
     Launch point for finding more items like this one
     """
@@ -226,7 +226,9 @@ def searchSimilar(request, moduleName, modelName):
     tmpFormSet = formset_factory(tmpFormClass, extra=0)
     debug = []
     data = request.REQUEST
-    me = myModel.objects.get(pk=data.get(myModel._meta.pk.attname))
+    # me = myModel.objects.get(pk=data.get(myModel._meta.pk.name))
+    #pkid = 1
+    me = myModel.objects.get(pk=pkid)
     defaults = dict()
     aForm = tmpFormClass()
     medict = model_to_dict(me)
@@ -528,6 +530,7 @@ def plotQueryResults(request, moduleName, modelName, start, end, soft=True):
                            'title': 'Plot ' + modelName,
                            'module': moduleName,
                            'model': modelName,
+                           'pk' : myModel._meta.pk.name,
                            'start' : start,
                            'end' : end,
                            'debug' :  debug,

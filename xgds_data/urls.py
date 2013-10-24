@@ -32,9 +32,9 @@ urlpatterns = patterns(
     url(r'^search/plot/(?P<moduleName>[^/]+)/(?P<modelName>[^/]+)/(?P<soft>[^/]+)/(?P<start>\d+)/(?P<end>\d+)/$', 'plotQueryResults',
         name='xgds_data_searchPlotQueryResults'),
 
-    url(r'^similar/(?P<moduleName>[^/]+)/(?P<modelName>[^/]+)/', 'searchSimilar',
+    url(r'^similar/(?P<moduleName>[^/]+)/(?P<modelName>[^/]+)/$', 'searchSimilar',
         name='xgds_data_searchSimilar'),
-    url(r'^similar/(?P<moduleName>[^/]+)/(?P<modelName>[^/]+)/(?P<args>[^/]+)$', 'searchSimilar',
+    url(r'^similar/(?P<moduleName>[^/]+)/(?P<modelName>[^/]+)/(?P<pkid>\d+)$', 'searchSimilar',
         name='xgds_data_searchSimilar'),
 
     # legacy urls

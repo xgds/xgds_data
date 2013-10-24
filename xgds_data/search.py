@@ -15,7 +15,7 @@ from django.db import connection
 from django.db.models import Q
 from django.db.models.fields import PositiveIntegerField, PositiveSmallIntegerField
 
-from xgds_data.introspection import modelFields
+from xgds_data.introspection import resolveField
 
 def divineWhereClause(myModel, filters, formset):
     """
@@ -158,7 +158,7 @@ def makeFilters(formset, soft=True):
             filters = subfilter
     return filters
         
-def scoreNumericOLD(field, val, minimum, maximum):
+def scoreNumericOLD(fieldName, val, minimum, maximum):
     """
     provide a score for a numeric clause that ranges from 1 (best) to 0 (worst)
     """
@@ -190,12 +190,12 @@ def scoreNumericOLD(field, val, minimum, maximum):
         return '1'
     else:
         return ("1-(greatest(least({1}-{0},{0}-{2}),0)/{3})"
-                .format(field,
+                .format(fieldName,
                         lorange,
                         hirange,
                         max(0, lorange - minimum, maximum - hirange)))
 
-def baseScore(field, lorange, hirange):
+def baseScore(fieldRef, lorange, hirange):
     """
     provide a score for a numeric clause that ranges from 1 (best) to 0 (worst)
     """
@@ -208,17 +208,17 @@ def baseScore(field, lorange, hirange):
         hirange = time.mktime(hirange.timetuple())
     ## perhaps could swap lo, hi if lo > hi
     if (timeConversion):
-        field = 'UNIX_TIMESTAMP({0})'.format(field)
+        fieldRef = 'UNIX_TIMESTAMP({0})'.format(fieldRef)
     
     if lorange == hirange:
-        return "abs({0}-{1})".format(field, lorange)
+        return "abs({0}-{1})".format(fieldRef, lorange)
     elif lorange == 'min':
-        return "greatest(0,{0}-{1})".format(field, hirange)
+        return "greatest(0,{0}-{1})".format(fieldRef, hirange)
     elif hirange == 'max':
-        return "greatest(0,{1}-{0})".format(field, lorange)
+        return "greatest(0,{1}-{0})".format(fieldRef, lorange)
     else:
         ##return "greatest(0,least({1}-{0},{0}-{2}))".format(field, lorange, hirange)
-        return "greatest(0,{1}-{0},{0}-{2})".format(field, lorange, hirange)
+        return "greatest(0,{1}-{0},{0}-{2})".format(fieldRef, lorange, hirange)
 
 def randomSample(model, expression, size, offset=None, limit=None):
     """
@@ -299,26 +299,24 @@ def scoreNumeric(model, field, lorange, hirange, tableSize):
     """
     ## Yuk ... need to convert if field is unsigned
     unsigned = False
-    for f in modelFields(model):
-        if ((f.attname == field) and
-            isinstance(f, (PositiveIntegerField, PositiveSmallIntegerField))):
-            unsigned = True
+    if isinstance(field, (PositiveIntegerField, PositiveSmallIntegerField)):
+        unsigned = True
     ## Add table designation to properly resolve a field name that has another SQL interpretation
     ## (for instance, a field name 'long')
-    field = model._meta.db_table + '.' + field
+    fieldRef = field.model._meta.db_table + '.' + field.attname
     if (unsigned):
-        field = "cast({0} as SIGNED)".format(field)
-    median = medianEval(model, baseScore(field, lorange, hirange), tableSize)
+        fieldRef = "cast({0} as SIGNED)".format(fieldRef)
+    median = medianEval(field.model, baseScore(fieldRef, lorange, hirange), tableSize)
     if median is None:
         return '1'
     elif median == 0:
         ## would get divide by zero with standard formula below
         ## defining 0/x == 0 always, limit of standard formula leads to special case for 0, below.
-        return "({0} = {1})".format(baseScore(field, lorange, hirange), median)
+        return "({0} = {1})".format(baseScore(fieldRef, lorange, hirange), median)
     else:
-        return "1 /(1 + {0}/{1})".format(baseScore(field, lorange, hirange), median)
-    #return "1-(1 + {1}) /(2 + 2 * {0})".format(baseScore(field, lorange, hirange),
-    #                    medianEval(model._meta.db_table, baseScore(field, lorange, hirange), tableSize))
+        return "1 /(1 + {0}/{1})".format(baseScore(fieldRef, lorange, hirange), median)
+    #return "1-(1 + {1}) /(2 + 2 * {0})".format(baseScore(fieldRef, lorange, hirange),
+    #                    medianEval(model._meta.db_table, baseScore(fieldRef, lorange, hirange), tableSize))
 
 def desiredRanges(frms):
     """
@@ -355,7 +353,7 @@ def sortFormula(model, formset):
     desiderata = desiredRanges(formset)
     if (len(desiderata) > 0):
         tableSize = model.objects.count()
-        formula = ' + '.join([scoreNumeric(model, b, desiderata[b][0], desiderata[b][1], tableSize) for b in desiderata.keys()])
+        formula = ' + '.join([scoreNumeric(model, resolveField(model, b), desiderata[b][0], desiderata[b][1], tableSize) for b in desiderata.keys()])
         return '({0})/{1} '.format(formula, len(desiderata))  # scale to have a max of 1
     else:
         return None
