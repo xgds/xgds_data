@@ -14,8 +14,9 @@ from django import forms
 from django.db import connection
 from django.db.models import Q
 from django.db.models.fields import PositiveIntegerField, PositiveSmallIntegerField
+from django.db.models.fields.related import OneToOneField
 
-from xgds_data.introspection import resolveField
+from xgds_data.introspection import modelFields, resolveField
 
 def divineWhereClause(myModel, filters, formset):
     """
@@ -240,15 +241,39 @@ def randomSample(model, expression, size, offset=None, limit=None):
     cursor.execute(sql)
     return cursor.fetchall()
 
-def countMatches(table, expression, where, threshold):
+def joinClause(parentLinkField):
+    """
+    Figures out the additional clause needed for linkages to a parent class
+    """
+    return '{0}.{1} = {2}.{3}'.format(parentLinkField.model._meta.db_table,
+                                      parentLinkField.model._meta.pk.attname,
+                                      parentLinkField.rel.get_related_field().model._meta.db_table,
+                                      parentLinkField.rel.get_related_field().model._meta.pk.attname)
+
+def countMatches(model, expression, where, threshold):
     """
     Get the full count of records matching the restriction; can be slow
     """
+    joinFields = [x for x in modelFields(model) if isinstance(x, OneToOneField) and x.rel.parent_link ]
+    joinClauses = [ joinClause(plf) for plf in joinFields ]
+    if joinClauses:
+        whereClauses = joinClauses
+        if where:
+            whereClauses.insert(0,where)
+            where =  ' AND '.join(whereClauses)
+        else:
+            where =  ' AND '.join(whereClauses)
+            where = "WHERE "+where
+
+    tables = [ model._meta.db_table ]
+    for f in joinFields:
+        tables.append(f.rel.get_related_field().model._meta.db_table)
     cursor = connection.cursor()
     if where:
-        sql = 'select sum({1} >= {3}) from {0} {2};'.format(table, expression, where, threshold)
+        sql = 'select sum({1} >= {3}) from {0} {2};'.format(','.join(tables), expression, where, threshold)
     else:
-        sql = 'select sum({1} >= {2}) from {0};'.format(table, expression, threshold)
+        sql = 'select sum({1} >= {2}) from {0};'.format(','.join(tables), expression, threshold)
+    print(sql)
     cursor.execute(sql)
     return cursor.fetchone()[0]
 

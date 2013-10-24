@@ -340,7 +340,7 @@ def searchChosenModel(request, moduleName, modelName, expert=False):
             if (mode == 'csv'):
                 results = query.all()
                 if scorer:
-                    limit = countMatches(myModel._meta.db_table,
+                    limit = countMatches(myModel,
                                          scorer,
                                          divineWhereClause(myModel, filters, formset),
                                          sortThreshold())
@@ -361,7 +361,7 @@ def searchChosenModel(request, moduleName, modelName, expert=False):
             elif (mode == 'query'):
                 if scorer:
                     ## resultCount = countApproxMatches(myModel, scorer, query.count(), sortThreshold())
-                    resultCount = countMatches(myModel._meta.db_table,
+                    resultCount = countMatches(myModel,
                                  scorer,
                                  divineWhereClause(myModel, filters, formset),
                                  sortThreshold())
@@ -457,7 +457,7 @@ def plotQueryResults(request, moduleName, modelName, start, end, soft=True):
         if scorer :
             objs = objs.extra(select={'score': scorer}, order_by = ['-score'])
             ##resultCount = countApproxMatches(myModel._meta.db_table, scorer, objs.count(), sortThreshold())
-            resultCount = countMatches(myModel._meta.db_table,
+            resultCount = countMatches(myModel,
                                        scorer,
                                        divineWhereClause(myModel, filters, formset),
                                        sortThreshold())

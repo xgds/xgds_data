@@ -10,6 +10,12 @@ def modelFields(model):
     """
     return  model._meta.fields + model._meta.many_to_many
 
+def isAbstract(model):
+    """
+    Check if model is abstract. Might be a better way to do this, but I didn't find it.
+    """
+    return  model._meta.abstract
+
 def resolveField(model, fieldName):
     """
     Retrieve the field corresponding to the the name, if any
