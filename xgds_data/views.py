@@ -195,6 +195,21 @@ def formsetifyFieldName(i, fname):
     """
     return '-'.join(['form', str(i), fname])
 
+def resolveTemplate(configName,myModel,defaultTemplate):
+    """
+    Figures out whether a specialized template exists, or if the default should be used
+    """
+    template = None
+    config = getattr(settings, configName, None)
+    if (config):
+        for model in myModel.__mro__:
+            if not template and issubclass(model,Model) and model != Model:
+                template = config.get(model._meta.object_name, None)
+    if template:
+        return template
+    else:
+        return defaultTemplate
+    
 def searchSimilar(request, moduleName, modelName, pkid):
     """
     Launch point for finding more items like this one
@@ -244,10 +259,7 @@ def searchSimilar(request, moduleName, modelName, pkid):
             for y in [0, 1]:
                 datetimefields.append(formsetifyFieldName(y, x.name))
     axesform = AxesForm(myFields, data)
-    template = 'xgds_data/searchChosenModel.html'
-    if (hasattr(settings, 'XGDS_DATA_SEARCH_TEMPLATES')):
-        template = settings.XGDS_DATA_SEARCH_TEMPLATES.get(modelName, template)
-    
+    template = resolveTemplate('XGDS_DATA_SEARCH_TEMPLATES',myModel,'xgds_data/searchChosenModel.html')
     return log_and_render(request, reqlog, template,
                           {'title': 'Search '+modelName,
                            'module': moduleName,
@@ -258,22 +270,6 @@ def searchSimilar(request, moduleName, modelName, pkid):
                            'formset': formset,
                            'axesform': axesform},
                           nolog = ['formset', 'axesform'])
-
-
-def resolveTemplate(configName,defaultTemplate):
-    """
-    Figures out whether a specialized template exists, or if the default should be used
-    """
-    template = None
-    config = hasattr(settings, configName)
-    if (config):
-        for model in myModel.__mro__:
-            if not template and issubclass(model,Model) and model != Model:
-                template = config.get(model._meta.object_name, None)
-    if template:
-        return template
-    else:
-        return defaultTemplate
 
 def searchChosenModel(request, moduleName, modelName, expert=False):
     """
@@ -398,7 +394,7 @@ def searchChosenModel(request, moduleName, modelName, expert=False):
               'series': axesform.fields.get('series').initial}
         qd.update(data)
         axesform = AxesForm(myFields, qd)
-    template = resolveTemplate('XGDS_DATA_SEARCH_TEMPLATES','xgds_data/searchChosenModel.html')
+    template = resolveTemplate('XGDS_DATA_SEARCH_TEMPLATES',myModel,'xgds_data/searchChosenModel.html')
     return log_and_render(request, reqlog, template,
                           {'title': 'Search '+ modelName,
                            'module': moduleName,
@@ -518,8 +514,8 @@ def plotQueryResults(request, moduleName, modelName, start, end, soft=True):
         else:
             return None
         
-    template = resolveTemplate('XGDS_DATA_PLOT_TEMPLATES','xgds_data/plotQueryResults.html')
-    return log_and_render(request, reqlog, 'xgds_data/plotQueryResults.html',
+    template = resolveTemplate('XGDS_DATA_PLOT_TEMPLATES',myModel,'xgds_data/plotQueryResults.html')
+    return log_and_render(request, reqlog, template,
                           {'plotData' : json.dumps(plotdata, default=megahandler2),
                            'labels' : pldata,
                            'timeFields': json.dumps(timeFields),
