@@ -29,7 +29,7 @@ from django.utils.html import escape
 from xgds_data import settings
 from xgds_data.introspection import modelFields
 from xgds_data.models import getModelByName
-from xgds_data.forms import QueryForm, SearchForm, AxesForm
+from xgds_data.forms import QueryForm, SearchForm, AxesForm, SpecializedForm
 from xgds_data.logging import recordRequest, recordList, log_and_render
 from xgds_data.logconfig import logEnabled
 if logEnabled():
@@ -188,25 +188,6 @@ def csvEncode(something):
         # return something.encode("utf-8")
     else:
         return something
-    
-def specializedSearchForm(myModel):
-    """
-    Returns form class for the given model, so you don't have to pass the model to the constructor
-    """
-    ## tmpFormClass is a SearchForm specialized on a specific model
-    ## so we don't have to pass in the model
-    ## so it can be used by formset_factory.
-    ## Couldn't figure out how to pass the model arg to formset_factory;
-    ## Tried to use type(,,), but couldn't get that to work either
-    ## Tried to use functools.partial, but couldn't get that to work
-    ## Ted S. suggested MetaClass, which could be a possibility
-    tmpFormClass = type('tmpForm', (SearchForm,), dict())
-
-    def initMethod(self, *args, **kwargs):
-        SearchForm.__init__(self, myModel, *args, **kwargs)
-
-    tmpFormClass.__init__ = initMethod
-    return tmpFormClass
 
 def formsetifyFieldName(i, fname):
     """
@@ -222,7 +203,7 @@ def searchSimilar(request, moduleName, modelName, pkid):
     modelmodule = get_app(moduleName)
     myModel = getattr(modelmodule, modelName)
     myFields = modelFields(myModel)
-    tmpFormClass = specializedSearchForm(myModel)
+    tmpFormClass = SpecializedForm(SearchForm, myModel)
     tmpFormSet = formset_factory(tmpFormClass, extra=0)
     debug = []
     data = request.REQUEST
@@ -278,6 +259,22 @@ def searchSimilar(request, moduleName, modelName, pkid):
                            'axesform': axesform},
                           nolog = ['formset', 'axesform'])
 
+
+def resolveTemplate(configName,defaultTemplate):
+    """
+    Figures out whether a specialized template exists, or if the default should be used
+    """
+    template = None
+    config = hasattr(settings, configName)
+    if (config):
+        for model in myModel.__mro__:
+            if not template and issubclass(model,Model) and model != Model:
+                template = config.get(model._meta.object_name, None)
+    if template:
+        return template
+    else:
+        return defaultTemplate
+
 def searchChosenModel(request, moduleName, modelName, expert=False):
     """
     Search over the fields of the selected model
@@ -286,7 +283,7 @@ def searchChosenModel(request, moduleName, modelName, expert=False):
     modelmodule = get_app(moduleName)
     myModel = getattr(modelmodule, modelName)
     myFields = modelFields(myModel)
-    tmpFormClass = specializedSearchForm(myModel)
+    tmpFormClass = SpecializedForm(SearchForm, myModel)
     tmpFormSet = formset_factory(tmpFormClass)
     debug = []
     data = request.REQUEST
@@ -401,9 +398,7 @@ def searchChosenModel(request, moduleName, modelName, expert=False):
               'series': axesform.fields.get('series').initial}
         qd.update(data)
         axesform = AxesForm(myFields, qd)
-    template = 'xgds_data/searchChosenModel.html'
-    if (hasattr(settings, 'XGDS_DATA_SEARCH_TEMPLATES')):
-        template = settings.XGDS_DATA_SEARCH_TEMPLATES.get(modelName, template)
+    template = resolveTemplate('XGDS_DATA_SEARCH_TEMPLATES','xgds_data/searchChosenModel.html')
     return log_and_render(request, reqlog, template,
                           {'title': 'Search '+ modelName,
                            'module': moduleName,
@@ -436,7 +431,7 @@ def plotQueryResults(request, moduleName, modelName, start, end, soft=True):
     modelmodule = __import__('.'.join([moduleName, 'models'])).models
     myModel = getattr(modelmodule, modelName)
     myFields = modelFields(myModel)
-    tmpFormClass = specializedSearchForm(myModel)
+    tmpFormClass = SpecializedForm(SearchForm, myModel)
     tmpFormSet = formset_factory(tmpFormClass)
     data = request.REQUEST
     soft = soft in (True, 'True')
@@ -522,7 +517,8 @@ def plotQueryResults(request, moduleName, modelName, start, end, soft=True):
             return str(obj)
         else:
             return None
-
+        
+    template = resolveTemplate('XGDS_DATA_PLOT_TEMPLATES','xgds_data/plotQueryResults.html')
     return log_and_render(request, reqlog, 'xgds_data/plotQueryResults.html',
                           {'plotData' : json.dumps(plotdata, default=megahandler2),
                            'labels' : pldata,

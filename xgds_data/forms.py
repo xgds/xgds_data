@@ -193,6 +193,24 @@ class SearchForm(forms.Form):
     def modelVerboseName(self):
         return self.model._meta.verbose_name
 
+def SpecializedForm(formModel, myModel):
+    """
+    Returns form class using the given model, so you don't have to pass the model to the constructor. Helps with formsets
+    """
+    ## tmpFormClass is a SearchForm specialized on a specific model
+    ## so we don't have to pass in the model
+    ## so it can be used by formset_factory.
+    ## Couldn't figure out how to pass the model arg to formset_factory;
+    ## Tried to use type(,,), but couldn't get that to work either
+    ## Tried to use functools.partial, but couldn't get that to work
+    ## Ted S. suggested MetaClass, which could be a possibility
+    tmpFormClass = type('tmpForm', (formModel,), dict())
+
+    def initMethod(self, *args, **kwargs):
+        formModel.__init__(self, myModel, *args, **kwargs)
+
+    tmpFormClass.__init__ = initMethod
+    return tmpFormClass
 
 class AxesForm(forms.Form):
     """

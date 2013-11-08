@@ -273,7 +273,7 @@ def countMatches(model, expression, where, threshold):
         sql = 'select sum({1} >= {3}) from {0} {2};'.format(','.join(tables), expression, where, threshold)
     else:
         sql = 'select sum({1} >= {2}) from {0};'.format(','.join(tables), expression, threshold)
-    print(sql)
+    ## print(sql)
     cursor.execute(sql)
     return cursor.fetchone()[0]
 
