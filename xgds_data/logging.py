@@ -45,7 +45,10 @@ def recordList(reslog, results):
             items = [ResponseList(response=reslog,
                                   rank=r,
                                   fclass=str(results[r - 1].__class__),
-                                  fid = results[r - 1].id )
+                                  ##fid = results[r - 1].id )
+                                  fid = getattr(results[r - 1],
+                                                results[r - 1].__class__._meta.pk.name))
+
                      for r in ranks]
             ResponseList.objects.bulk_create(items)
 
