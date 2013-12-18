@@ -1,6 +1,7 @@
 import re
 from django import template
 from django.conf import settings
+from django.db.models.manager import Manager
 
 integer_test = re.compile("^\d+$")
 numeric_test = re.compile("^[\.\-Ee\d]+$")
@@ -11,13 +12,17 @@ def getattribute(value, arg):
     """Gets an attribute of an object dynamically from a string name"""
     
     if hasattr(value, str(arg)):
-        return getattr(value, arg)
+        v = getattr(value, arg)
     elif hasattr(value, 'has_key') and value.has_key(arg):
-        return value[arg]
+        v =  value[arg]
     elif integer_test.match(str(arg)) and len(value) > int(arg):
-        return value[int(arg)]
+        v =  value[int(arg)]
     else:
-        return settings.TEMPLATE_STRING_IF_INVALID
+        v =  settings.TEMPLATE_STRING_IF_INVALID
+    if (isinstance(v,Manager)):
+        v = ' '.join([str(x) for x in v.all()])
+        
+    return v
 
 register.filter('getattribute', getattribute)
 

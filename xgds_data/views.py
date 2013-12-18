@@ -275,6 +275,7 @@ def searchChosenModel(request, moduleName, modelName, expert=False):
     """
     Search over the fields of the selected model
     """
+    starttime = datetime.datetime.now()
     reqlog = recordRequest(request)
     modelmodule = get_app(moduleName)
     myModel = getattr(modelmodule, modelName)
@@ -401,6 +402,7 @@ def searchChosenModel(request, moduleName, modelName, expert=False):
                            'model': modelName,
                            'debug' : debug,
                            'count' : resultCount,
+                           'duration' : (datetime.datetime.now() - starttime).total_seconds(),
                            'expert' : expert,
                            'exactCount' : hardCount,
                            'datetimefields' : datetimefields,

@@ -34,7 +34,7 @@ class SearchForm(forms.Form):
         categoricalOperators = (('=', '='),
                                 ('!=', '!='))
         for field in (modelFields(mymodel)):
-            if isinstance(field, fields.AutoField):
+            if isinstance(field, fields.AutoField) or isinstance(field, fields.files.FileField):
                 pass  # nothing
             elif isinstance(field, fields.BooleanField):
                 self.fields[field.name + '_operator'] = \
@@ -126,7 +126,7 @@ class SearchForm(forms.Form):
     def as_table(self):
         output = []
 
-        for mfield in self.model._meta.fields:
+        for mfield in modelFields(self.model):
             n = mfield.name
             if (n in self.fields or
                 ((n + '_lo') in self.fields and
