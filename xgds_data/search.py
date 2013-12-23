@@ -382,6 +382,61 @@ def sortFormula(model, formset):
         return '({0})/{1} '.format(formula, len(desiderata))  # scale to have a max of 1
     else:
         return None
+    
+#def doofyTimer(msg,time):
+#    """
+#    Doofy utility for doofy timing
+#    """
+#    print([msg,datetime.datetime.now() - time])
+#    return datetime.datetime.now()
+
+def unitScore(value, lorange, hirange, median):
+    """
+    Scores a value from 1 (best) to 0 (worst)
+    """
+    if (lorange != 'min') and (value < lorange):
+        absdiff = lorange-value
+    elif (hirange != 'max') and (value > hirange):
+        absdiff =  value-hirange
+    else:
+        absdiff =  0
+
+    if (median is None) or (absdiff == 0):
+        return 1
+    else:
+        if isinstance(median, datetime.timedelta):
+            median = median.total_seconds()
+        if isinstance(absdiff, datetime.timedelta):      
+            absdiff = absdiff.total_seconds()
+        return median/(median + absdiff)
+
+def instanceScore(instance, desiderata, tableSize = None):
+    """
+    Scores an instance in python, not mysql
+    """
+    if not tableSize:
+        tableSize = instance.__class__.objects.count()
+    score = 0
+    count = 0
+    for d in desiderata.keys():
+        b = resolveField(instance.__class__,d)
+        ## Yuk ... need to convert if field is unsigned
+        unsigned = False
+        if isinstance(b, (PositiveIntegerField, PositiveSmallIntegerField)):
+            unsigned = True
+        ## Add table designation to properly resolve a field name that has another SQL interpretation
+        ## (for instance, a field name 'long')
+        fieldRef = b.model._meta.db_table + '.' + b.attname
+        if (unsigned):
+            fieldRef = "cast({0} as SIGNED)".format(fieldRef)
+        median = medianEval(b.model, baseScore(fieldRef,desiderata[d][0], desiderata[d][1]), tableSize)
+        score = score + unitScore(getattr(instance,d), desiderata[d][0], desiderata[d][1], median)
+        count = count + 1
+
+    if (count == 0):
+        return 1
+    else:
+        return score / count
 
 def sortThreshold():
     """
