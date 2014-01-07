@@ -13,6 +13,10 @@ from django.contrib.auth.models import User
 from xgds_data import settings
 from xgds_data.logconfig import logEnabled
 
+def cacheStatistics():
+    return (hasattr(settings, 'XGDS_DATA_CACHE_STATISTICS') and
+            settings.XGDS_DATA_CACHE_STATISTICS)
+
 def getModelByName(name):
     appName, modelName = name.split('.', 1)
     modelsName = appName + '.models'
@@ -98,3 +102,10 @@ if logEnabled():
         fclass = models.CharField(max_length=1024, blank=True)
         fid = models.PositiveIntegerField(blank=False)  # might be risky to assume this is always a pos int
 
+if cacheStatistics():
+    class ModelStatistic(models.Model):
+        recorded = models.DateTimeField(blank=False, default=datetime.utcnow())
+        model = models.CharField(max_length=256, db_index=True, blank=False)
+        field = models.CharField(max_length=256, db_index=True, blank=False)
+        statistic = models.CharField(max_length=256, db_index=True, blank=False)
+        value = models.FloatField(blank=False)

@@ -1,5 +1,5 @@
 # __BEGIN_LICENSE__
-# Copyright (C) 2008-2010 United States Government as represented by
+# Copyright (C) 2008-2014 United States Government as represented by
 # the Administrator of the National Aeronautics and Space Administration.
 # All Rights Reserved.
 # __END_LICENSE__
@@ -34,7 +34,7 @@ class SearchForm(forms.Form):
         categoricalOperators = (('=', '='),
                                 ('!=', '!='))
         for field in (modelFields(mymodel)):
-            if isinstance(field, fields.AutoField) or isinstance(field, fields.files.FileField):
+            if isinstance(field, fields.AutoField):
                 pass  # nothing
             elif isinstance(field, fields.BooleanField):
                 self.fields[field.name + '_operator'] = \
@@ -126,7 +126,7 @@ class SearchForm(forms.Form):
     def as_table(self):
         output = []
 
-        for mfield in modelFields(self.model):
+        for mfield in self.model._meta.fields:
             n = mfield.name
             if (n in self.fields or
                 ((n + '_lo') in self.fields and
@@ -192,6 +192,32 @@ class SearchForm(forms.Form):
 
     def modelVerboseName(self):
         return self.model._meta.verbose_name
+    
+class SortForm(forms.Form):
+    """
+    Dynamically creates a form to sort over the given class
+    """
+    def __init__(self, modelFields, *args, **kwargs):
+        forms.Form.__init__(self, *args, **kwargs)
+        sortingfields = []
+        for x in modelFields:
+            if isinstance(x, fields.AutoField):
+                pass
+            elif isinstance(x, (DateField,
+                              DecimalField,
+                              FloatField,
+                              IntegerField,
+                              TimeField)):
+                sortingfields.append(x)
+
+        if len(sortingfields) > 1:
+            datachoices = (tuple((None, 'None')
+                                 for x in ['Rank'])  +
+                           tuple((x.name, x.verbose_name)
+                                 for x in sortingfields))
+            self.fields['order'] = forms.ChoiceField(choices=datachoices,
+                                                     required=True,
+                                                     initial=sortingfields[0].name)
 
 def SpecializedForm(formModel, myModel):
     """
@@ -228,7 +254,7 @@ class AxesForm(forms.Form):
                               TimeField)):
                 chartablefields.append(x)
             elif ((not isinstance(x, AutoField)) and
-                  (len(x.model.objects.values(x.name).order_by().distinct()[:101]) <= 100)):
+                  (x.model.objects.values(x.name).order_by().distinct().count() <= 100)):
                 seriesablefields.append(x)
         if len(chartablefields) > 1:
             datachoices = (tuple((x, x)
