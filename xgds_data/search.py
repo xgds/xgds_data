@@ -297,6 +297,7 @@ def countMatches(model, expression, where, threshold):
 ##    runtime = timer(runtime, "<<< inner count matches >>>")
     return cursor.fetchone()[0]
 
+
 def countApproxMatches(model, scorer, maxSize, threshold):
     """
     Take a guess as to how many records match by examining a random sample
@@ -319,6 +320,7 @@ def countApproxMatches(model, scorer, maxSize, threshold):
             resultCount = 10
         return resultCount
 
+
 def medianEval(model, expression, size):
     """
     Quick mysql-y way of estimating the median from a sample
@@ -338,6 +340,7 @@ def medianEval(model, expression, size):
         else:
             return result[0][0]
 
+
 def medianRangeEval(model, field, lorange, hirange, size, fieldRef):
     """
     Quick mysql-y way of estimating the median from a range sample
@@ -356,10 +359,11 @@ def medianRangeEval(model, field, lorange, hirange, size, fieldRef):
             else:
                 vals = sorted([max(0, lorange - x.value, x.value - hirange) for x in percentiles])
             ##print('Guessed')
-            return(vals[int(round(len(vals)*0.5))-1])
+            return(vals[int(round(len(vals) * 0.5)) - 1])
     ## if we haven't returned a value already
     ##print('NOT Guessed')
     return medianEval(model, baseScore(fieldRef, lorange, hirange), size)
+
 
 def dbFieldRef(field):
     """
@@ -394,6 +398,7 @@ def scoreNumeric(model, field, lorange, hirange, tsize):
     #return "1-(1 + {1}) /(2 + 2 * {0})".format(baseScore(fieldRef, lorange, hirange),
     #                    medianEval(model._meta.db_table, baseScore(fieldRef, lorange, hirange), tsize))
 
+
 def desiredRanges(frms):
     """
     Pulls out the approximate (soft) constraints from the form
@@ -422,11 +427,13 @@ def desiredRanges(frms):
                     desiderata[base] = [loval, hival]
     return desiderata
 
+
 def sortFormula(model, formset):
     """
     Helper for searchChosenModel; comes up with a formula for ordering the results
     """
     return sortFormulaRanges(model, desiredRanges(formset))
+
 
 def sortFormulaRanges(model, desiderata):
     """
@@ -439,16 +446,17 @@ def sortFormulaRanges(model, desiderata):
     else:
         return None
 
+
 def unitScore(value, lorange, hirange, median):
     """
     Scores a value from 1 (best) to 0 (worst)
     """
     if (lorange != 'min') and (value < lorange):
-        absdiff = lorange-value
+        absdiff = lorange - value
     elif (hirange != 'max') and (value > hirange):
-        absdiff =  value-hirange
+        absdiff = value - hirange
     else:
-        absdiff =  0
+        absdiff = 0
 
     if (median is None) or (absdiff == 0):
         return 1
@@ -457,7 +465,7 @@ def unitScore(value, lorange, hirange, median):
             median = median.total_seconds()
         if isinstance(absdiff, datetime.timedelta):
             absdiff = absdiff.total_seconds()
-        return median/(median + absdiff)
+        return median / (median + absdiff)
 
 
 def multiScore(model, values, desiderata, medians=None):
@@ -505,6 +513,7 @@ def instanceScore(instance, desiderata, medians=None):
         values[d] = getattr(instance, d)
     return multiScore(instance.__class__, values, desiderata, medians=medians)
 
+
 def sortThreshold():
     """
     Guess on a good threshold to cutoff the search results
@@ -522,7 +531,8 @@ def makeQinfo(model, query, fld, loend, hiend, order=None):
     if hiend is not None:
         query = query.filter(**{fld + '__lt': hiend})
 
-    return { 'query' : query, 'order': order }
+    return {'query': query, 'order': order}
+
 
 def sortedTopK(model, formset, query, k):
     """
@@ -530,6 +540,7 @@ def sortedTopK(model, formset, query, k):
     """
     desiderata = desiredRanges(formset)
     return sortedTopKRanges(model, desiderata, query, k)
+
 
 def sortedTopKRanges(model, desiderata, query, k):
     """
@@ -549,14 +560,14 @@ def sortedTopKRanges(model, desiderata, query, k):
     runtime = datetime.datetime.now()
     tsize = tableSize(model)
 ##    runtime = timer(runtime, "Table size")
-    scorer = sortFormulaRanges(model, desiderata) ## SLOW!!
+    scorer = sortFormulaRanges(model, desiderata)  # SLOW!!
     #query = query.extra(select={'score': scorer}, order_by=['-score'])
     #print(query.query)
 ##    runtime = timer(runtime,"Sort formula")
 
     if (tsize <= k):
         ## format is a little awkward in this case, but consistent with the tsize > k case
-        keep = sorted(query, key=lambda x: instanceScore(x, desiderata, medians = medians), reverse=True)
+        keep = sorted(query, key=lambda x: instanceScore(x, desiderata, medians=medians), reverse=True)
         results = keep[0:k]
 #        results = {}
 #        for x in keep[0:k]:
@@ -564,9 +575,9 @@ def sortedTopKRanges(model, desiderata, query, k):
     else:
         results = {}
         qinfo = {}
-#        qbackup = {} ## additional queries if the primary runs out
-#        qscorer = {} ## function to score individual elements; will need more work to be general beyond current fn
-        threshold = {} ## how deep into each criteria we are
+#        qbackup = {}  # additional queries if the primary runs out
+#        qscorer = {}  # function to score individual elements; will need more work to be general beyond current fn
+        threshold = {}  # how deep into each criteria we are
 
         medians = {}
         #vfields = desiderata.keys()
@@ -594,7 +605,7 @@ def sortedTopKRanges(model, desiderata, query, k):
             elif window[1] is None:
                 mid = window[0]
             else:
-                mid = (window[0] + window[1])*0.5 # arbitrary split, really 1st time could get away with 1 query
+                mid = (window[0] + window[1]) * 0.5  # arbitrary split, really 1st time could get away with 1 query
             qinfo[fld] = [makeQinfo(model, vquery, fld, window[0], mid, 'desc'),
                           makeQinfo(model, vquery, fld, mid, window[1], 'asc')]
 
@@ -611,16 +622,16 @@ def sortedTopKRanges(model, desiderata, query, k):
                         # runtime = timer(runtime, q.count())
                     minlist = q[0:k]
                     if len(minlist) > 0:
-                        minScore = str(instanceScore(list(q[0:k])[-1], desiderata, medians = medians))
+                        minScore = str(instanceScore(list(q[0:k])[-1], desiderata, medians=medians))
                     else:
-                        minScore = '0' # doesn't matter, there are no matches
-                    runtime = timer(runtime, 'minScore = '+minScore)
+                        minScore = '0'  # doesn't matter, there are no matches
+                    runtime = timer(runtime, 'minScore = ' + minScore)
                     #q=q.extra(select={'score': scorer}, order_by=['-score'])
-                    runtime = timer(runtime, q.extra(select={'score': scorer}, where=[scorer+' >= '+minScore]).count())
-                    q = q.extra(select={'score': scorer}, where=[scorer+' >= '+minScore], order_by=['-score'])
+                    runtime = timer(runtime, q.extra(select={'score': scorer}, where=[scorer + ' >= ' + minScore]).count())
+                    q = q.extra(select={'score': scorer}, where=[scorer + ' >= ' + minScore], order_by=['-score'])
                     #q = q.extra(select={'score': scorer})
                     runtime = timer(runtime, str(q.query))
-                    q = q[0 : k]
+                    q = q[0:k]
                     qresults = list(q)
                     runtime = timer(runtime, "I got " + str(len(qresults)) + " back")
 
@@ -633,12 +644,12 @@ def sortedTopKRanges(model, desiderata, query, k):
                 runtime = timer(runtime, fld + " A")
 
                 ## update thresholds
-                if (window[0] == None) and (window[1] == None):
+                if (window[0] is None) and (window[1] is None):
                     threshold[fld] = None
                     del threshold[fld]
-                elif (window[0] == None):
+                elif (window[0] is None):
                     threshold[fld] = window[1]
-                elif (window[1] == None):
+                elif (window[1] is None):
                     threshold[fld] = window[0]
                 else:
                     ## this assumes to much about scoring fn, and that loend, hiend != None
@@ -651,12 +662,12 @@ def sortedTopKRanges(model, desiderata, query, k):
                 newqs = []
                 for qpack in qinfo[fld]:
                     if (qpack['order'] == 'desc'):
-                        if (window[0] != None):
+                        if (window[0] is not None):
                             hibound = window[0]
                             window[0] = nextPercentile(model, fld, window[0], 'lt')
                             newqs.append(makeQinfo(model, vquery, fld, window[0], hibound, qpack['order']))
                     else:
-                        if (window[1] != None):
+                        if (window[1] is not None):
                             lobound = window[1]
                             window[1] = nextPercentile(model, fld, window[1], 'gt')
                             newqs.append(makeQinfo(model, vquery, fld, lobound, window[1], qpack['order']))
@@ -666,7 +677,7 @@ def sortedTopKRanges(model, desiderata, query, k):
 
             ## sort and set to top k; not efficient as could be
             # keep = sorted(results.values(), key=lambda x: multiScore(model, x, desiderata, medians = medians), reverse=True)[0:k]
-            keep = sorted(results.values(), key=lambda x: instanceScore(x, desiderata, medians = medians), reverse=True)[0:k]
+            keep = sorted(results.values(), key=lambda x: instanceScore(x, desiderata, medians=medians), reverse=True)[0:k]
             results = {}
             for x in keep:
                 # results[x[model._meta.pk.attname]] = x
@@ -684,12 +695,12 @@ def sortedTopKRanges(model, desiderata, query, k):
                 wanting = False
                 print("\n\n\n\nI am bailing!!!\n\n\n\n")
             if wanting and len(keep) > 0:
-                scoreA = multiScore(model, threshold, desiderata, medians = medians)
+                scoreA = multiScore(model, threshold, desiderata, medians=medians)
                 # scoreB = multiScore(model, keep[-1], desiderata, medians = medians)
-                scoreB = instanceScore(keep[-1], desiderata, medians = medians)
+                scoreB = instanceScore(keep[-1], desiderata, medians=medians)
                 print(scoreA, scoreB)
-                print( 'Thresh', threshold, scoreA )
-                print( 'Last', keep[-1], scoreB)
+                print 'Thresh', threshold, scoreA
+                print 'Last', keep[-1], scoreB
                 if (scoreA <= scoreB) and (len(results) >= k):
                     # Threshold exceeded!
                     wanting = False
@@ -698,6 +709,6 @@ def sortedTopKRanges(model, desiderata, query, k):
         # results = model.objects.filter(pk__in=results.keys())
         results = results.values()
         runtime = timer(runtime, results)
-        results = sorted(results, key=lambda x: instanceScore(x, desiderata, medians = medians), reverse=True)
+        results = sorted(results, key=lambda x: instanceScore(x, desiderata, medians=medians), reverse=True)
     print("Aaah")
     return results

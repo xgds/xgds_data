@@ -267,7 +267,7 @@ class AxesForm(forms.Form):
                                         fields.FloatField,
                                         fields.IntegerField,
                                         fields.TimeField))) and
-                    (x.model.objects.values(x.name).order_by().distinct().count() <= 100)):
+                        (x.model.objects.values(x.name).order_by().distinct().count() <= 100)):
                     seriesablefields.append(x)
         if len(chartablefields) > 1:
             datachoices = (tuple((x, x)

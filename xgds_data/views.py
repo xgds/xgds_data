@@ -37,11 +37,14 @@ if logEnabled():
 from xgds_data.search import makeFilters, sortFormula, countMatches, \
     divineWhereClause, sortThreshold
 
+
 def index(request):
     return HttpResponse("Hello, world. You're at the xgds_data index.")
 
+
 def hasModels(appName):
     return len(get_models(get_app(appName))) != 0
+
 
 def getModelInfo(qualifiedName, model):
     return {
@@ -52,11 +55,13 @@ def getModelInfo(qualifiedName, model):
 if (hasattr(settings, 'XGDS_DATA_SEARCH_SKIP_APP_PATTERNS')):
     SKIP_APP_REGEXES = [re.compile(_p) for _p in settings.XGDS_DATA_SEARCH_SKIP_APP_PATTERNS]
 
+
 def isSkippedApp(appName):
     try:
         return any((r.match(appName) for r in SKIP_APP_REGEXES))
     except NameError:
         return (appName.find('django') > -1)
+
 
 def searchModelsDefault():
     """
@@ -75,6 +80,7 @@ else:
 
 MODELS_INFO = [getModelInfo(_qname, _model)
                for _qname, _model in SEARCH_MODELS.iteritems()]
+
 
 def searchIndex(request):
     return render_to_response('xgds_data/searchIndex.html',
@@ -121,7 +127,6 @@ def searchModel(request, modelName):
                      + order
                      + limit)
 
-
         try:
             cursor = connection.cursor()
             cursor.execute(countQuery)
@@ -155,6 +160,7 @@ def searchModel(request, modelName):
                                'result': result},
                               context_instance=RequestContext(request))
 
+
 def chooseSearchApp(request):
     apps = [app.__name__ for app in get_apps()]
     apps = [re.sub(r'\.models$', '', app) for app in apps]
@@ -179,6 +185,7 @@ def chooseSearchModel(request, moduleName):
                    'models': sorted(models)}
                   )
 
+
 def csvEncode(something):
     """
     csvlib can't deal with non-ascii unicode, thus, this function
@@ -189,11 +196,13 @@ def csvEncode(something):
     else:
         return something
 
+
 def formsetifyFieldName(i, fname):
     """
     Returns the field name for the ith form and given fname
     """
     return '-'.join(['form', str(i), fname])
+
 
 def resolveTemplate(configName, myModel, defaultTemplate):
     """
@@ -209,6 +218,7 @@ def resolveTemplate(configName, myModel, defaultTemplate):
         return template
     else:
         return defaultTemplate
+
 
 def searchSimilar(request, moduleName, modelName, pkid):
     """
@@ -261,15 +271,16 @@ def searchSimilar(request, moduleName, modelName, pkid):
     axesform = AxesForm(myFields, data)
     template = resolveTemplate('XGDS_DATA_SEARCH_TEMPLATES', myModel, 'xgds_data/searchChosenModel.html')
     return log_and_render(request, reqlog, template,
-                          {'title': 'Search '+modelName,
+                          {'title': 'Search ' + modelName,
                            'module': moduleName,
                            'model': modelName,
-                           'debug':  debug,
+                           'debug': debug,
                            'count': resultCount,
                            'datetimefields': datetimefields,
                            'formset': formset,
                            'axesform': axesform},
-                          nolog = ['formset', 'axesform'])
+                          nolog=['formset', 'axesform'])
+
 
 def searchChosenModel(request, moduleName, modelName, expert=False):
     """
@@ -320,7 +331,7 @@ def searchChosenModel(request, moduleName, modelName, expert=False):
                 newdata[formsetifyFieldName(formCount, fname)] = unicode('')
             else:
                 newdata[formsetifyFieldName(formCount, fname)] = unicode(field.initial)
-        newdata['form-TOTAL_FORMS'] = unicode(formCount  + 1 )
+        newdata['form-TOTAL_FORMS'] = unicode(formCount + 1)
         formset = tmpFormSet(newdata)  # but passing data nullifies extra
     elif ((mode == 'query') or (mode == 'csv')):
         formCount = int(data['form-TOTAL_FORMS'])
@@ -357,9 +368,9 @@ def searchChosenModel(request, moduleName, modelName, expert=False):
                 if scorer:
                     ## resultCount = countApproxMatches(myModel, scorer, query.count(), sortThreshold())
                     resultCount = countMatches(myModel,
-                                 scorer,
-                                 divineWhereClause(myModel, filters, formset),
-                                 sortThreshold())
+                                               scorer,
+                                               divineWhereClause(myModel, filters, formset),
+                                               sortThreshold())
                     hardCount = hardquery.count()
                     if resultCount < hardCount:
                         resultCount = hardCount
@@ -377,7 +388,7 @@ def searchChosenModel(request, moduleName, modelName, expert=False):
         formset = tmpFormSet()
 
     datetimefields = []
-    for x in myFields :
+    for x in myFields:
         if isinstance(x, DateTimeField):
             for y in range(0, formCount + 1):
                 datetimefields.append(formsetifyFieldName(y, x.name))
@@ -398,27 +409,28 @@ def searchChosenModel(request, moduleName, modelName, expert=False):
         axesform = AxesForm(myFields, qd)
     template = resolveTemplate('XGDS_DATA_SEARCH_TEMPLATES', myModel, 'xgds_data/searchChosenModel.html')
     return log_and_render(request, reqlog, template,
-                          {'title': 'Search '+ modelName,
+                          {'title': 'Search ' + modelName,
                            'module': moduleName,
                            'model': modelName,
-                           'debug' : debug,
-                           'count' : resultCount,
-                           'duration' : (datetime.datetime.now() - starttime).total_seconds(),
-                           'expert' : expert,
-                           'exactCount' : hardCount,
-                           'datetimefields' : datetimefields,
-                           'displayFields' : [ x for x in myFields if not x.primary_key ],
-                           'formset' : formset,
-                           'axesform' : axesform,
-                           'page' : page,
+                           'debug': debug,
+                           'count': resultCount,
+                           'duration': (datetime.datetime.now() - starttime).total_seconds(),
+                           'expert': expert,
+                           'exactCount': hardCount,
+                           'datetimefields': datetimefields,
+                           'displayFields': [x for x in myFields if not x.primary_key],
+                           'formset': formset,
+                           'axesform': axesform,
+                           'page': page,
                            'results': results,
                            'resultids': resultids,
                            'resultsPage': resultsPage,
-                           'picks' : picks,
-                           'checkable' : True,
+                           'picks': picks,
+                           'checkable': True,
                            },
-                    nolog = ['formset', 'axesform', 'results', 'resultsids'],
-                    listing = results)
+                          nolog=['formset', 'axesform', 'results', 'resultsids'],
+                          listing=results)
+
 
 def plotQueryResults(request, moduleName, modelName, start, end, soft=True):
     """
@@ -436,7 +448,7 @@ def plotQueryResults(request, moduleName, modelName, start, end, soft=True):
     soft = soft in (True, 'True')
 
     axesform = AxesForm(myFields, data)
-    fieldDict = { x.name: x for x in myFields }
+    fieldDict = {x.name: x for x in myFields}
     timeFields = [fieldName
                   for fieldName, fieldVal in fieldDict.iteritems()
                   if isinstance(fieldVal, (DateField, TimeField))]
@@ -448,8 +460,8 @@ def plotQueryResults(request, moduleName, modelName, start, end, soft=True):
         scorer = sortFormula(myModel, formset)
         filters = makeFilters(formset, soft)
         objs = myModel.objects.filter(filters)
-        if scorer :
-            objs = objs.extra(select={'score': scorer}, order_by = ['-score'])
+        if scorer:
+            objs = objs.extra(select={'score': scorer}, order_by=['-score'])
             ##resultCount = countApproxMatches(myModel._meta.db_table, scorer, objs.count(), sortThreshold())
             resultCount = countMatches(myModel,
                                        scorer,
@@ -473,7 +485,7 @@ def plotQueryResults(request, moduleName, modelName, start, end, soft=True):
             else:
                 return escape(obj)
 
-        plotdata = [{fld.name:megahandler(fld.value_from_object(x))
+        plotdata = [{fld.name: megahandler(fld.value_from_object(x))
                      for fld in myFields}
                     for x in objs]
         pldata = [str(x) for x in objs]
@@ -519,21 +531,20 @@ def plotQueryResults(request, moduleName, modelName, start, end, soft=True):
 
     template = resolveTemplate('XGDS_DATA_PLOT_TEMPLATES', myModel, 'xgds_data/plotQueryResults.html')
     return log_and_render(request, reqlog, template,
-                          {'plotData' : json.dumps(plotdata, default=megahandler2),
-                           'labels' : pldata,
+                          {'plotData': json.dumps(plotdata, default=megahandler2),
+                           'labels': pldata,
                            'timeFields': json.dumps(timeFields),
                            'title': 'Plot ' + modelName,
                            'module': moduleName,
                            'model': modelName,
-                           'pk' : myModel._meta.pk.name,
-                           'start' : start,
-                           'end' : end,
-                           'debug' :  debug,
-                           'count' : resultCount,
-                           'showncount' : shownCount,
-                           "formset" : formset,
-                           'axesform' : axesform
+                           'pk': myModel._meta.pk.name,
+                           'start': start,
+                           'end': end,
+                           'debug': debug,
+                           'count': resultCount,
+                           'showncount': shownCount,
+                           "formset": formset,
+                           'axesform': axesform
                            },
-                    nolog = ['plotData', 'labels', 'formset', 'axesform'],
-                    listing = objs)
-
+                          nolog=['plotData', 'labels', 'formset', 'axesform'],
+                          listing=objs)
