@@ -13,9 +13,11 @@ from django.contrib.auth.models import User
 from xgds_data import settings
 from xgds_data.logconfig import logEnabled
 
+
 def cacheStatistics():
     return (hasattr(settings, 'XGDS_DATA_CACHE_STATISTICS') and
             settings.XGDS_DATA_CACHE_STATISTICS)
+
 
 def getModelByName(name):
     appName, modelName = name.split('.', 1)

@@ -4,17 +4,20 @@
 # All Rights Reserved.
 # __END_LICENSE__
 
+
 def modelFields(model):
     """
     Retrieve the fields associated with the given model
     """
-    return  model._meta.fields + model._meta.many_to_many
+    return model._meta.fields + model._meta.many_to_many
+
 
 def isAbstract(model):
     """
     Check if model is abstract. Might be a better way to do this, but I didn't find it.
     """
-    return  model._meta.abstract
+    return model._meta.abstract
+
 
 def resolveField(model, fieldName):
     """
@@ -23,5 +26,5 @@ def resolveField(model, fieldName):
     for f in modelFields(model):
         if (fieldName == f.name):
             return f
-    
+
     return None

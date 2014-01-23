@@ -6,18 +6,19 @@
 
 from math import floor, log
 
-from django.shortcuts import render 
+from django.shortcuts import render
 
 from xgds_data import settings
 from xgds_data.logconfig import logEnabled
-   
+
 if logEnabled():
     from xgds_data.models import (RequestLog,
                                   RequestArgument,
                                   ResponseLog,
                                   ResponseArgument,
                                   ResponseList)
-    
+
+
 def recordRequest(request):
     """
     Logs the request in the database
@@ -32,7 +33,8 @@ def recordRequest(request):
         return reqlog
     else:
         return None
-                      
+
+
 def recordList(reslog, results):
     """
     Logs a ranked list of results
@@ -45,12 +47,13 @@ def recordList(reslog, results):
             items = [ResponseList(response=reslog,
                                   rank=r,
                                   fclass=str(results[r - 1].__class__),
-                                  ##fid = results[r - 1].id )
-                                  fid = getattr(results[r - 1],
-                                                results[r - 1].__class__._meta.pk.name))
+                                  ##fid=results[r - 1].id )
+                                  fid=getattr(results[r - 1],
+                                              results[r - 1].__class__._meta.pk.name))
 
                      for r in ranks]
             ResponseList.objects.bulk_create(items)
+
 
 def log_and_render(request, reqlog, template, rendargs,
                    content_type=settings.DEFAULT_CONTENT_TYPE,

@@ -12,6 +12,7 @@ from django.db.models.fields.related import RelatedField
 from xgds_data.introspection import modelFields
 # pylint: disable=R0924
 
+
 class QueryForm(forms.Form):
     query = forms.CharField(max_length=256, required=False,
                             widget=forms.TextInput(attrs={'size': 100}))
@@ -25,7 +26,7 @@ class SearchForm(forms.Form):
     Dynamically creates a form to search the given class
     """
     def __init__(self, mymodel, *args, **kwargs):
-        enumerableFields = kwargs.pop('enumerableFields',None)
+        enumerableFields = kwargs.pop('enumerableFields', None)
         forms.Form.__init__(self, *args, **kwargs)
         self.model = mymodel
         rangeOperators = (('IN~', 'IN~'),
@@ -67,9 +68,9 @@ class SearchForm(forms.Form):
                 self.fields[field.name + '_lo'] = forms.FloatField(required=False)
                 self.fields[field.name + '_hi'] = forms.FloatField(required=False)
             elif (isinstance(field, fields.related.ForeignKey) or
-                  isinstance(field, fields.related.ManyToManyField)) :
+                  isinstance(field, fields.related.ManyToManyField)):
                 if ((enumerableFields and (field in enumerableFields)) or
-                    ((enumerableFields is None) and 
+                    ((enumerableFields is None) and
                      field.model.objects.values(field.name).order_by().distinct().count() <= 1000)):
                     self.fields[field.name + '_operator'] = \
                         forms.ChoiceField(choices=categoricalOperators,
@@ -194,32 +195,34 @@ class SearchForm(forms.Form):
 
     def modelVerboseName(self):
         return self.model._meta.verbose_name
-    
+
+
 class SortForm(forms.Form):
     """
     Dynamically creates a form to sort over the given class
     """
-    def __init__(self, modelFields, *args, **kwargs):
+    def __init__(self, mfields, *args, **kwargs):
         forms.Form.__init__(self, *args, **kwargs)
         sortingfields = []
-        for x in modelFields:
+        for x in mfields:
             if isinstance(x, fields.AutoField):
                 pass
             elif isinstance(x, (fields.DateField,
-                              fields.DecimalField,
-                              fields.FloatField,
-                              fields.IntegerField,
-                              fields.TimeField)):
+                                fields.DecimalField,
+                                fields.FloatField,
+                                fields.IntegerField,
+                                fields.TimeField)):
                 sortingfields.append(x)
 
         if len(sortingfields) > 1:
             datachoices = (tuple((None, 'None')
-                                 for x in ['Rank'])  +
+                                 for x in ['Rank']) +
                            tuple((x.name, x.verbose_name)
                                  for x in sortingfields))
             self.fields['order'] = forms.ChoiceField(choices=datachoices,
                                                      required=True,
                                                      initial=sortingfields[0].name)
+
 
 def SpecializedForm(formModel, myModel):
     """
@@ -240,30 +243,31 @@ def SpecializedForm(formModel, myModel):
     tmpFormClass.__init__ = initMethod
     return tmpFormClass
 
+
 class AxesForm(forms.Form):
     """
     Dynamically creates the form to choose the axes and series of a corresponding plot
     """
-    def __init__(self, modelFields, *args, **kwargs):
-        seriesablefields = kwargs.pop('seriesablefields',None)
+    def __init__(self, mfields, *args, **kwargs):
+        seriesablefields = kwargs.pop('seriesablefields', None)
         forms.Form.__init__(self, *args, **kwargs)
         chartablefields = []
-        for x in modelFields:
+        for x in mfields:
             if isinstance(x, (fields.DateField,
                               fields.DecimalField,
                               fields.FloatField,
                               fields.IntegerField,
                               fields.TimeField)):
-                    chartablefields.append(x)
+                chartablefields.append(x)
         if (seriesablefields is None):
             seriesablefields = []
-            for x in modelFields:
+            for x in mfields:
                 if ((not isinstance(x, (fields.AutoField, fields.DateField,
-                                  fields.DecimalField,
-                                  fields.FloatField,
-                                  fields.IntegerField,
-                                  fields.TimeField))) and
-                      (x.model.objects.values(x.name).order_by().distinct().count() <= 100)):
+                                        fields.DecimalField,
+                                        fields.FloatField,
+                                        fields.IntegerField,
+                                        fields.TimeField))) and
+                    (x.model.objects.values(x.name).order_by().distinct().count() <= 100)):
                     seriesablefields.append(x)
         if len(chartablefields) > 1:
             datachoices = (tuple((x, x)

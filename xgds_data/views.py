@@ -21,7 +21,7 @@ from django.db.models import get_app, get_apps, get_models
 from django.db.models.fields import DateTimeField, DateField, TimeField
 from django.forms.models import ModelMultipleChoiceField, model_to_dict
 from django import forms
-from django.db.models import Model 
+from django.db.models import Model
 from django.forms.formsets import formset_factory
 from django.core.paginator import Paginator
 from django.utils.html import escape
@@ -51,13 +51,13 @@ def getModelInfo(qualifiedName, model):
 
 if (hasattr(settings, 'XGDS_DATA_SEARCH_SKIP_APP_PATTERNS')):
     SKIP_APP_REGEXES = [re.compile(_p) for _p in settings.XGDS_DATA_SEARCH_SKIP_APP_PATTERNS]
-    
+
 def isSkippedApp(appName):
     try:
         return any((r.match(appName) for r in SKIP_APP_REGEXES))
     except NameError:
         return (appName.find('django') > -1)
-    
+
 def searchModelsDefault():
     """
     Pick out some reasonable search models if none were explicitly listed
@@ -66,7 +66,7 @@ def searchModelsDefault():
                     for app in get_apps()
                     if not isSkippedApp(app.__name__) and get_models(app)]
     return dict([(model.__name__, model) for model in list(chain(*nestedModels)) if not model._meta.abstract])
-    
+
 if (hasattr(settings, 'XGDS_DATA_SEARCH_MODELS')):
     SEARCH_MODELS = dict([(name, getModelByName(name))
                           for name in settings.XGDS_DATA_SEARCH_MODELS])
@@ -178,7 +178,7 @@ def chooseSearchModel(request, moduleName):
                    'module': moduleName,
                    'models': sorted(models)}
                   )
-    
+
 def csvEncode(something):
     """
     csvlib can't deal with non-ascii unicode, thus, this function
@@ -195,7 +195,7 @@ def formsetifyFieldName(i, fname):
     """
     return '-'.join(['form', str(i), fname])
 
-def resolveTemplate(configName,myModel,defaultTemplate):
+def resolveTemplate(configName, myModel, defaultTemplate):
     """
     Figures out whether a specialized template exists, or if the default should be used
     """
@@ -203,13 +203,13 @@ def resolveTemplate(configName,myModel,defaultTemplate):
     config = getattr(settings, configName, None)
     if (config):
         for model in myModel.__mro__:
-            if not template and issubclass(model,Model) and model != Model:
+            if not template and issubclass(model, Model) and model != Model:
                 template = config.get(model._meta.object_name, None)
     if template:
         return template
     else:
         return defaultTemplate
-    
+
 def searchSimilar(request, moduleName, modelName, pkid):
     """
     Launch point for finding more items like this one
@@ -228,7 +228,7 @@ def searchSimilar(request, moduleName, modelName, pkid):
     defaults = dict()
     aForm = tmpFormClass()
     medict = model_to_dict(me)
-    
+
     for fld in medict.keys():
         op = fld + '_operator'
         f = aForm.fields.get(op, None)
@@ -250,7 +250,7 @@ def searchSimilar(request, moduleName, modelName, pkid):
         hi = fld + '_hi'
         if hi in aForm.fields:
             defaults[hi] = medict[fld]
-    
+
     formset = tmpFormSet(initial=[defaults])
     resultCount = None
     datetimefields = []
@@ -259,7 +259,7 @@ def searchSimilar(request, moduleName, modelName, pkid):
             for y in [0, 1]:
                 datetimefields.append(formsetifyFieldName(y, x.name))
     axesform = AxesForm(myFields, data)
-    template = resolveTemplate('XGDS_DATA_SEARCH_TEMPLATES',myModel,'xgds_data/searchChosenModel.html')
+    template = resolveTemplate('XGDS_DATA_SEARCH_TEMPLATES', myModel, 'xgds_data/searchChosenModel.html')
     return log_and_render(request, reqlog, template,
                           {'title': 'Search '+modelName,
                            'module': moduleName,
@@ -313,8 +313,9 @@ def searchChosenModel(request, moduleName, modelName, expert=False):
         newdata = dict(data)
         for fname, field in blankForm.fields.iteritems():
             if isinstance(field, ModelMultipleChoiceField):
-                val = [ unicode(x.id) for x in field.initial ]
-                newdata.setlist(formsetifyFieldName(formCount, fname), val)
+                val = [unicode(x.id) for x in field.initial]
+                # FIX: does val need to be turned into a string somehow?
+                newdata[formsetifyFieldName(formCount, fname)] = val
             elif ((not isinstance(field, forms.ChoiceField)) & (not field.initial)):
                 newdata[formsetifyFieldName(formCount, fname)] = unicode('')
             else:
@@ -374,14 +375,14 @@ def searchChosenModel(request, moduleName, modelName, expert=False):
             debug = formset.errors
     else:
         formset = tmpFormSet()
-                
+
     datetimefields = []
     for x in myFields :
         if isinstance(x, DateTimeField):
             for y in range(0, formCount + 1):
                 datetimefields.append(formsetifyFieldName(y, x.name))
     axesform = AxesForm(myFields, data)
-        
+
     if (not axesform.fields.get('yaxis')):
         ## if yaxis is not defined, then we can't really plot
         axesform = None
@@ -395,7 +396,7 @@ def searchChosenModel(request, moduleName, modelName, expert=False):
               'series': axesform.fields.get('series').initial}
         qd.update(data)
         axesform = AxesForm(myFields, qd)
-    template = resolveTemplate('XGDS_DATA_SEARCH_TEMPLATES',myModel,'xgds_data/searchChosenModel.html')
+    template = resolveTemplate('XGDS_DATA_SEARCH_TEMPLATES', myModel, 'xgds_data/searchChosenModel.html')
     return log_and_render(request, reqlog, template,
                           {'title': 'Search '+ modelName,
                            'module': moduleName,
@@ -433,13 +434,13 @@ def plotQueryResults(request, moduleName, modelName, start, end, soft=True):
     tmpFormSet = formset_factory(tmpFormClass)
     data = request.REQUEST
     soft = soft in (True, 'True')
-    
+
     axesform = AxesForm(myFields, data)
     fieldDict = { x.name: x for x in myFields }
     timeFields = [fieldName
                   for fieldName, fieldVal in fieldDict.iteritems()
                   if isinstance(fieldVal, (DateField, TimeField))]
-    
+
     formset = tmpFormSet(data)
     if formset.is_valid():
         ## a lot of this code mimics what is in searchChosenModel
@@ -477,7 +478,7 @@ def plotQueryResults(request, moduleName, modelName, start, end, soft=True):
                     for x in objs]
         pldata = [str(x) for x in objs]
         ##pldata = [str(x.denominator) for x in objs]
-        
+
         ## the following code determines if there are any foreign keys that can be selected, and if so,
         ## replaces the corresponding values (which will be ids) with the string representation
         seriesChoices = dict(axesform.fields['series'].choices)
@@ -497,7 +498,7 @@ def plotQueryResults(request, moduleName, modelName, start, end, soft=True):
                         x[k] = seriesValues[k][x[k]]
                     except:  # pylint: disable=W0702
                         x[k] = str(x[k])  # seriesValues[k][seriesValues[k].keys()[0]]
-        
+
         debug = []
         #resultCount = myModel.objects.filter(filters).count()
         shownCount = len(pldata)
@@ -515,8 +516,8 @@ def plotQueryResults(request, moduleName, modelName, start, end, soft=True):
             return str(obj)
         else:
             return None
-        
-    template = resolveTemplate('XGDS_DATA_PLOT_TEMPLATES',myModel,'xgds_data/plotQueryResults.html')
+
+    template = resolveTemplate('XGDS_DATA_PLOT_TEMPLATES', myModel, 'xgds_data/plotQueryResults.html')
     return log_and_render(request, reqlog, template,
                           {'plotData' : json.dumps(plotdata, default=megahandler2),
                            'labels' : pldata,
