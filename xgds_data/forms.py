@@ -46,7 +46,7 @@ class SearchForm(forms.Form):
                     forms.ChoiceField(choices=((None, '<Any>'),
                                                (True, True),
                                                (False, False)),
-                                      required=True)
+                                      required=False)
             elif isinstance(field, fields.DateTimeField):
                 self.fields[field.name + '_operator'] = \
                     forms.ChoiceField(choices=rangeOperators,
