@@ -204,20 +204,20 @@ def formsetifyFieldName(i, fname):
     return '-'.join(['form', str(i), fname])
 
 
-def resolveTemplate(configName, myModel, defaultTemplate):
+def resolveSetting(configName, myModel, defaultSetting):
     """
-    Figures out whether a specialized template exists, or if the default should be used
+    Figures out whether a specialized setting exists, or if the default should be used
     """
-    template = None
+    setting = None
     config = getattr(settings, configName, None)
     if (config):
         for model in myModel.__mro__:
-            if not template and issubclass(model, Model) and model != Model:
-                template = config.get(model._meta.object_name, None)
-    if template:
-        return template
+            if not setting and issubclass(model, Model) and model != Model:
+                setting = config.get(model._meta.object_name, None)
+    if setting:
+        return setting
     else:
-        return defaultTemplate
+        return defaultSetting
 
 
 def searchSimilar(request, moduleName, modelName, pkid):
@@ -269,7 +269,7 @@ def searchSimilar(request, moduleName, modelName, pkid):
             for y in [0, 1]:
                 datetimefields.append(formsetifyFieldName(y, x.name))
     axesform = AxesForm(myFields, data)
-    template = resolveTemplate('XGDS_DATA_SEARCH_TEMPLATES', myModel, 'xgds_data/searchChosenModel.html')
+    template = resolveSetting('XGDS_DATA_SEARCH_TEMPLATES', myModel, 'xgds_data/searchChosenModel.html')
     return log_and_render(request, reqlog, template,
                           {'title': 'Search ' + modelName,
                            'module': moduleName,
@@ -298,7 +298,9 @@ def searchChosenModel(request, moduleName, modelName, expert=False):
     formCount = 1
     mode = data.get('mode', False)
     page = data.get('pageno', None)
+    pageSize = 10
     if page:
+        page = int(page)
         picks = [int(p) for p in data.getlist('picks')]
     else:
         page = 1
@@ -310,6 +312,9 @@ def searchChosenModel(request, moduleName, modelName, expert=False):
     resultCount = None
     hardCount = None
     soft = True
+    scores = {}
+    more =  False
+    
     #expert = (soft != None) and (soft == 'True')
     if (mode == 'csvhard'):
         soft = False
@@ -378,10 +383,27 @@ def searchChosenModel(request, moduleName, modelName, expert=False):
                 else:
                     resultCount = query.count()
                     hardCount = resultCount
-                resultsPages = Paginator(query, 10)
-                resultsPage = resultsPages.page(page)
-                results = resultsPages.page(page).object_list
-                resultids = [getattr(r, myModel._meta.pk.name) for r in results]
+                ##resultsPages = Paginator(query, pageSize)
+                ##resultsPage = resultsPages.page(page)
+
+                results = []
+                scores = {}
+                pagestart = (page - 1)* pageSize
+                pageend = page * pageSize
+                more = pageend <= resultCount
+                for d in query.values()[pagestart:pageend]:
+                    modeld = d.copy()
+                    if scorer:
+                        scores[ d[myModel._meta.pk.name] ] = modeld['score']
+                        del modeld['score']
+                    else:
+                        scores[ d[myModel._meta.pk.name] ] = 1
+                    results.append( myModel(**modeld) )
+                ## myModel(**d) for d in query.values()[0:pageSize] ]
+                ##resultids = [ r.get(myModel._meta.pk.name) for r in results ]
+                ## results = resultsPages.page(page).object_list
+                resultids = [getattr(r, myModel._meta.pk.name) for r in results ]
+
         else:
             debug = formset.errors
     else:
@@ -407,7 +429,8 @@ def searchChosenModel(request, moduleName, modelName, expert=False):
               'series': axesform.fields.get('series').initial}
         qd.update(data)
         axesform = AxesForm(myFields, qd)
-    template = resolveTemplate('XGDS_DATA_SEARCH_TEMPLATES', myModel, 'xgds_data/searchChosenModel.html')
+    template = resolveSetting('XGDS_DATA_SEARCH_TEMPLATES', myModel, 'xgds_data/searchChosenModel.html')
+    checkable = resolveSetting('XGDS_DATA_CHECKABLE', myModel, False)
     return log_and_render(request, reqlog, template,
                           {'title': 'Search ' + modelName,
                            'module': moduleName,
@@ -423,10 +446,13 @@ def searchChosenModel(request, moduleName, modelName, expert=False):
                            'axesform': axesform,
                            'page': page,
                            'results': results,
+                           'pk':  myModel._meta.pk,
+                           'scores':scores,
                            'resultids': resultids,
-                           'resultsPage': resultsPage,
+##                           'resultsPage': resultsPage,
+                           'more': more,
                            'picks': picks,
-                           'checkable': True,
+                           'checkable': checkable
                            },
                           nolog=['formset', 'axesform', 'results', 'resultsids'],
                           listing=results)
@@ -448,7 +474,7 @@ def plotQueryResults(request, moduleName, modelName, start, end, soft=True):
     soft = soft in (True, 'True')
 
     axesform = AxesForm(myFields, data)
-    fieldDict = {x.name: x for x in myFields}
+    fieldDict = { x.name : x for x in myFields }
     timeFields = [fieldName
                   for fieldName, fieldVal in fieldDict.iteritems()
                   if isinstance(fieldVal, (DateField, TimeField))]
@@ -529,7 +555,7 @@ def plotQueryResults(request, moduleName, modelName, start, end, soft=True):
         else:
             return None
 
-    template = resolveTemplate('XGDS_DATA_PLOT_TEMPLATES', myModel, 'xgds_data/plotQueryResults.html')
+    template = resolveSetting('XGDS_DATA_PLOT_TEMPLATES', myModel, 'xgds_data/plotQueryResults.html')
     return log_and_render(request, reqlog, template,
                           {'plotData': json.dumps(plotdata, default=megahandler2),
                            'labels': pldata,

@@ -45,8 +45,7 @@ border-bottom-left-radius:0px;
 }.ResultList tr:hover td{
 
 }
-.ResultList tr:nth-child(odd){ background-color:#ffffff; }
-.ResultList tr:nth-child(even)    { background-color:#d3e9ff; }
+
 .ResultList td{
 vertical-align:middle;
 
@@ -167,3 +166,8 @@ border-width:0px 0px 1px 0px;
 .ResultListFixed tr:first-child td:last-child{
 border-width:0px 0px 1px 1px;
 }
+
+.ResultListExactEven { background-color:#ffffff; }
+.ResultListExactOdd { background-color:#d3e9ff; }
+.ResultListInexactEven { background-color:#ffefef; }
+.ResultListInexactOdd { background-color:#d3c9ef; }
