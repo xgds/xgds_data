@@ -445,6 +445,7 @@ def searchChosenModel(request, moduleName, modelName, expert=False):
                            'formset': formset,
                            'axesform': axesform,
                            'page': page,
+                           'pageSize': pageSize,
                            'results': results,
                            'pk':  myModel._meta.pk,
                            'scores':scores,

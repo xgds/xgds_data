@@ -37,7 +37,27 @@ register.filter('modulo', modulo)
 
 
 def isNumeric(value):
-    """Computes value % arg"""
+    """tests to see if this is a number or not"""
     return numeric_test.match(str(value))
 
 register.filter('isNumeric', isNumeric)
+
+def divide(value, arg):
+    """Computes value / arg"""
+
+    return float(value) / float(arg)
+
+register.filter('divide', divide)
+
+def addfloat(value, arg):
+    """Computes value + arg"""
+
+    return float(value) + float(arg)
+
+register.filter('addfloat', addfloat)
+
+def dorange(value, arg):
+    """access to range function"""
+    return range(value, arg)
+
+register.filter('range', dorange)
