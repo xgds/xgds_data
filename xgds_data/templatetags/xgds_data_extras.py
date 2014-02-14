@@ -8,7 +8,7 @@ numeric_test = re.compile(r'^[\.\-Ee\d]+$')
 register = template.Library()
 
 
-## http://stackoverflow.com/questions/844746/performing-a-getattr-style-lookup-in-a-django-template
+# # http://stackoverflow.com/questions/844746/performing-a-getattr-style-lookup-in-a-django-template
 def getattribute(value, arg):
     """Gets an attribute of an object dynamically from a string name"""
 
@@ -42,6 +42,7 @@ def isNumeric(value):
 
 register.filter('isNumeric', isNumeric)
 
+
 def divide(value, arg):
     """Computes value / arg"""
 
@@ -49,12 +50,14 @@ def divide(value, arg):
 
 register.filter('divide', divide)
 
+
 def addfloat(value, arg):
     """Computes value + arg"""
 
     return float(value) + float(arg)
 
 register.filter('addfloat', addfloat)
+
 
 def dorange(value, arg):
     """access to range function"""

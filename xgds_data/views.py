@@ -313,8 +313,8 @@ def searchChosenModel(request, moduleName, modelName, expert=False):
     hardCount = None
     soft = True
     scores = {}
-    more =  False
-    
+    more = False
+
     #expert = (soft != None) and (soft == 'True')
     if (mode == 'csvhard'):
         soft = False
