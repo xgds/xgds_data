@@ -212,11 +212,11 @@ $('select').change(clearResults);
     <table class="ResultList">
 	<tr>
 	{% if checkable %}
-		<td style="visibility:hidden;"><input type="checkbox" /></td>
+		<th style="visibility:hidden;"><input type="checkbox" /></th>
 	{% endif %}
-	<td style="visibility:hidden;">Record</td>
+	<th style="visibility:hidden;">Record</th>
 	  {% for x in displayFields %}
-	  <td>{{ x.verbose_name }}</td>
+	  <th>{{ x.verbose_name }}</th>
 	  {% endfor %}
 	  </tr>
 	{% for result in results %}
@@ -264,11 +264,11 @@ $('select').change(clearResults);
 	    <table class="ResultListFixed">
 	<tr>
 	{% if checkable %}
-	<td><input type="checkbox" id="pick_master" /></td>
+	<th><input type="checkbox" id="pick_master" /></th>
 	{% endif %}
-	<td>Record</td>
+	<th>Record</th>
 	  {% for x in displayFields %}
-	  <td style="visibility:hidden;">{{ x.verbose_name }}</td>
+	  <th style="visibility:hidden;">{{ x.verbose_name }}</th>
 	  {% endfor %}
 	  </tr>
 	  
