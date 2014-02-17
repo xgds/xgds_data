@@ -331,7 +331,7 @@ def searchChosenModel(request, moduleName, modelName, expert=False):
             if isinstance(field, ModelMultipleChoiceField):
                 val = [unicode(x.id) for x in field.initial]
                 # FIX: does val need to be turned into a string somehow?
-                newdata[formsetifyFieldName(formCount, fname)] = val
+                newdata.setlist(formsetifyFieldName(formCount, fname), val)
             elif ((not isinstance(field, forms.ChoiceField)) & (not field.initial)):
                 newdata[formsetifyFieldName(formCount, fname)] = unicode('')
             else:
