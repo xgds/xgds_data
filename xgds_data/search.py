@@ -372,6 +372,24 @@ def dbFieldRef(field):
     return field.model._meta.db_table + '.' + field.attname
 
 
+def autoweight(model, field, lorange, hirange, tableSize):
+    """
+    Would weight automatically, but isn't that magical yet
+    """
+    ## Yuk ... need to convert if field is unsigned
+    # unsigned = False
+    # if isinstance(field, (PositiveIntegerField, PositiveSmallIntegerField)):
+    #     unsigned = True
+    # ## Add table designation to properly resolve a field name that has another SQL interpretation
+    # ## (for instance, a field name 'long')
+    # fieldRef = dbFieldRef(field)
+    # if (unsigned):
+    #     fieldRef = "cast({0} as SIGNED)".format(fieldRef)
+    # median = medianRangeEval(field.model, field, lorange, hirange, tableSize, fieldRef)
+    # return (1+median)/2
+    return 1
+
+
 def scoreNumeric(model, field, lorange, hirange, tsize):
     """
     provide a score for a numeric clause that ranges from 1 (best) to 0 (worst)
@@ -441,8 +459,15 @@ def sortFormulaRanges(model, desiderata):
     """
     if (len(desiderata) > 0):
         tsize = tableSize(model)
-        formula = ' + '.join([scoreNumeric(model, resolveField(model, b), desiderata[b][0], desiderata[b][1], tsize) for b in desiderata.keys()])
-        return '({0})/{1} '.format(formula, len(desiderata))  # scale to have a max of 1
+        weights = dict([(b,autoweight(model, resolveField(model, b), desiderata[b][0], desiderata[b][1], tsize)) \
+                              for b in desiderata.keys()])
+        totalweight = 0
+        for w in weights.values():
+            totalweight = totalweight + w
+        scores = dict([(b,scoreNumeric(model, resolveField(model, b), desiderata[b][0], desiderata[b][1], weights[b])) \
+                              for b in desiderata.keys()])
+        formula = ' + '.join([scores[b] for b in desiderata.keys()])
+        return '({0})/{1} '.format(formula, totalweight)  # scale to have a max of 1
     else:
         return None
 
@@ -476,6 +501,7 @@ def multiScore(model, values, desiderata, medians=None):
         medians = {}
     score = 0
     count = 0
+    tsize = None
     for d in desiderata.keys():
         b = resolveField(model, d)
         ## Yuk ... need to convert if field is unsigned
@@ -493,6 +519,9 @@ def multiScore(model, values, desiderata, medians=None):
         else:
             print("BAD")
             raise Exception("This is bad news!")
+            if not tsize:
+                tsize = tableSize(model)
+            median = medianEval(b.model, baseScore(fieldRef,desiderata[d][0], desiderata[d][1]), tsize)
         score = score + unitScore(values[d], desiderata[d][0], desiderata[d][1], median)
         count = count + 1
 
