@@ -34,6 +34,7 @@ $("#next").click(function() {
 
 var seriesToIndex; // translate from series index to flat index in names, data
 function makePlot(data,names) {
+	$("#results_plot").html("");
 	var xSelect = $('select[name|="xaxis"]')[0];
 	var xaxis = xSelect.options[xSelect.selectedIndex].value;
 	var ySelect = $('select[name|="yaxis"]')[0]
@@ -158,7 +159,11 @@ function cgiArgs(alist) {
 {% for d in debug %}
 <span>{{ d }}</span>
 {% endfor %}
+{% if soft %}
 <form name='PlotForm' action="{% url 'xgds_data_searchPlotQueryResults' module model %}" method="post">
+{% else %}
+<form name='PlotForm' action="{% url 'xgds_data_searchPlotQueryResults' module model 'exact' %}" method="post">
+{% endif %}
   <input type="hidden" name="mode" value="query">
     {{ formset.management_form }}
     {% for form in formset %}
@@ -186,7 +191,9 @@ function cgiArgs(alist) {
 
 {% if count %}
 	<div align="center" id="hoverlabel" style="width:800px">&nbsp;</div>
-	<div id="results_plot" style="width:800px;height:450px"></div>
+	<div id="results_plot" style="width:800px;height:450px">Loading...<BR /><BR /><BR />
+	<CENTER>(if this message doesn't go away, Javascript is probably disabled.)</CENTER>
+	</div>
 	<div id="legend"></div>
 	<HR>
 	<div>Plotting records {{ start|add:"1" }} through {{ start|add:showncount }} 

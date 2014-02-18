@@ -473,6 +473,7 @@ def plotQueryResults(request, moduleName, modelName, start, end, soft=True):
     tmpFormSet = formset_factory(tmpFormClass)
     data = request.REQUEST
     soft = soft in (True, 'True')
+    print(soft)
 
     axesform = AxesForm(myFields, data)
     fieldDict = { x.name : x for x in myFields }
@@ -567,6 +568,7 @@ def plotQueryResults(request, moduleName, modelName, start, end, soft=True):
                            'pk': myModel._meta.pk.name,
                            'start': start,
                            'end': end,
+                           'soft': soft,
                            'debug': debug,
                            'count': resultCount,
                            'showncount': shownCount,

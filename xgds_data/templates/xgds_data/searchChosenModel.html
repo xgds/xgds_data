@@ -42,7 +42,7 @@
     document.QueryForm.submit();
   }
   function gotoPage(page) {
-		$("#id_pageno")[0].value = page;
+		$("#id_pageno").val(page);
 		submitform('query');
 	}
   
@@ -85,7 +85,7 @@ $("#nextpage").click(function() {
 	gotoPage(page);
 });
 
-function clearResults() { $('#results').html("") }
+function clearResults() { $('#results').html(""); $("#id_pageno").val(1); }
 
 $('input').change(clearResults);
 $('select').change(clearResults);
