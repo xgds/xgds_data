@@ -14,9 +14,9 @@ from django import forms
 from django.db import connection
 from django.db.models import Q
 from django.db.models.fields import PositiveIntegerField, PositiveSmallIntegerField
-from django.db.models.fields.related import OneToOneField
+from django.db.models.fields.related import OneToOneField, RelatedField
 
-from xgds_data.introspection import modelFields, resolveField
+from xgds_data.introspection import modelFields, resolveField, maskField
 from xgds_data.models import cacheStatistics
 if cacheStatistics():
     from xgds_data.models import ModelStatistic
@@ -29,7 +29,7 @@ def timer(t, msg):
     return newtime
 
 
-def divineWhereClause(myModel, filters, formset):
+def divineWhereClause(myModel, filters):
     """
     Pulls out the where clause and quotes the likely literals. Probably really brittle and should be replaced
     """
@@ -223,7 +223,9 @@ def baseScore(fieldRef, lorange, hirange):
         hirange = time.mktime(hirange.timetuple())
     ## perhaps could swap lo, hi if lo > hi
     if (timeConversion):
-        fieldRef = 'UNIX_TIMESTAMP({0})'.format(fieldRef)
+        ## UGH: mysql's UNIX_TIMESTAMP always assumes system timezone, but we are storing UTC
+        ## Solution: convert to system time zone and then get unix timestamp
+        fieldRef = 'UNIX_TIMESTAMP(CONVERT_TZ({0},"+00:00",@@session.time_zone))'.format(fieldRef)
 
     if lorange == hirange:
         return "abs({0}-{1})".format(fieldRef, lorange)
@@ -325,8 +327,9 @@ def medianEval(model, expression, size):
     """
     Quick mysql-y way of estimating the median from a sample
     """
-    if model.objects.count() == 0:
-        return None
+    count = model.objects.count()
+    if count == 0:
+        return None    
     else:
         sampleSize = min(size, 1000)
         result = ()
@@ -459,12 +462,12 @@ def sortFormulaRanges(model, desiderata):
     """
     if (len(desiderata) > 0):
         tsize = tableSize(model)
-        weights = dict([(b,autoweight(model, resolveField(model, b), desiderata[b][0], desiderata[b][1], tsize)) \
-                              for b in desiderata.keys()])
-        totalweight = 0
-        for w in weights.values():
-            totalweight = totalweight + w
-        scores = dict([(b,scoreNumeric(model, resolveField(model, b), desiderata[b][0], desiderata[b][1], weights[b])) \
+#        weights = dict([(b,autoweight(model, resolveField(model, b), desiderata[b][0], desiderata[b][1], tsize)) \
+#                              for b in desiderata.keys()])
+        totalweight = 1
+#        for w in weights.values():
+#            totalweight = totalweight + w
+        scores = dict([(b,scoreNumeric(model, resolveField(model, b), desiderata[b][0], desiderata[b][1], tsize)) \
                               for b in desiderata.keys()])
         formula = ' + '.join([scores[b] for b in desiderata.keys()])
         return '({0})/{1} '.format(formula, totalweight)  # scale to have a max of 1
@@ -549,6 +552,82 @@ def sortThreshold():
     """
     ## rather arbitrary cutoff, which would return 30% of results if scores are uniform
     return 0.7
+
+
+def pageLimits(page, pageSize):
+    """
+    bla
+    """
+    return ((page - 1)* pageSize, page * pageSize)
+
+def getResults(myModel, softFilter, scorer = None, queryStart = 0, queryEnd = None, minCount = None):
+    """
+    Get the query results as dicts, so relevance scores can be included
+    """   
+    query = myModel.objects.filter(softFilter)
+    if scorer:
+        query = query.extra(select={'score': scorer}, order_by=['-score'])
+        ## totalCount = countApproxMatches(myModel, scorer, query.count(), sortThreshold())
+        totalCount = countMatches(myModel,
+                                   scorer,
+                                   divineWhereClause(myModel, softFilter),
+                                   sortThreshold())
+        if totalCount < minCount:
+            ## this only makes sense if it's an approximate count
+            ## and that approximate count is too low
+            totalCount = minCount
+    else:
+        query = query.extra(select={'score': 1})
+        # hardCount = query.count()
+        if minCount is None:
+            totalCount = query.count()
+        else:
+            totalCount = minCount
+
+    results = []
+    queryFields = [x.name for x in modelFields(myModel) if not maskField(myModel,x) ]
+    queryFields.append('score')
+    qvalues = query.values(*queryFields)
+    if queryEnd:
+        queryEnd = min(totalCount,queryEnd)
+        qvalues = qvalues[queryStart:queryEnd]
+    elif queryStart != 0:
+        qvalues = qvalues[queryStart:]
+
+    foreigners = dict([ (f, set()) for f in modelFields(myModel) if isinstance(f,RelatedField)])
+    for d in qvalues:
+        for k in iter(foreigners):
+            try:
+                relatives = d[k.name]
+            except KeyError:
+                pass  # it's ok if that key is missing
+            else:
+                try:
+                    iterator = iter(relatives)
+                except TypeError:
+                    # not iterable
+                    foreigners[k].add(relatives)
+                else:
+                    for f in iterator:
+                        foreigners[k].add(f)
+                
+    for f in iter(foreigners):
+        objects = f.rel.to.objects.filter(pk__in=foreigners[f])
+        foreigners[f] = dict([(x.pk,x) for x in objects])
+        
+    for d in qvalues:
+        resultd = d.copy()
+        resultd['__class__'] = myModel
+        for f in iter(foreigners):
+            if f.name in resultd:
+                resultd[f.name] = foreigners[f][resultd[f.name] ]
+        modeld = dict( [ (f.name,resultd[f.name]) for f in modelFields(myModel) \
+                        if f.name in resultd    ] )
+        instance = myModel(**modeld)
+        resultd['__instance__'] = instance
+        resultd['__string__'] = str(instance)
+        results.append( resultd )
+    return (results, totalCount)
 
 
 def makeQinfo(model, query, fld, loend, hiend, order=None):

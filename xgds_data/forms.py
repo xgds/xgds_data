@@ -10,7 +10,7 @@ from django.utils.safestring import mark_safe
 from django.db.models.fields.related import RelatedField
 from django.forms.widgets import RadioSelect
 
-from xgds_data.introspection import modelFields
+from xgds_data.introspection import modelFields, maskField
 # pylint: disable=R0924
 
 class QueryForm(forms.Form):
@@ -35,7 +35,8 @@ class SearchForm(forms.Form):
         categoricalOperators = (('=', '='),
                                 ('!=', '!='))
         for field in (modelFields(mymodel)):
-            if isinstance(field, fields.AutoField):
+            if isinstance(field, (fields.AutoField, fields.files.FileField)) \
+                    or maskField(mymodel, field):
                 pass  # nothing
             elif isinstance(field, (fields.BooleanField, fields.NullBooleanField)):
                 self.fields[field.name + '_operator'] = \
@@ -171,7 +172,7 @@ class SearchForm(forms.Form):
                 ofieldname = n + '_operator'
                 ofield = forms.forms.BoundField(self, self.fields[ofieldname], ofieldname)
                 row = (u'<tr><td style="text-align:right; font-weight:bold;">%(label)s</td><td>%(ofield)s</td>' %
-                       {'label': unicode(mfield.name),
+                       {'label': unicode(mfield.verbose_name),
                         'ofield': unicode(ofield)})
                 if isinstance(mfield, (fields.DateTimeField,
                                        fields.FloatField,

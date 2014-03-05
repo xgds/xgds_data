@@ -18,16 +18,59 @@
   <script language="javascript" type="text/javascript"
 	  src="{{ STATIC_URL }}external/js/jquery/jquery-ui-timepicker-addon.js"></script>
   <script type="text/javascript">
-  function submitform(mode)
+  
+  function zeroPad(integer,width) {
+	  var string = integer.toString();
+	  while (string.length < width) {
+		  string = "0"+string;
+	  }
+	  
+	  return string;
+  }
+  
+  function convertToUTC(string) {
+	  var months = ['Jan','Feb','Mar','Apr','May','June',
+	                'Jul','Aug','Sep','Oct','Nov','Dec'];
+	  
+	  var d = new Date(string);
+	  var mo = zeroPad((1+d.getUTCMonth()),2);
+	  var date = zeroPad(d.getUTCDate(),2);
+	  var year = d.getUTCFullYear().toString();
+	  var hours = zeroPad(d.getUTCHours(),2);
+	  var minutes = zeroPad(d.getUTCMinutes(),2);
+	  
+	  return mo+'/'+date+'/'+year+' '+hours+':'+minutes;
+  }
+  
+  function submitform(fnctn)
   {
 	if ($('#simple').length == 0) {
 		document.QueryForm.action = "{% url 'xgds_data_searchChosenModel' module model %}";
 	} else {
 		document.QueryForm.action = "{% url 'xgds_data_searchChosenModel' module model 'expert' %}";
 	}
-	document.QueryForm["mode"].value = mode;
+	try { 
+	{% for f in datetimefields %}
+	var timeLo = $('#id_{{f}}_lo').val();
+	var timeHi = $('#id_{{f}}_hi').val();
+	if (timeLo && timeLo.search(/[\-\+]/) >= 0) {
+		var newval = convertToUTC(timeLo);
+		$('#id_{{f}}_lo').val(newval);
+	}
+	if (timeHi && timeHi.search(/[\-\+]/) >= 0) {
+		var newval = convertToUTC(timeHi);
+		$('#id_{{f}}_hi').val(newval);
+	}
+	{% endfor %}
+	} catch (err) {
+		
+		alert(err)
+	}
+	document.QueryForm["fnctn"].value = fnctn;
     document.QueryForm.submit();
+    return false;
   }
+  
   function changemode(isExpert)
   {
 	if (!isExpert) {
@@ -39,16 +82,19 @@
 	} else {
 		document.QueryForm.action = "{% url 'xgds_data_searchChosenModel' module model 'expert' %}";
 	}
+    document.QueryForm["fnctn"].value = 'query';
     document.QueryForm.submit();
   }
+
   function gotoPage(page) {
 		$("#id_pageno").val(page);
+		document.QueryForm["fnctn"].value = 'query';
 		submitform('query');
 	}
   
 {% for f in datetimefields %}
-  $('#id_{{f}}_lo').datetimepicker({addSliderAccess: false});
-  $('#id_{{f}}_hi').datetimepicker({addSliderAccess: false});
+  $('#id_{{f}}_lo').datetimepicker({addSliderAccess: false, showTimezone: true, timeFormat: 'hh:mm tt z'});
+  $('#id_{{f}}_hi').datetimepicker({addSliderAccess: false, showTimezone: true, timeFormat: 'hh:mm tt z'});
 {% endfor %}
 $("#addform").click(function() {
 	submitform('addform');
@@ -116,7 +162,7 @@ $('select').change(clearResults);
 {% else %}
 	<form name='QueryForm' action="{% url 'xgds_data_searchChosenModel' module model %}" method="post">
 {% endif %}
-  <input type="hidden" name="mode" value="query">
+  <input type="hidden" name="fnctn" value="query">
   <input type="hidden" name="pageno" id="id_pageno" value={{ page }}>
   
 {% if axesform %}
@@ -221,7 +267,7 @@ $('select').change(clearResults);
 	  </tr>
 	{% for result in results %}
 		{% with myid=result|getattribute:pk.name %}
-		    {% with myscore=scores|getattribute:myid %}
+		    {% with myscore=result|getattribute:'score' %}
 				{% if myscore == 1 %}
 					{% if forloop.counter|modulo:2 == 1 %}
 						<tr class="ResultListExactOdd">
@@ -247,7 +293,7 @@ $('select').change(clearResults);
 		    {% endif %}
 		     </td>
 	     {% endif %}
-	   <td>{{result}}</td>
+	   <td>{{result|getattribute:'__string__'}}</td>
  	 {% for x in displayFields %}
 	  <td>
 	  {{ result|getattribute:x.name }}
@@ -275,7 +321,7 @@ $('select').change(clearResults);
 	{% for result in results %}
 		<tr>
 		{% with myid=result|getattribute:pk.name %}
-		    {% with myscore=scores|getattribute:myid %}
+		    {% with myscore=result|getattribute:'score' %}
 
 		   
 		{% if checkable %}
@@ -315,7 +361,7 @@ $('select').change(clearResults);
 				<td class="ResultListInexactEven">
 			{% endif %}
 		{% endif %}	
-	   {{result}}</td>
+	   {{ result|getattribute:'__string__' }}</td>
  	 {% for x in displayFields %}
 	  <td style="visibility:hidden;">
 	  {{ result|getattribute:x.name }}
