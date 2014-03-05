@@ -280,7 +280,7 @@ def searchSimilar(request, moduleName, modelName, pkid):
                            'axesform': axesform},
                           nolog=['formset', 'axesform'])
                 
-                
+
 def searchChosenModel(request, moduleName, modelName, expert=False):
     """
     Search over the fields of the selected model
@@ -340,7 +340,11 @@ def searchChosenModel(request, moduleName, modelName, expert=False):
         formCount = int(data['form-TOTAL_FORMS'])
         formset = tmpFormSet(data)
         if formset.is_valid():
-            queryStart, queryEnd = pageLimits(page, pageSize)
+            if page is not None:
+                queryStart, queryEnd = pageLimits(page, pageSize)
+            else:
+                queryStart = 0
+                queryEnd = None
 
             scorer = sortFormula(myModel, formset)
             softFilter = makeFilters(formset, soft)
@@ -349,8 +353,10 @@ def searchChosenModel(request, moduleName, modelName, expert=False):
                 hardCount = myModel.objects.filter(hardFilter).count()
             else:
                 hardCount = None
-                
-            results, totalCount = getResults(myModel, softFilter, scorer, queryStart, queryEnd, minCount = hardCount)
+            
+            results, totalCount = getResults(myModel, softFilter, scorer, \
+                                             queryStart, queryEnd, minCount = hardCount)
+
             if hardCount is None:
                 hardCount = totalCount
 
@@ -367,7 +373,7 @@ def searchChosenModel(request, moduleName, modelName, expert=False):
         writer = csv.writer(response)
         writer.writerow([f.name for f in displayFields])
         for r in results:
-            writer.writerow([csvEncode(r[f.name]) for f in displayFields ])
+            writer.writerow([csvEncode(r.get(f.name,None)) for f in displayFields ])
         if logEnabled():
             reslog = ResponseLog.objects.create(request=reqlog)
             recordList(reslog, results)
@@ -475,29 +481,10 @@ def plotQueryResults(request, moduleName, modelName, start, end, soft=True):
         scorer = sortFormula(myModel, formset)
         softFilter = makeFilters(formset, soft)
         objs, totalCount = getResults(myModel, softFilter, scorer, start, end)
-             
-        
-#        scorer = sortFormula(myModel, formset)
-#        filters = makeFilters(formset, soft)
-#        objs = myModel.objects.filter(filters)
-#        if scorer:
-#            objs = objs.extra(select={'score': scorer}, order_by=['-score'])
-#            ##totalCount = countApproxMatches(myModel._meta.db_table, scorer, objs.count(), sortThreshold())
-#            totalCount = countMatches(myModel,
-#                                       scorer,
-#                                       divineWhereClause(myModel, filters),
-#                                       sortThreshold())
-#        else:
-#            totalCount = objs.count()
-#        objs = objs[start:min(end, totalCount)]
-
-
-        #plotdata = [dict([ (fld.name, megahandler(fld.value_from_object(x)))
-        plotdata = [dict([ (fld.name, megahandler(x[fld.name]))
+        plotdata = [dict([ (fld.name, megahandler(x.get(fld.name,None)) )
                      for fld in myFields])
                     for x in objs]
         pldata = [ x['__string__'] for x in objs]
-        ##pldata = [str(x.denominator) for x in objs]
 
         ## the following code determines if there are any foreign keys that can be selected, and if so,
         ## replaces the corresponding values (which will be ids) with the string representation

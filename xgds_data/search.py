@@ -464,7 +464,7 @@ def sortFormulaRanges(model, desiderata):
         tsize = tableSize(model)
 #        weights = dict([(b,autoweight(model, resolveField(model, b), desiderata[b][0], desiderata[b][1], tsize)) \
 #                              for b in desiderata.keys()])
-        totalweight = 1
+        totalweight = len(desiderata)
 #        for w in weights.values():
 #            totalweight = totalweight + w
         scores = dict([(b,scoreNumeric(model, resolveField(model, b), desiderata[b][0], desiderata[b][1], tsize)) \
@@ -604,23 +604,29 @@ def getResults(myModel, softFilter, scorer = None, queryStart = 0, queryEnd = No
             else:
                 try:
                     iterator = iter(relatives)
-                except TypeError:
+                    assert not isinstance(relatives, basestring)
+                except (TypeError, AssertionError):
                     # not iterable
                     foreigners[k].add(relatives)
                 else:
                     for f in iterator:
                         foreigners[k].add(f)
-                
+            
     for f in iter(foreigners):
-        objects = f.rel.to.objects.filter(pk__in=foreigners[f])
-        foreigners[f] = dict([(x.pk,x) for x in objects])
+        relf = f.rel.get_related_field()
+        objects = relf.model.objects.filter(**{relf.attname + '__in': foreigners[f]})
+        foreigners[f] = dict([(getattr(x,relf.name),x) for x in objects])
         
     for d in qvalues:
         resultd = d.copy()
         resultd['__class__'] = myModel
         for f in iter(foreigners):
             if f.name in resultd:
-                resultd[f.name] = foreigners[f][resultd[f.name] ]
+                try:
+                    resultd[f.name] = foreigners[f][resultd[f.name] ]
+                except KeyError:
+                    del resultd[f.name] # presumably this means something is not consistent in the model, it does happen
+
         modeld = dict( [ (f.name,resultd[f.name]) for f in modelFields(myModel) \
                         if f.name in resultd    ] )
         instance = myModel(**modeld)
