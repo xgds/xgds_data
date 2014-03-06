@@ -293,10 +293,24 @@ $('select').change(clearResults);
 		    {% endif %}
 		     </td>
 	     {% endif %}
-	   <td>{{result|getattribute:'__string__'}}</td>
+	   <td>{{result|getattribute:'__string__'}}
+	   
+		{% for x in displayFields %}
+		  {% if x|getattribute:'__class__'|getattribute:'__name__' == 'ImageField' %}
+		  	{% with myval=result|getattribute:x.name %}
+		  		{{ x|href:myval }}
+		  	{% endwith %}
+		  {% endif %}
+		{% endfor %}	    
+	   
+	   </td>
  	 {% for x in displayFields %}
 	  <td>
-	  {{ result|getattribute:x.name }}
+
+	  {% with myval=result|getattribute:x.name %}
+	  	{{ x|display:myval }}
+	  {% endwith %}
+
 	  </td>
 	  {% endfor %}
 	</tr>
@@ -361,10 +375,22 @@ $('select').change(clearResults);
 				<td class="ResultListInexactEven">
 			{% endif %}
 		{% endif %}	
-	   {{ result|getattribute:'__string__' }}</td>
+	   {{ result|getattribute:'__string__' }}
+	   
+		{% for x in displayFields %}
+		  {% if x|getattribute:'__class__'|getattribute:'__name__' == 'ImageField' %}
+		  	{% with myval=result|getattribute:x.name %}
+		  		{{ x|href:myval }}
+		  	{% endwith %}
+		  {% endif %}
+		{% endfor %}
+	   
+	   </td>
  	 {% for x in displayFields %}
 	  <td style="visibility:hidden;">
-	  {{ result|getattribute:x.name }}
+	  {% with myval=result|getattribute:x.name %}
+	  	{{ x|display:myval }}
+	  {% endwith %}
 	  </td>
 	  {% endfor %}
 	  

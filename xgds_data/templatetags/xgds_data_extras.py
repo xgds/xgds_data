@@ -2,6 +2,8 @@ import re
 from django import template
 from django.conf import settings
 from django.db.models.manager import Manager
+from django.db.models.fields.files import ImageField
+from django.utils.safestring import mark_safe
 
 integer_test = re.compile(r'^\d+$')
 numeric_test = re.compile(r'^[\.\-Ee\d]+$')
@@ -27,6 +29,28 @@ def getattribute(value, arg):
 
 register.filter('getattribute', getattribute)
 
+
+def display(field, value):
+    """what does this do"""
+    if isinstance(field,ImageField):
+        return mark_safe('<IMG SRC="'+field.storage.url(value)+'" HEIGHT="100">')
+    else:
+        return str(value)
+
+register.filter('display', display)
+
+
+def href(field, value):
+    """what does this do"""
+    print(field,value)
+    if isinstance(field,ImageField):
+        foo = '<A HREF="'+field.storage.url(value)+'">Download</A>'
+        return mark_safe(foo)
+    else:
+        return str(value)
+
+register.filter('href', href)
+                
 
 def modulo(value, arg):
     """Computes value % arg"""
