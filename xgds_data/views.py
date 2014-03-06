@@ -23,11 +23,10 @@ from django.forms.models import ModelMultipleChoiceField, model_to_dict
 from django import forms
 from django.db.models import Model
 from django.forms.formsets import formset_factory
-#from django.core.paginator import Paginator
 from django.utils.html import escape
 
 from xgds_data import settings
-from xgds_data.introspection import modelFields
+from xgds_data.introspection import modelFields, maskField
 from xgds_data.models import getModelByName
 from xgds_data.forms import QueryForm, SearchForm, AxesForm, SpecializedForm
 from xgds_data.logging import recordRequest, recordList, log_and_render
@@ -35,7 +34,7 @@ from xgds_data.logconfig import logEnabled
 if logEnabled():
     from xgds_data.models import ResponseLog
 from xgds_data.search import makeFilters, sortFormula, countMatches, \
-    divineWhereClause, sortThreshold
+    divineWhereClause, sortThreshold, getResults, pageLimits
 
 
 def index(request):
@@ -233,7 +232,7 @@ def searchSimilar(request, moduleName, modelName, pkid):
     debug = []
     data = request.REQUEST
     # me = myModel.objects.get(pk=data.get(myModel._meta.pk.name))
-    # pkid = 1
+    #pkid = 1
     me = myModel.objects.get(pk=pkid)
     defaults = dict()
     aForm = tmpFormClass()
@@ -280,7 +279,7 @@ def searchSimilar(request, moduleName, modelName, pkid):
                            'formset': formset,
                            'axesform': axesform},
                           nolog=['formset', 'axesform'])
-
+                
 
 def searchChosenModel(request, moduleName, modelName, expert=False):
     """
@@ -290,49 +289,48 @@ def searchChosenModel(request, moduleName, modelName, expert=False):
     reqlog = recordRequest(request)
     modelmodule = get_app(moduleName)
     myModel = getattr(modelmodule, modelName)
-    myFields = modelFields(myModel)
+    myFields = [x for x in modelFields(myModel) if not maskField(myModel,x) ]
+    displayFields = [x for x in myFields if not (x.primary_key) ]
     tmpFormClass = SpecializedForm(SearchForm, myModel)
     tmpFormSet = formset_factory(tmpFormClass)
     debug = []
     data = request.REQUEST
     formCount = 1
-    mode = data.get('mode', False)
-    page = data.get('pageno', None)
-    pageSize = 10
-    if page:
-        page = int(page)
-        picks = [int(p) for p in data.getlist('picks')]
-    else:
-        page = 1
-        picks = []
-    results = None
-    resultids = None
-    #resultsPage = None
-    filters = None
-    resultCount = None
-    hardCount = None
     soft = True
-    scores = {}
-    more = False
-
-    # expert = (soft != None) and (soft == 'True')
+    mode = data.get('fnctn', False)
+    page = data.get('pageno', None)
     if (mode == 'csvhard'):
         soft = False
         mode = 'csv'
+    if (mode == 'csv'):
+        page = None
+    else:
+        pageSize = 10
+        more = False
+        if page:
+            page = int(page)
+            picks = [int(p) for p in data.getlist('picks')]
+        else:
+            page = 1
+            picks = []
+    results = None
+
+    totalCount = None
+    hardCount = None
 
     if (mode == 'addform'):
         formCount = int(data['form-TOTAL_FORMS'])
-        # # this is very strange, but the extra forms don't come up with the right defaults
-        # # create a new form and read what the initial values should be
+        ## this is very strange, but the extra forms don't come up with the right defaults
+        ## create a new form and read what the initial values should be
         blankForm = tmpFormClass()
-        # newdata = data.copy()
+        #newdata = data.copy()
         newdata = dict(data)
         for fname, field in blankForm.fields.iteritems():
             if isinstance(field, ModelMultipleChoiceField):
                 val = [unicode(x.id) for x in field.initial]
                 # FIX: does val need to be turned into a string somehow?
-                newdata[formsetifyFieldName(formCount, fname)] = val
-            elif ((not isinstance(field, forms.ChoiceField)) & (not field.initial)):
+                newdata.setlist(formsetifyFieldName(formCount, fname), val)
+            elif ((not isinstance(field, forms.ChoiceField)) & (not field.initial   )):
                 newdata[formsetifyFieldName(formCount, fname)] = unicode('')
             else:
                 newdata[formsetifyFieldName(formCount, fname)] = unicode(field.initial)
@@ -342,121 +340,115 @@ def searchChosenModel(request, moduleName, modelName, expert=False):
         formCount = int(data['form-TOTAL_FORMS'])
         formset = tmpFormSet(data)
         if formset.is_valid():
-            filters = makeFilters(formset, soft)
-            query = myModel.objects.filter(filters)
-            hardquery = myModel.objects.filter(makeFilters(formset, False))
+            if page is not None:
+                queryStart, queryEnd = pageLimits(page, pageSize)
+            else:
+                queryStart = 0
+                queryEnd = None
+
             scorer = sortFormula(myModel, formset)
+            softFilter = makeFilters(formset, soft)
             if scorer:
-                query = query.extra(select={'score': scorer}, order_by=['-score'])
-            if (mode == 'csv'):
-                results = query.all()
-                if scorer:
-                    limit = countMatches(myModel,
-                                         scorer,
-                                         divineWhereClause(myModel, filters, formset),
-                                         sortThreshold())
-                    results = results[0:limit]
-                fnames = [f.column for f in myFields]
-                response = HttpResponse(content_type='text/csv')
-                # if you want to download instead of display in browser
-                # response['Content-Disposition'] = 'attachment; filename='+modelName + '.csv'
-                writer = csv.writer(response)
-                writer.writerow(fnames)
-                for r in results:
-                    writer.writerow([csvEncode(getattr(r, f))
-                                     for f in fnames if hasattr(r, f)])
-                if logEnabled():
-                    reslog = ResponseLog.objects.create(request=reqlog)
-                    recordList(reslog, results)
-                return response
-            elif (mode == 'query'):
-                if scorer:
-                    # # resultCount = countApproxMatches(myModel, scorer, query.count(), sortThreshold())
-                    resultCount = countMatches(myModel,
-                                               scorer,
-                                               divineWhereClause(myModel, filters, formset),
-                                               sortThreshold())
-                    hardCount = hardquery.count()
-                    if resultCount < hardCount:
-                        resultCount = hardCount
-                    query = query[0:resultCount]
-                else:
-                    resultCount = query.count()
-                    hardCount = resultCount
-                # #resultsPages = Paginator(query, pageSize)
-                # #resultsPage = resultsPages.page(page)
+                hardFilter = makeFilters(formset, False)
+                hardCount = myModel.objects.filter(hardFilter).count()
+            else:
+                hardCount = None
+            
+            results, totalCount = getResults(myModel, softFilter, scorer, \
+                                             queryStart, queryEnd, minCount = hardCount)
 
-                results = []
-                scores = {}
-                pagestart = (page - 1) * pageSize
-                pageend = page * pageSize
-                more = pageend <= resultCount
-                for d in query.values()[pagestart:pageend]:
-                    modeld = d.copy()
-                    if scorer:
-                        scores[d[myModel._meta.pk.name]] = modeld['score']
-                        del modeld['score']
-                    else:
-                        scores[d[myModel._meta.pk.name]] = 1
-                    results.append(myModel(**modeld))
-                # # myModel(**d) for d in query.values()[0:pageSize] ]
-                # #resultids = [ r.get(myModel._meta.pk.name) for r in results ]
-                # # results = resultsPages.page(page).object_list
-                resultids = [getattr(r, myModel._meta.pk.name) for r in results]
+            if hardCount is None:
+                hardCount = totalCount
 
+            more = queryStart + len(results) < totalCount
         else:
             debug = formset.errors
     else:
         formset = tmpFormSet()
+        
+    if (mode == 'csv'):
+        response = HttpResponse(content_type='text/csv')
+        # if you want to download instead of display in browser
+        # response['Content-Disposition'] = 'attachment; filename='+modelName + '.csv'
+        writer = csv.writer(response)
+        writer.writerow([f.name for f in displayFields])
+        for r in results:
+            writer.writerow([csvEncode(r.get(f.name,None)) for f in displayFields ])
+        if logEnabled():
+            reslog = ResponseLog.objects.create(request=reqlog)
+            recordList(reslog, results)
+        return response
+    else:   
+        datetimefields = []
+        for x in displayFields:
+            if isinstance(x, DateTimeField):
+                for y in range(0, formCount + 1):
+                    datetimefields.append(formsetifyFieldName(y, x.name))
+        axesform = AxesForm(displayFields, data)
+    
+        if (not axesform.fields.get('yaxis')):
+            ## if yaxis is not defined, then we can't really plot
+            axesform = None
+        elif (data.get('xaxis') is None) or (data.get('xaxis') is None):
+            ## lame, but Django doesn't appear to use the defined initial value when displaying as_hidden
+            ## this will mess everything up
+            ## thus, we force the initial values here.
+            ## this should only be executed when the form is blank (i.e., initially)
+            qd = {'xaxis': axesform.fields.get('xaxis').initial,
+                  'yaxis': axesform.fields.get('yaxis').initial,
+                  'series': axesform.fields.get('series').initial}
+            qd.update(data)
+            axesform = AxesForm(displayFields, qd)
+        template = resolveSetting('XGDS_DATA_SEARCH_TEMPLATES', myModel, 'xgds_data/searchChosenModel.html')
+        checkable = resolveSetting('XGDS_DATA_CHECKABLE', myModel, False)
+        return log_and_render(request, reqlog, template,
+                              {'title': 'Search ' + modelName,
+                               'module': moduleName,
+                               'model': modelName,
+                               'expert': expert,
+                               'pk':  myModel._meta.pk,                              
+                               'datetimefields': datetimefields,
+                               'displayFields': displayFields,
+                               'formset': formset,
+                               'axesform': axesform,                              
+                               'results': results,
+                               'count': totalCount,
+                               'exactCount': hardCount,
+                               'duration': (datetime.datetime.now() - starttime).total_seconds(),
+                               'page': page,
+                               'pageSize': pageSize,
+                               'more': more,
+                               'picks': picks,
+                               'checkable': checkable,
+                               'debug': debug,                               
+                               },
+                              nolog=['formset', 'axesform', 'results', 'resultsids', 'scores'],
+                              listing=results)
 
-    datetimefields = []
-    for x in myFields:
-        if isinstance(x, DateTimeField):
-            for y in range(0, formCount + 1):
-                datetimefields.append(formsetifyFieldName(y, x.name))
-    axesform = AxesForm(myFields, data)
 
-    if (not axesform.fields.get('yaxis')):
-        # # if yaxis is not defined, then we can't really plot
-        axesform = None
-    elif (data.get('xaxis') is None) or (data.get('xaxis') is None):
-        # # lame, but Django doesn't appear to use the defined initial value when displaying as_hidden
-        # # this will mess everything up
-        # # thus, we force the initial values here.
-        # # this should only be executed when the form is blank (i.e., initially)
-        qd = {'xaxis': axesform.fields.get('xaxis').initial,
-              'yaxis': axesform.fields.get('yaxis').initial,
-              'series': axesform.fields.get('series').initial}
-        qd.update(data)
-        axesform = AxesForm(myFields, qd)
-    template = resolveSetting('XGDS_DATA_SEARCH_TEMPLATES', myModel, 'xgds_data/searchChosenModel.html')
-    checkable = resolveSetting('XGDS_DATA_CHECKABLE', myModel, False)
-    return log_and_render(request, reqlog, template,
-                          {'title': 'Search ' + modelName,
-                           'module': moduleName,
-                           'model': modelName,
-                           'debug': debug,
-                           'count': resultCount,
-                           'duration': (datetime.datetime.now() - starttime).total_seconds(),
-                           'expert': expert,
-                           'exactCount': hardCount,
-                           'datetimefields': datetimefields,
-                           'displayFields': [x for x in myFields if not x.primary_key],
-                           'formset': formset,
-                           'axesform': axesform,
-                           'page': page,
-                           'pageSize': pageSize,
-                           'results': results,
-                           'pk': myModel._meta.pk,
-                           'scores': scores,
-                           'resultids': resultids,
-# #                           'resultsPage': resultsPage,
-                           'more': more,
-                           'picks': picks,
-                           'checkable': checkable
-                           },
-                          nolog=['formset', 'axesform', 'results', 'resultsids'],
-                          listing=results)
+def megahandler(obj):
+    if isinstance(obj, datetime.datetime):
+        return calendar.timegm(obj.timetuple()) * 1000
+    elif isinstance(obj, Model):
+        return escape(str(obj))
+    elif isinstance(obj, (int, long, float, complex)):
+        return obj
+    else:
+        return escape(obj)
+
+
+def getRelated(modelField):
+    return dict([ (getattr(x, x._meta.pk.name), escape(str(x))) 
+            for x in modelField.rel.to.objects.all() ])
+
+
+def megahandler2(obj):
+    if isinstance(obj, datetime.datetime):
+        return calendar.timegm(obj.timetuple()) * 1000
+    elif isinstance(obj, Model):
+        return str(obj)
+    else:
+        return None
 
 
 def plotQueryResults(request, moduleName, modelName, start, end, soft=True):
@@ -475,61 +467,32 @@ def plotQueryResults(request, moduleName, modelName, start, end, soft=True):
     soft = soft in (True, 'True')
 
     axesform = AxesForm(myFields, data)
-    fieldDict = {x.name: x for x in myFields}
+    fieldDict = dict([ (x.name , x) for x in myFields ])
     timeFields = [fieldName
                   for fieldName, fieldVal in fieldDict.iteritems()
                   if isinstance(fieldVal, (DateField, TimeField))]
 
     formset = tmpFormSet(data)
     if formset.is_valid():
-        # # a lot of this code mimics what is in searchChosenModel
-        # # should figure out a way of centralizing instead of copying
+        ## a lot of this code mimics what is in searchChosenModel
+        ## should figure out a way of centralizing instead of copying
+ 
+ 
         scorer = sortFormula(myModel, formset)
-        filters = makeFilters(formset, soft)
-        objs = myModel.objects.filter(filters)
-        if scorer:
-            objs = objs.extra(select={'score': scorer}, order_by=['-score'])
-            # #resultCount = countApproxMatches(myModel._meta.db_table, scorer, objs.count(), sortThreshold())
-            resultCount = countMatches(myModel,
-                                       scorer,
-                                       divineWhereClause(myModel, filters, formset),
-                                       sortThreshold())
-        else:
-            resultCount = objs.count()
-        objs = objs[start:min(end, resultCount)]
-        # #print(objs.query)
-        # #plotdata = list(myModel.objects.filter(filters).values())
-        # #pldata = [x.__str__() for x in myModel.objects.filter(filters)]
-        # # objs = myModel.objects.filter(filters)[5:100]
-
-        def megahandler(obj):
-            if isinstance(obj, datetime.datetime):
-                return calendar.timegm(obj.timetuple()) * 1000
-            elif isinstance(obj, Model):
-                return escape(str(obj))
-            elif isinstance(obj, (int, long, float, complex)):
-                return obj
-            else:
-                return escape(obj)
-
-        plotdata = [{fld.name: megahandler(fld.value_from_object(x))
-                     for fld in myFields}
+        softFilter = makeFilters(formset, soft)
+        objs, totalCount = getResults(myModel, softFilter, scorer, start, end)
+        plotdata = [dict([ (fld.name, megahandler(x.get(fld.name,None)) )
+                     for fld in myFields])
                     for x in objs]
-        pldata = [str(x) for x in objs]
-        # #pldata = [str(x.denominator) for x in objs]
+        pldata = [ x['__string__'] for x in objs]
 
-        # # the following code determines if there are any foreign keys that can be selected, and if so,
-        # # replaces the corresponding values (which will be ids) with the string representation
+        ## the following code determines if there are any foreign keys that can be selected, and if so,
+        ## replaces the corresponding values (which will be ids) with the string representation
         seriesChoices = dict(axesform.fields['series'].choices)
 
-        def getRelated(modelField):
-            return {getattr(x, x._meta.pk.name): escape(str(x))
-                    for x in modelField.rel.to.objects.all()}
-
-        seriesValues = {m.name: getRelated(m)
+        seriesValues = dict([ (m.name, getRelated(m))
                         for m in myFields
-                        if (m.rel is not None and
-                            m.name in seriesChoices)}
+                        if (m.rel is not None and m.name in seriesChoices)])
         for x in plotdata:
             for k in seriesValues.keys():
                 if x[k] is not None:
@@ -539,22 +502,14 @@ def plotQueryResults(request, moduleName, modelName, start, end, soft=True):
                         x[k] = str(x[k])  # seriesValues[k][seriesValues[k].keys()[0]]
 
         debug = []
-        # resultCount = myModel.objects.filter(filters).count()
+        #totalCount = myModel.objects.filter(filters).count()
         shownCount = len(pldata)
     else:
         debug = [(x, formset.errors[x]) for x in formset.errors]
-        resultCount = None
+        totalCount = None
         pldata = []
         plotdata = []
         objs = []
-
-    def megahandler2(obj):
-        if isinstance(obj, datetime.datetime):
-            return calendar.timegm(obj.timetuple()) * 1000
-        elif isinstance(obj, Model):
-            return str(obj)
-        else:
-            return None
 
     template = resolveSetting('XGDS_DATA_PLOT_TEMPLATES', myModel, 'xgds_data/plotQueryResults.html')
     return log_and_render(request, reqlog, template,
@@ -567,8 +522,9 @@ def plotQueryResults(request, moduleName, modelName, start, end, soft=True):
                            'pk': myModel._meta.pk.name,
                            'start': start,
                            'end': end,
+                           'soft': soft,
                            'debug': debug,
-                           'count': resultCount,
+                           'count': totalCount,
                            'showncount': shownCount,
                            "formset": formset,
                            'axesform': axesform

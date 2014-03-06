@@ -27,6 +27,8 @@ urlpatterns = patterns(
         name='xgds_data_searchChosenModel'),
     url(r'^search/plot/(?P<moduleName>[^/]+)/(?P<modelName>[^/]+)/$', 'plotQueryResults',
         name='xgds_data_searchPlotQueryResults'),
+    url(r'^search/plot/(?P<moduleName>[^/]+)/(?P<modelName>[^/]+)/(?P<soft>[^/]+)/$', 'plotQueryResults',
+        name='xgds_data_searchPlotQueryResults'),
     url(r'^search/plot/(?P<moduleName>[^/]+)/(?P<modelName>[^/]+)/(?P<start>\d+)/(?P<end>\d+)/$', 'plotQueryResults',
         name='xgds_data_searchPlotQueryResults'),
     url(r'^search/plot/(?P<moduleName>[^/]+)/(?P<modelName>[^/]+)/(?P<soft>[^/]+)/(?P<start>\d+)/(?P<end>\d+)/$', 'plotQueryResults',

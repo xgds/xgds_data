@@ -35,6 +35,16 @@ def recordRequest(request):
         return None
 
 
+def getListItemProperty(obj,prop):
+    """
+    Record list might get either instances or dicts with instance contents, so use this 
+    """
+    try:
+        return obj[prop]
+    except TypeError:
+        return getattr(obj, prop)
+
+
 def recordList(reslog, results):
     """
     Logs a ranked list of results
@@ -46,10 +56,11 @@ def recordList(reslog, results):
             ranks.append(len(results))
             items = [ResponseList(response=reslog,
                                   rank=r,
-                                  fclass=str(results[r - 1].__class__),
-                                  ##fid=results[r - 1].id )
-                                  fid=getattr(results[r - 1],
-                                              results[r - 1].__class__._meta.pk.name))
+#                                  fclass=str(results[r - 1]['__class__']),
+#                                  fid=results[r - 1][  results[r - 1]['__class__']._meta.pk.name ] )
+                                  fclass=str(getListItemProperty(results[r - 1],'__class__')),
+                                  fid=getListItemProperty( results[r - 1], \
+                                         getListItemProperty(results[r - 1],'__class__')._meta.pk.name ) )
 
                      for r in ranks]
             ResponseList.objects.bulk_create(items)

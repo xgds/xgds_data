@@ -8,10 +8,10 @@ from django import forms
 from django.db.models import fields
 from django.utils.safestring import mark_safe
 from django.db.models.fields.related import RelatedField
+from django.forms.widgets import RadioSelect
 
-from xgds_data.introspection import modelFields
+from xgds_data.introspection import modelFields, maskField
 # pylint: disable=R0924
-
 
 class QueryForm(forms.Form):
     query = forms.CharField(max_length=256, required=False,
@@ -35,7 +35,8 @@ class SearchForm(forms.Form):
         categoricalOperators = (('=', '='),
                                 ('!=', '!='))
         for field in (modelFields(mymodel)):
-            if isinstance(field, fields.AutoField):
+            if isinstance(field, (fields.AutoField, fields.files.FileField)) \
+                    or maskField(mymodel, field):
                 pass  # nothing
             elif isinstance(field, (fields.BooleanField, fields.NullBooleanField)):
                 self.fields[field.name + '_operator'] = \
@@ -171,7 +172,7 @@ class SearchForm(forms.Form):
                 ofieldname = n + '_operator'
                 ofield = forms.forms.BoundField(self, self.fields[ofieldname], ofieldname)
                 row = (u'<tr><td style="text-align:right; font-weight:bold;">%(label)s</td><td>%(ofield)s</td>' %
-                       {'label': unicode(mfield.name),
+                       {'label': unicode(mfield.verbose_name),
                         'ofield': unicode(ofield)})
                 if isinstance(mfield, (fields.DateTimeField,
                                        fields.FloatField,
@@ -201,10 +202,12 @@ class SortForm(forms.Form):
     """
     Dynamically creates a form to sort over the given class
     """
-    def __init__(self, mfields, *args, **kwargs):
+    def __init__(self, mymodel, *args, **kwargs):
         forms.Form.__init__(self, *args, **kwargs)
+        numorder = 5 ## should be a passed in parameter
+        self.model = mymodel
         sortingfields = []
-        for x in mfields:
+        for x in modelFields(mymodel):
             if isinstance(x, fields.AutoField):
                 pass
             elif isinstance(x, (fields.DateField,
@@ -212,17 +215,22 @@ class SortForm(forms.Form):
                                 fields.FloatField,
                                 fields.IntegerField,
                                 fields.TimeField)):
-                sortingfields.append(x)
-
+                if x.verbose_name != "":
+                    sortingfields.append(x)
         if len(sortingfields) > 1:
-            datachoices = (tuple((None, 'None')
-                                 for x in ['Rank']) +
+            datachoices = (tuple((None, 'None') for x in [1])  +
                            tuple((x.name, x.verbose_name)
                                  for x in sortingfields))
-            self.fields['order'] = forms.ChoiceField(choices=datachoices,
-                                                     required=True,
-                                                     initial=sortingfields[0].name)
-
+            for order in range(1,numorder+1):
+                self.fields['order'+str(order)] = forms.ChoiceField(choices=datachoices,
+                                                                    initial=datachoices[0][0],
+                                                                    required=True)
+                self.fields['direction'+str(order)] = forms.ChoiceField(choices=(('ASC','Ascending'),
+                                                                                 ('DESC','Descending')),
+                                                                        widget=RadioSelect(),
+                                                                        initial='ASC',
+                                                                        required=True)
+        
 
 def SpecializedForm(formModel, myModel):
     """
@@ -262,12 +270,13 @@ class AxesForm(forms.Form):
         if (seriesablefields is None):
             seriesablefields = []
             for x in mfields:
-                if ((not isinstance(x, (fields.AutoField, fields.DateField,
+                if ((not isinstance(x, (fields.AutoField,
+                                        fields.DateField,
                                         fields.DecimalField,
                                         fields.FloatField,
                                         fields.IntegerField,
                                         fields.TimeField))) and
-                        (x.model.objects.values(x.name).order_by().distinct().count() <= 100)):
+                    (x.model.objects.values(x.name).order_by().distinct().count() <= 100)):
                     seriesablefields.append(x)
         if len(chartablefields) > 1:
             datachoices = (tuple((x, x)

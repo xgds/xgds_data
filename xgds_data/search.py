@@ -14,9 +14,9 @@ from django import forms
 from django.db import connection
 from django.db.models import Q
 from django.db.models.fields import PositiveIntegerField, PositiveSmallIntegerField
-from django.db.models.fields.related import OneToOneField
+from django.db.models.fields.related import OneToOneField, RelatedField
 
-from xgds_data.introspection import modelFields, resolveField
+from xgds_data.introspection import modelFields, resolveField, maskField
 from xgds_data.models import cacheStatistics
 if cacheStatistics():
     from xgds_data.models import ModelStatistic
@@ -29,7 +29,7 @@ def timer(t, msg):
     return newtime
 
 
-def divineWhereClause(myModel, filters, formset):
+def divineWhereClause(myModel, filters):
     """
     Pulls out the where clause and quotes the likely literals. Probably really brittle and should be replaced
     """
@@ -223,7 +223,9 @@ def baseScore(fieldRef, lorange, hirange):
         hirange = time.mktime(hirange.timetuple())
     ## perhaps could swap lo, hi if lo > hi
     if (timeConversion):
-        fieldRef = 'UNIX_TIMESTAMP({0})'.format(fieldRef)
+        ## UGH: mysql's UNIX_TIMESTAMP always assumes system timezone, but we are storing UTC
+        ## Solution: convert to system time zone and then get unix timestamp
+        fieldRef = 'UNIX_TIMESTAMP(CONVERT_TZ({0},"+00:00",@@session.time_zone))'.format(fieldRef)
 
     if lorange == hirange:
         return "abs({0}-{1})".format(fieldRef, lorange)
@@ -325,8 +327,9 @@ def medianEval(model, expression, size):
     """
     Quick mysql-y way of estimating the median from a sample
     """
-    if model.objects.count() == 0:
-        return None
+    count = model.objects.count()
+    if count == 0:
+        return None    
     else:
         sampleSize = min(size, 1000)
         result = ()
@@ -370,6 +373,24 @@ def dbFieldRef(field):
     return the alias for this field in the database query
     """
     return field.model._meta.db_table + '.' + field.attname
+
+
+def autoweight(model, field, lorange, hirange, tableSize):
+    """
+    Would weight automatically, but isn't that magical yet
+    """
+    ## Yuk ... need to convert if field is unsigned
+    # unsigned = False
+    # if isinstance(field, (PositiveIntegerField, PositiveSmallIntegerField)):
+    #     unsigned = True
+    # ## Add table designation to properly resolve a field name that has another SQL interpretation
+    # ## (for instance, a field name 'long')
+    # fieldRef = dbFieldRef(field)
+    # if (unsigned):
+    #     fieldRef = "cast({0} as SIGNED)".format(fieldRef)
+    # median = medianRangeEval(field.model, field, lorange, hirange, tableSize, fieldRef)
+    # return (1+median)/2
+    return 1
 
 
 def scoreNumeric(model, field, lorange, hirange, tsize):
@@ -441,8 +462,15 @@ def sortFormulaRanges(model, desiderata):
     """
     if (len(desiderata) > 0):
         tsize = tableSize(model)
-        formula = ' + '.join([scoreNumeric(model, resolveField(model, b), desiderata[b][0], desiderata[b][1], tsize) for b in desiderata.keys()])
-        return '({0})/{1} '.format(formula, len(desiderata))  # scale to have a max of 1
+#        weights = dict([(b,autoweight(model, resolveField(model, b), desiderata[b][0], desiderata[b][1], tsize)) \
+#                              for b in desiderata.keys()])
+        totalweight = len(desiderata)
+#        for w in weights.values():
+#            totalweight = totalweight + w
+        scores = dict([(b,scoreNumeric(model, resolveField(model, b), desiderata[b][0], desiderata[b][1], tsize)) \
+                              for b in desiderata.keys()])
+        formula = ' + '.join([scores[b] for b in desiderata.keys()])
+        return '({0})/{1} '.format(formula, totalweight)  # scale to have a max of 1
     else:
         return None
 
@@ -476,6 +504,7 @@ def multiScore(model, values, desiderata, medians=None):
         medians = {}
     score = 0
     count = 0
+    tsize = None
     for d in desiderata.keys():
         b = resolveField(model, d)
         ## Yuk ... need to convert if field is unsigned
@@ -493,6 +522,9 @@ def multiScore(model, values, desiderata, medians=None):
         else:
             print("BAD")
             raise Exception("This is bad news!")
+            if not tsize:
+                tsize = tableSize(model)
+            median = medianEval(b.model, baseScore(fieldRef,desiderata[d][0], desiderata[d][1]), tsize)
         score = score + unitScore(values[d], desiderata[d][0], desiderata[d][1], median)
         count = count + 1
 
@@ -520,6 +552,88 @@ def sortThreshold():
     """
     ## rather arbitrary cutoff, which would return 30% of results if scores are uniform
     return 0.7
+
+
+def pageLimits(page, pageSize):
+    """
+    bla
+    """
+    return ((page - 1)* pageSize, page * pageSize)
+
+def getResults(myModel, softFilter, scorer = None, queryStart = 0, queryEnd = None, minCount = None):
+    """
+    Get the query results as dicts, so relevance scores can be included
+    """   
+    query = myModel.objects.filter(softFilter)
+    if scorer:
+        query = query.extra(select={'score': scorer}, order_by=['-score'])
+        ## totalCount = countApproxMatches(myModel, scorer, query.count(), sortThreshold())
+        totalCount = countMatches(myModel,
+                                   scorer,
+                                   divineWhereClause(myModel, softFilter),
+                                   sortThreshold())
+        if totalCount < minCount:
+            ## this only makes sense if it's an approximate count
+            ## and that approximate count is too low
+            totalCount = minCount
+    else:
+        query = query.extra(select={'score': 1})
+        # hardCount = query.count()
+        if minCount is None:
+            totalCount = query.count()
+        else:
+            totalCount = minCount
+
+    results = []
+    queryFields = [x.name for x in modelFields(myModel) if not maskField(myModel,x) ]
+    queryFields.append('score')
+    qvalues = query.values(*queryFields)
+    if queryEnd:
+        queryEnd = min(totalCount,queryEnd)
+        qvalues = qvalues[queryStart:queryEnd]
+    elif queryStart != 0:
+        qvalues = qvalues[queryStart:]
+
+    foreigners = dict([ (f, set()) for f in modelFields(myModel) if isinstance(f,RelatedField)])
+    for d in qvalues:
+        for k in iter(foreigners):
+            try:
+                relatives = d[k.name]
+            except KeyError:
+                pass  # it's ok if that key is missing
+            else:
+                try:
+                    iterator = iter(relatives)
+                    assert not isinstance(relatives, basestring)
+                except (TypeError, AssertionError):
+                    # not iterable
+                    foreigners[k].add(relatives)
+                else:
+                    for f in iterator:
+                        foreigners[k].add(f)
+            
+    for f in iter(foreigners):
+        relf = f.rel.get_related_field()
+        objects = relf.model.objects.filter(**{relf.attname + '__in': foreigners[f]})
+        foreigners[f] = dict([(getattr(x,relf.name),x) for x in objects])
+        
+    for d in qvalues:
+        resultd = d.copy()
+        resultd['__class__'] = myModel
+        for f in iter(foreigners):
+            if f.name in resultd:
+                try:
+                    resultd[f.name] = foreigners[f][resultd[f.name] ]
+                except KeyError:
+                    del resultd[f.name] # presumably this means something is not consistent in the model, it does happen
+
+        modeld = dict( [ (f.name,resultd[f.name]) for f in modelFields(myModel) \
+                        if f.name in resultd    ] )
+        instance = myModel(**modeld)
+        resultd['__instance__'] = instance
+        resultd['__string__'] = str(instance)
+        results.append( resultd )
+    return (results, totalCount)
 
 
 def makeQinfo(model, query, fld, loend, hiend, order=None):

@@ -28,3 +28,10 @@ def resolveField(model, fieldName):
             return f
 
     return None
+
+def maskField(model, field):
+    """
+    Should we omit this field from search and display?
+    """
+    return (field.name is 'msgJson')
+
