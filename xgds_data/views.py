@@ -23,7 +23,7 @@ from django.forms.models import ModelMultipleChoiceField, model_to_dict
 from django import forms
 from django.db.models import Model
 from django.forms.formsets import formset_factory
-from django.core.paginator import Paginator
+#from django.core.paginator import Paginator
 from django.utils.html import escape
 
 from xgds_data import settings
@@ -233,7 +233,7 @@ def searchSimilar(request, moduleName, modelName, pkid):
     debug = []
     data = request.REQUEST
     # me = myModel.objects.get(pk=data.get(myModel._meta.pk.name))
-    #pkid = 1
+    # pkid = 1
     me = myModel.objects.get(pk=pkid)
     defaults = dict()
     aForm = tmpFormClass()
@@ -307,7 +307,7 @@ def searchChosenModel(request, moduleName, modelName, expert=False):
         picks = []
     results = None
     resultids = None
-    resultsPage = None
+    #resultsPage = None
     filters = None
     resultCount = None
     hardCount = None
@@ -315,17 +315,17 @@ def searchChosenModel(request, moduleName, modelName, expert=False):
     scores = {}
     more = False
 
-    #expert = (soft != None) and (soft == 'True')
+    # expert = (soft != None) and (soft == 'True')
     if (mode == 'csvhard'):
         soft = False
         mode = 'csv'
 
     if (mode == 'addform'):
         formCount = int(data['form-TOTAL_FORMS'])
-        ## this is very strange, but the extra forms don't come up with the right defaults
-        ## create a new form and read what the initial values should be
+        # # this is very strange, but the extra forms don't come up with the right defaults
+        # # create a new form and read what the initial values should be
         blankForm = tmpFormClass()
-        #newdata = data.copy()
+        # newdata = data.copy()
         newdata = dict(data)
         for fname, field in blankForm.fields.iteritems():
             if isinstance(field, ModelMultipleChoiceField):
@@ -371,7 +371,7 @@ def searchChosenModel(request, moduleName, modelName, expert=False):
                 return response
             elif (mode == 'query'):
                 if scorer:
-                    ## resultCount = countApproxMatches(myModel, scorer, query.count(), sortThreshold())
+                    # # resultCount = countApproxMatches(myModel, scorer, query.count(), sortThreshold())
                     resultCount = countMatches(myModel,
                                                scorer,
                                                divineWhereClause(myModel, filters, formset),
@@ -383,26 +383,26 @@ def searchChosenModel(request, moduleName, modelName, expert=False):
                 else:
                     resultCount = query.count()
                     hardCount = resultCount
-                ##resultsPages = Paginator(query, pageSize)
-                ##resultsPage = resultsPages.page(page)
+                # #resultsPages = Paginator(query, pageSize)
+                # #resultsPage = resultsPages.page(page)
 
                 results = []
                 scores = {}
-                pagestart = (page - 1)* pageSize
+                pagestart = (page - 1) * pageSize
                 pageend = page * pageSize
                 more = pageend <= resultCount
                 for d in query.values()[pagestart:pageend]:
                     modeld = d.copy()
                     if scorer:
-                        scores[ d[myModel._meta.pk.name] ] = modeld['score']
+                        scores[d[myModel._meta.pk.name]] = modeld['score']
                         del modeld['score']
                     else:
-                        scores[ d[myModel._meta.pk.name] ] = 1
-                    results.append( myModel(**modeld) )
-                ## myModel(**d) for d in query.values()[0:pageSize] ]
-                ##resultids = [ r.get(myModel._meta.pk.name) for r in results ]
-                ## results = resultsPages.page(page).object_list
-                resultids = [getattr(r, myModel._meta.pk.name) for r in results ]
+                        scores[d[myModel._meta.pk.name]] = 1
+                    results.append(myModel(**modeld))
+                # # myModel(**d) for d in query.values()[0:pageSize] ]
+                # #resultids = [ r.get(myModel._meta.pk.name) for r in results ]
+                # # results = resultsPages.page(page).object_list
+                resultids = [getattr(r, myModel._meta.pk.name) for r in results]
 
         else:
             debug = formset.errors
@@ -417,13 +417,13 @@ def searchChosenModel(request, moduleName, modelName, expert=False):
     axesform = AxesForm(myFields, data)
 
     if (not axesform.fields.get('yaxis')):
-        ## if yaxis is not defined, then we can't really plot
+        # # if yaxis is not defined, then we can't really plot
         axesform = None
     elif (data.get('xaxis') is None) or (data.get('xaxis') is None):
-        ## lame, but Django doesn't appear to use the defined initial value when displaying as_hidden
-        ## this will mess everything up
-        ## thus, we force the initial values here.
-        ## this should only be executed when the form is blank (i.e., initially)
+        # # lame, but Django doesn't appear to use the defined initial value when displaying as_hidden
+        # # this will mess everything up
+        # # thus, we force the initial values here.
+        # # this should only be executed when the form is blank (i.e., initially)
         qd = {'xaxis': axesform.fields.get('xaxis').initial,
               'yaxis': axesform.fields.get('yaxis').initial,
               'series': axesform.fields.get('series').initial}
@@ -447,10 +447,10 @@ def searchChosenModel(request, moduleName, modelName, expert=False):
                            'page': page,
                            'pageSize': pageSize,
                            'results': results,
-                           'pk':  myModel._meta.pk,
-                           'scores':scores,
+                           'pk': myModel._meta.pk,
+                           'scores': scores,
                            'resultids': resultids,
-##                           'resultsPage': resultsPage,
+# #                           'resultsPage': resultsPage,
                            'more': more,
                            'picks': picks,
                            'checkable': checkable
@@ -475,21 +475,21 @@ def plotQueryResults(request, moduleName, modelName, start, end, soft=True):
     soft = soft in (True, 'True')
 
     axesform = AxesForm(myFields, data)
-    fieldDict = { x.name : x for x in myFields }
+    fieldDict = {x.name: x for x in myFields}
     timeFields = [fieldName
                   for fieldName, fieldVal in fieldDict.iteritems()
                   if isinstance(fieldVal, (DateField, TimeField))]
 
     formset = tmpFormSet(data)
     if formset.is_valid():
-        ## a lot of this code mimics what is in searchChosenModel
-        ## should figure out a way of centralizing instead of copying
+        # # a lot of this code mimics what is in searchChosenModel
+        # # should figure out a way of centralizing instead of copying
         scorer = sortFormula(myModel, formset)
         filters = makeFilters(formset, soft)
         objs = myModel.objects.filter(filters)
         if scorer:
             objs = objs.extra(select={'score': scorer}, order_by=['-score'])
-            ##resultCount = countApproxMatches(myModel._meta.db_table, scorer, objs.count(), sortThreshold())
+            # #resultCount = countApproxMatches(myModel._meta.db_table, scorer, objs.count(), sortThreshold())
             resultCount = countMatches(myModel,
                                        scorer,
                                        divineWhereClause(myModel, filters, formset),
@@ -497,10 +497,10 @@ def plotQueryResults(request, moduleName, modelName, start, end, soft=True):
         else:
             resultCount = objs.count()
         objs = objs[start:min(end, resultCount)]
-        ##print(objs.query)
-        ##plotdata = list(myModel.objects.filter(filters).values())
-        ##pldata = [x.__str__() for x in myModel.objects.filter(filters)]
-        ## objs = myModel.objects.filter(filters)[5:100]
+        # #print(objs.query)
+        # #plotdata = list(myModel.objects.filter(filters).values())
+        # #pldata = [x.__str__() for x in myModel.objects.filter(filters)]
+        # # objs = myModel.objects.filter(filters)[5:100]
 
         def megahandler(obj):
             if isinstance(obj, datetime.datetime):
@@ -516,10 +516,10 @@ def plotQueryResults(request, moduleName, modelName, start, end, soft=True):
                      for fld in myFields}
                     for x in objs]
         pldata = [str(x) for x in objs]
-        ##pldata = [str(x.denominator) for x in objs]
+        # #pldata = [str(x.denominator) for x in objs]
 
-        ## the following code determines if there are any foreign keys that can be selected, and if so,
-        ## replaces the corresponding values (which will be ids) with the string representation
+        # # the following code determines if there are any foreign keys that can be selected, and if so,
+        # # replaces the corresponding values (which will be ids) with the string representation
         seriesChoices = dict(axesform.fields['series'].choices)
 
         def getRelated(modelField):
@@ -539,7 +539,7 @@ def plotQueryResults(request, moduleName, modelName, start, end, soft=True):
                         x[k] = str(x[k])  # seriesValues[k][seriesValues[k].keys()[0]]
 
         debug = []
-        #resultCount = myModel.objects.filter(filters).count()
+        # resultCount = myModel.objects.filter(filters).count()
         shownCount = len(pldata)
     else:
         debug = [(x, formset.errors[x]) for x in formset.errors]
