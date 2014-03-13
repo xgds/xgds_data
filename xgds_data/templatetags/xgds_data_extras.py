@@ -31,25 +31,13 @@ register.filter('getattribute', getattribute)
 
 
 def display(field, value):
-    """what does this do"""
+    """Returns html snippet appropriate for value and field"""
     if isinstance(field,ImageField):
-        return mark_safe('<IMG SRC="'+field.storage.url(value)+'" HEIGHT="100">')
+        return mark_safe('<A HREF="'+field.storage.url(value)+'"><IMG SRC="'+field.storage.url(value)+'" HEIGHT="100"></A>')
     else:
-        return str(value)
+        return value
 
 register.filter('display', display)
-
-
-def href(field, value):
-    """what does this do"""
-    print(field,value)
-    if isinstance(field,ImageField):
-        foo = '<A HREF="'+field.storage.url(value)+'">Download</A>'
-        return mark_safe(foo)
-    else:
-        return str(value)
-
-register.filter('href', href)
                 
 
 def modulo(value, arg):

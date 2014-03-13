@@ -17,6 +17,10 @@
 	  src="{{ STATIC_URL }}external/js/jquery/jquery-ui.js"></script>
   <script language="javascript" type="text/javascript"
 	  src="{{ STATIC_URL }}external/js/jquery/jquery-ui-timepicker-addon.js"></script>
+  <script language="javascript" type="text/javascript"
+	  src="{{ STATIC_URL }}external/js/DataTables-1.9.4/jquery.dataTables.min.js"></script>
+  <script language="javascript" type="text/javascript"
+	  src="{{ STATIC_URL }}external/js/DataTables-1.9.4/FixedColumns.min.js"></script>
   <script type="text/javascript">
   
   function zeroPad(integer,width) {
@@ -91,6 +95,46 @@
 		document.QueryForm["fnctn"].value = 'query';
 		submitform('query');
 	}
+  
+  var oTable;
+  
+  function syncFramesize() {
+		  var nheight = $(window).height(); // New height
+		  var nwidth = $(window).width(); // New width
+
+		  //$("#outerresults").height(nheight - 50);
+		  $("#outerresults").width(nwidth - 50);
+	      //$('div.dataTables_scrollBody').css('height',(nheight - 75)+'px');
+	      //$('div.DTFC_LeftBodyWrapper').css('height',(nheight - 75)+'px');
+	      //oTable.fnAdjustColumnSizing();
+		}
+  
+  function initDataFrame() {
+	oTable = $('#tableresults').dataTable( {
+		"sScrollY": "500px",
+		"sScrollX": "100%",
+//		"sScrollXInner": "150%",
+		"sHeightMatch": "none",
+		"bScrollCollapse": true,
+        "bFilter": false,
+        "bInfo": false,
+		"bPaginate": false,
+		"bSort": false,
+		"aoColumnDefs": [
+			{ "bSortable": false, "bFilter": false, "aTargets": [ 0 ] }
+		]
+	} );
+	{% if checkable %}
+	new FixedColumns( oTable, { "iLeftColumns": 2, "iLeftWidth": 115 } );
+	{% else %}
+	new FixedColumns( oTable, { "iLeftColumns": 1 } );
+	{% endif %}
+}
+
+if ($('#tableresults').length) {
+	$(document).ready(initDataFrame);
+	$(window).resize(syncFramesize);
+}
   
 {% for f in datetimefields %}
   $('#id_{{f}}_lo').datetimepicker({addSliderAccess: false, showTimezone: true, timeFormat: 'hh:mm tt z'});
@@ -250,25 +294,27 @@ $('select').change(clearResults);
 	    {% endif %}
     {% endif %}
     <div style="min-height:5px;max-height:5px;"></div>
-    
-    <div style="position:relative;">
 
-<div style = "position:absolute;top:0px;width:100%;overflow-x:scroll;z-index:1;"> 
+<div id="outerresults">
 
-    <table class="ResultList">
+    <table class="ResultList" id="tableresults">
+   <thead>
 	<tr>
 	{% if checkable %}
-		<th style="visibility:hidden;"><input type="checkbox" /></th>
+		<th><input type="checkbox" /></th>
 	{% endif %}
-	<th style="visibility:hidden;">Record</th>
+	<th>Record</th>
 	  {% for x in displayFields %}
 	  <th>{{ x.verbose_name }}</th>
 	  {% endfor %}
 	  </tr>
+	  </thead>
+	  
+	  <tbody>
 	{% for result in results %}
 		{% with myid=result|getattribute:pk.name %}
 		    {% with myscore=result|getattribute:'score' %}
-				{% if myscore == 1 %}
+				{% if myscore >= 0.999999 %}
 					{% if forloop.counter|modulo:2 == 1 %}
 						<tr class="ResultListExactOdd">
 					{% else %}
@@ -285,7 +331,7 @@ $('select').change(clearResults);
 		{% endwith %}	
 	
 		{% if checkable %}
-		<td style="visibility:hidden;">
+		<td>
 			{% if result|getattribute:pk.name in picks %}
 			<input type="checkbox" id="pick_{{result|getattribute:pk.name}}" name="picks" value="{{result|getattribute:pk.name}}" CHECKED />
 			{% else %}
@@ -293,17 +339,7 @@ $('select').change(clearResults);
 		    {% endif %}
 		     </td>
 	     {% endif %}
-	   <td>{{result|getattribute:'__string__'}}
-	   
-		{% for x in displayFields %}
-		  {% if x|getattribute:'__class__'|getattribute:'__name__' == 'ImageField' %}
-		  	{% with myval=result|getattribute:x.name %}
-		  		{{ x|href:myval }}
-		  	{% endwith %}
-		  {% endif %}
-		{% endfor %}	    
-	   
-	   </td>
+	   <td>{{result|getattribute:'__string__'}}</td>
  	 {% for x in displayFields %}
 	  <td>
 
@@ -314,99 +350,14 @@ $('select').change(clearResults);
 	  </td>
 	  {% endfor %}
 	</tr>
+
+	
 	{% endfor %}
+		</tbody>
 	</table>
 </div>
-
-<div style = "position:relative;top:0px;width:100%;overflow-x:hidden;z-index:1;"> 
-	
-	<!--  Unfortunately, setting color on a row overrides hidden visibility on cells in Firefox, so we have to do this the hard way -->
-	    <table class="ResultListFixed">
-	<tr>
-	{% if checkable %}
-	<th><input type="checkbox" id="pick_master" /></th>
-	{% endif %}
-	<th>Record</th>
-	  {% for x in displayFields %}
-	  <th style="visibility:hidden;">{{ x.verbose_name }}</th>
-	  {% endfor %}
-	  </tr>
-	  
-	{% for result in results %}
-		<tr>
-		{% with myid=result|getattribute:pk.name %}
-		    {% with myscore=result|getattribute:'score' %}
-
-		   
-		{% if checkable %}
-			{% if myscore == 1 %}
-				{% if forloop.counter|modulo:2 == 1 %}
-					<td class="ResultListExactOdd">
-				{% else %}
-					<td class="ResultListExactEven">
-				{% endif %}
-			{% else %}
-				{% if forloop.counter|modulo:2 == 1 %}
-					<td class="ResultListInexactOdd">
-				{% else %}
-					<td class="ResultListInexactEven">
-				{% endif %}
-			{% endif %}	
-			{% if result|getattribute:pk.name in picks %}
-			<input type="checkbox" id="pick_{{result|getattribute:pk.name}}" name="picks" value="{{result|getattribute:pk.name}}" CHECKED />
-			
-			{% else %}
-		    <input type="checkbox" id="pick_{{result|getattribute:pk.name}}" name="picks" value="{{result|getattribute:pk.name}}"/>
-
-
-		    {% endif %}
-		     </td>
-	    {% endif %}
-		{% if myscore == 1 %}
-			{% if forloop.counter|modulo:2 == 1 %}
-				<td class="ResultListExactOdd">
-			{% else %}
-				<td class="ResultListExactEven">
-			{% endif %}
-		{% else %}
-			{% if forloop.counter|modulo:2 == 1 %}
-				<td class="ResultListInexactOdd">
-			{% else %}
-				<td class="ResultListInexactEven">
-			{% endif %}
-		{% endif %}	
-	   {{ result|getattribute:'__string__' }}
-	   
-		{% for x in displayFields %}
-		  {% if x|getattribute:'__class__'|getattribute:'__name__' == 'ImageField' %}
-		  	{% with myval=result|getattribute:x.name %}
-		  		{{ x|href:myval }}
-		  	{% endwith %}
-		  {% endif %}
-		{% endfor %}
-	   
-	   </td>
- 	 {% for x in displayFields %}
-	  <td style="visibility:hidden;">
-	  {% with myval=result|getattribute:x.name %}
-	  	{{ x|display:myval }}
-	  {% endwith %}
-	  </td>
-	  {% endfor %}
-	  
-	  		    {% endwith %}
-		{% endwith %}
-	  
-	</tr>
-
-	{% endfor %}
-	</table>
-	
-	</div>
 
 <BR />
-
-</div>
 
 		{% if page > 1 %}
 			<input type="submit" value="Previous" id="prevpage"/>
