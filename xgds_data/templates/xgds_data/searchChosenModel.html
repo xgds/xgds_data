@@ -314,7 +314,7 @@ $('select').change(clearResults);
 	{% for result in results %}
 		{% with myid=result|getattribute:pk.name %}
 		    {% with myscore=result|getattribute:'score' %}
-				{% if myscore >= 0.999999 %}
+				{% if myscore >= 1 %}
 					{% if forloop.counter|modulo:2 == 1 %}
 						<tr class="ResultListExactOdd">
 					{% else %}
