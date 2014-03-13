@@ -279,7 +279,15 @@ def searchSimilar(request, moduleName, modelName, pkid):
                            'formset': formset,
                            'axesform': axesform},
                           nolog=['formset', 'axesform'])
-                
+
+
+def total_seconds(timediff):
+    """Get total seconds for a time delta"""
+    try:
+        return timediff.total_seconds()
+    except:
+        return (timediff.microseconds + (timediff.seconds + timediff.days * 24 * 3600) * 10**6) / 10**6
+
 
 def searchChosenModel(request, moduleName, modelName, expert=False):
     """
@@ -414,7 +422,7 @@ def searchChosenModel(request, moduleName, modelName, expert=False):
                                'results': results,
                                'count': totalCount,
                                'exactCount': hardCount,
-                               'duration': (datetime.datetime.now() - starttime).total_seconds(),
+                               'duration': total_seconds(datetime.datetime.now() - starttime),
                                'page': page,
                                'pageSize': pageSize,
                                'more': more,
@@ -424,7 +432,7 @@ def searchChosenModel(request, moduleName, modelName, expert=False):
                                },
                               nolog=['formset', 'axesform', 'results', 'resultsids', 'scores'],
                               listing=results)
-
+    
 
 def megahandler(obj):
     if isinstance(obj, datetime.datetime):
