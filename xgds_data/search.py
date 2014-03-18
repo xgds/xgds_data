@@ -297,7 +297,7 @@ def countMatches(model, expression, where, threshold):
 ##    runtime = datetime.datetime.now()
     cursor.execute(sql)
 ##    runtime = timer(runtime, "<<< inner count matches >>>")
-    return cursor.fetchone()[0]
+    return int(cursor.fetchone()[0])
 
 
 def countApproxMatches(model, scorer, maxSize, threshold):
@@ -572,7 +572,7 @@ def getResults(myModel, softFilter, scorer = None, queryStart = 0, queryEnd = No
                                    scorer,
                                    divineWhereClause(myModel, softFilter),
                                    sortThreshold())
-        if totalCount < minCount:
+        if (minCount is not None) and (totalCount < minCount):
             ## this only makes sense if it's an approximate count
             ## and that approximate count is too low
             totalCount = minCount
@@ -588,11 +588,13 @@ def getResults(myModel, softFilter, scorer = None, queryStart = 0, queryEnd = No
     queryFields = [x.name for x in modelFields(myModel) if not maskField(myModel,x) ]
     queryFields.append('score')
     qvalues = query.values(*queryFields)
+
     if queryEnd:
         queryEnd = min(totalCount,queryEnd)
-        qvalues = qvalues[queryStart:queryEnd]
-    elif queryStart != 0:
-        qvalues = qvalues[queryStart:]
+    else:
+        queryEnd = totalCount
+        
+    qvalues = qvalues[queryStart:queryEnd]
 
     foreigners = dict([ (f, set()) for f in modelFields(myModel) if isinstance(f,RelatedField)])
     for d in qvalues:

@@ -289,6 +289,33 @@ def total_seconds(timediff):
         return (timediff.microseconds + (timediff.seconds + timediff.days * 24 * 3600) * 10**6) / 10**6
 
 
+def searchHandoff(request, moduleName, modelName, fn, soft = True):
+    """
+    Simplified query parse and search, with results handed to give function
+    """
+    modelmodule = get_app(moduleName)
+    myModel = getattr(modelmodule, modelName)
+    myFields = [x for x in modelFields(myModel) if not maskField(myModel,x) ]
+    displayFields = [x for x in myFields if not (x.primary_key) ]
+    tmpFormClass = SpecializedForm(SearchForm, myModel)
+    tmpFormSet = formset_factory(tmpFormClass)
+    debug = []
+    data = request.REQUEST
+
+    results = None
+
+    formCount = int(data['form-TOTAL_FORMS'])
+    formset = tmpFormSet(data)
+    if formset.is_valid():
+        scorer = sortFormula(myModel, formset)
+        softFilter = makeFilters(formset, soft)
+        results, totalCount = getResults(myModel, softFilter, scorer)
+    else:
+        debug = formset.errors
+        
+    return fn(request,results)
+
+
 def searchChosenModel(request, moduleName, modelName, expert=False):
     """
     Search over the fields of the selected model
