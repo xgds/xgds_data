@@ -34,7 +34,7 @@ class SearchForm(forms.Form):
                           ('NOT IN', 'NOT IN'))
         categoricalOperators = (('=', '='),
                                 ('!=', '!='))
-        for field in (modelFields(mymodel)):
+        for field in modelFields(mymodel):
             if isinstance(field, (fields.AutoField, fields.files.FileField)) \
                     or maskField(mymodel, field):
                 pass  # nothing
@@ -208,7 +208,7 @@ class SortForm(forms.Form):
         self.model = mymodel
         sortingfields = []
         for x in modelFields(mymodel):
-            if isinstance(x, fields.AutoField):
+            if isinstance(x, fields.AutoField) or maskField(mymodel, x):
                 pass
             elif isinstance(x, (fields.DateField,
                                 fields.DecimalField,
@@ -265,7 +265,7 @@ class AxesForm(forms.Form):
                               fields.DecimalField,
                               fields.FloatField,
                               fields.IntegerField,
-                              fields.TimeField)):
+                              fields.TimeField)) and (not maskField(x.model, x)):
                 chartablefields.append(x)
         if (seriesablefields is None):
             seriesablefields = []
@@ -276,6 +276,7 @@ class AxesForm(forms.Form):
                                         fields.FloatField,
                                         fields.IntegerField,
                                         fields.TimeField))) and
+                    (not maskField(x.model, x)) and
                     (x.model.objects.values(x.name).order_by().distinct().count() <= 100)):
                     seriesablefields.append(x)
         if len(chartablefields) > 1:
