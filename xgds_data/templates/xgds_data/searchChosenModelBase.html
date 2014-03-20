@@ -268,36 +268,43 @@ $('select').change(clearResults);
 	<BR />
 {% endblock %}
 
-{% block csvplot  %}	
-	{% if count > 0 %}
-    	<input type="submit" value="Download All Results" id="csv" />
+{% block download  %}
+	Download results:
+	{% if count != exactCount %}
+		{% if count > 0 %}
+	    	<input type="submit" value="Records (All)" id="csv" />
+	    {% else %}
+	    	<input type="submit" value="Records (All)" id="csv" disabled />
+	    {% endif %}
+    {% endif %}
+    {% if exactCount > 0 %}
+    	<input type="submit" value="Records (Exact)" id="csvhard" />
     {% else %}
-    	<input type="submit" value="Download All Results" id="csv" disabled />
+    	<input type="submit" value="Records (Exact)" id="csvhard" disabled />
     {% endif %}
-    {% if count != exactCount %}
-	    {% if exactCount > 0 %}
-	    	<input type="submit" value="Download Exact Results" id="csvhard" />
-	    {% else %}
-	    	<input type="submit" value="Download Exact Results" id="csvhard" disabled />
-	    {% endif %}
-    {% endif %}
+{% endblock %}
+
+{% block plot  %}
     {% if axesform %}
-	    {% if count > 10000 %}
-	    	<input type="submit" value="Plot Results" id="plot" title="Plot limited to 10000 records" /> 
-	    {% elif count > 0 %}
-	    	<input type="submit" value="Plot Results" id="plot"/> 
-	    {% else %}
-	    	<input type="submit" value="Plot Results" id="plot" disabled /> 
-	    {% endif %}
+    	<span>&nbsp;&nbsp;&nbsp;&nbsp;</span>
+    	<span style="white-space:nowrap;">Plot results:
 	    {% if count != exactCount %}
-		    {% if exactCount > 10000 %}
-		    	<input type="submit" value="Plot Exact Results" id="plothard" title="Plot limited to 10000 records" /> 
-		    {% elif exactCount > 0 %}
-		    	<input type="submit" value="Plot Exact Results" id="plothard"/> 
+		    {% if count > 10000 %}
+		    	<input type="submit" value="Records (All)" id="plot" title="Plot limited to 10000 records" /> 
+		    {% elif count > 0 %}
+		    	<input type="submit" value="Records (All)" id="plot"/> 
 		    {% else %}
-		    	<input type="submit" value="Plot Exact Results" id="plothard" disabled />
+		    	<input type="submit" value="Records (All)" id="plot" disabled /> 
 		    {% endif %}
 	    {% endif %}
+	    {% if exactCount > 10000 %}
+	    	<input type="submit" value="Records (Exact)" id="plothard" title="Plot limited to 10000 records" /> 
+	    {% elif exactCount > 0 %}
+	    	<input type="submit" value="Records (Exact)" id="plothard"/> 
+	    {% else %}
+	    	<input type="submit" value="Records (Exact)"" id="plothard" disabled />
+	    {% endif %}
+	    </span>
     {% endif %}
     <div style="min-height:5px;max-height:5px;"></div>
 {% endblock %}
