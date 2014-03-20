@@ -33,7 +33,7 @@ register.filter('getattribute', getattribute)
 def display(field, value):
     """Returns html snippet appropriate for value and field"""
     if isinstance(field,ImageField):
-        return mark_safe('<A HREF="'+field.storage.url(value)+'"><IMG SRC="'+field.storage.url(value)+'" HEIGHT="100"></A>')
+        return mark_safe('<A HREF="'+field.storage.url(value)+'"><IMG SRC="'+field.storage.url(value)+'" WIDTH="100"></A>')
     else:
         return value
 
