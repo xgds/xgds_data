@@ -560,11 +560,13 @@ def pageLimits(page, pageSize):
     """
     return ((page - 1)* pageSize, page * pageSize)
 
+
 def getResults(myModel, softFilter, scorer = None, queryStart = 0, queryEnd = None, minCount = None):
     """
     Get the query results as dicts, so relevance scores can be included
-    """   
+    """
     query = myModel.objects.filter(softFilter)
+    queryFields = [x.name for x in modelFields(myModel) if not maskField(myModel,x) ]
     if scorer:
         query = query.extra(select={'score': scorer}, order_by=['-score'])
         ## totalCount = countApproxMatches(myModel, scorer, query.count(), sortThreshold())
@@ -580,12 +582,11 @@ def getResults(myModel, softFilter, scorer = None, queryStart = 0, queryEnd = No
         query = query.extra(select={'score': 1})
         # hardCount = query.count()
         if minCount is None:
-            totalCount = query.count()
+            totalCount = query.values(*queryFields).count()
         else:
             totalCount = minCount
 
     results = []
-    queryFields = [x.name for x in modelFields(myModel) if not maskField(myModel,x) ]
     queryFields.append('score')
     qvalues = query.values(*queryFields)
 
