@@ -129,9 +129,11 @@
 }
 
 if ($('#tableresults').length) {
-	$(document).ready(initDataFrame);
+	// $(document).ready(initDataFrame);
 	$(window).resize(syncFramesize);
 }
+
+window.onload = initDataFrame;
   
 {% for f in datetimefields %}
   $('#id_{{f}}_lo').datetimepicker({addSliderAccess: false, showTimezone: true, timeFormat: 'hh:mm tt z'});
