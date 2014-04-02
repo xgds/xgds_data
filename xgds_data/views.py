@@ -25,9 +25,10 @@ from django.db.models import Model
 from django.forms.formsets import formset_factory
 from django.utils.html import escape
 
+from geocamUtil.loader import getModelByName
+
 from xgds_data import settings
 from xgds_data.introspection import modelFields, maskField
-from xgds_data.models import getModelByName
 from xgds_data.forms import QueryForm, SearchForm, AxesForm, SpecializedForm
 from xgds_data.logging import recordRequest, recordList, log_and_render
 from xgds_data.logconfig import logEnabled
