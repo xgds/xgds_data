@@ -176,7 +176,9 @@ $("#nextpage").click(function() {
 
 function clearResults() { $('#results').html(""); $("#id_pageno").val(1); }
 
-$('input').change(clearResults);
+$('input[id$="control"]').change(clearResults);
+$('input[type=text][id$="_lo"]').change(clearResults);
+$('input[type=text][id$="_hi"]').change(clearResults);
 $('select').change(clearResults);
   </script>
   
