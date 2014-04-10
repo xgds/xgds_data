@@ -34,6 +34,9 @@ class SearchForm(forms.Form):
                           ('NOT IN', 'NOT IN'))
         categoricalOperators = (('=', '='),
                                 ('!=', '!='))
+        stringOperators = (#('=~', '=~'),
+                           ('=', '='),
+                           ('!=', '!='))
         for field in modelFields(mymodel):
             if isinstance(field, (fields.AutoField, fields.files.FileField)) \
                     or maskField(mymodel, field) or field is mymodel._meta.pk:
@@ -55,10 +58,10 @@ class SearchForm(forms.Form):
                                       required=True)
                 self.fields[field.name + '_lo'] = forms.DateTimeField(required=False)
                 self.fields[field.name + '_hi'] = forms.DateTimeField(required=False)
-            elif isinstance(field, fields.CharField):
+            elif isinstance(field, (fields.CharField, fields.TextField)):
                 self.fields[field.name + '_operator'] = \
-                    forms.ChoiceField(choices=categoricalOperators,
-                                      initial=categoricalOperators[0][0],
+                    forms.ChoiceField(choices=stringOperators,
+                                      initial=stringOperators[0][0],
                                       required=True)
                 self.fields[field.name] = forms.CharField(required=False)
             elif isinstance(field, fields.FloatField):
@@ -107,12 +110,6 @@ class SearchForm(forms.Form):
                                       required=True)
                 self.fields[field.name + '_lo'] = forms.IntegerField(required=False)
                 self.fields[field.name + '_hi'] = forms.IntegerField(required=False)
-            elif isinstance(field, fields.TextField):
-                self.fields[field.name + '_operator'] = \
-                    forms.ChoiceField(choices=categoricalOperators,
-                                      initial=categoricalOperators[0][0],
-                                      required=True)
-                self.fields[field.name] = forms.CharField(required=False)
             else:
                 ##self.fields[field.name + '_operator'] = \
                 ##    forms.ChoiceField(choices=categoricalOperators,
@@ -166,7 +163,7 @@ class SearchForm(forms.Form):
     def as_expert_table(self):
         output = []
 
-        for mfield in self.model._meta.fields:
+        for mfield in modelFields(self.model):
             n = mfield.name
             if (n in self.fields or
                 ((n + '_lo') in self.fields and

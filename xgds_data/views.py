@@ -292,7 +292,7 @@ def total_seconds(timediff):
 
 def searchHandoff(request, moduleName, modelName, fn, soft = True):
     """
-    Simplified query parse and search, with results handed to give function
+    Simplified query parse and search, with results handed to given function
     """
     modelmodule = get_app(moduleName)
     myModel = getattr(modelmodule, modelName)

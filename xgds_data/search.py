@@ -117,7 +117,7 @@ def makeFilters(formset, soft=True):
                     loval = form.cleaned_data[base + '_lo']
                     hival = form.cleaned_data[base + '_hi']
                     operator = form.cleaned_data[base + '_operator']
-                    if ((operator == 'IN~') and soft):
+                    if soft and (operator == 'IN~'):
                         ## this isn't a restriction, so ignore
                         pass
                     else:
@@ -157,9 +157,15 @@ def makeFilters(formset, soft=True):
                         ## False values appear to be represented as 0
                         clause = Q(**{field + '__exact': 0})
                 else:
-                    if form.cleaned_data[field]:
-                        negate = form.cleaned_data[field + '_operator'] == '!='
-                        clause = Q(**{field + '__icontains': form.cleaned_data[field]})
+                    operator = form.cleaned_data[field + '_operator']
+                    if form.cleaned_data[field] is None or re.match("\s*",form.cleaned_data[field]):
+                        pass
+                    else:
+                        if (operator == '=~'):
+                            pass
+                        else:
+                            negate = (operator == '!=')
+                            clause = Q(**{field + '__icontains': form.cleaned_data[field]})
                 if clause:
                     if negate:
                         subfilter &= ~clause
@@ -428,24 +434,25 @@ def desiredRanges(frms):
     ## frms are interpreted as internally conjunctive, externally disjunctive
     for form in frms:
         for field in form.cleaned_data:
-            if form.cleaned_data[field] is None:
-                continue
-            if not (field.endswith('_operator') and (form.cleaned_data[field] == 'IN~')):
-                continue
-            base = field[:-9]
-            operator = form.cleaned_data[base + '_operator']
-            if operator == 'IN~':
-                loval = form.cleaned_data[base + '_lo']
-                hival = form.cleaned_data[base + '_hi']
-                if loval in (None, 'None'):
-                    loval = 'min'
-                if hival in (None, 'None'):
-                    hival = 'max'
-                if ((loval != 'min') and (hival != 'max') and (loval > hival)):
+            if (form.cleaned_data[field] is not None) and (field.endswith('_operator')):
+                base = field[:-9]
+                operator = form.cleaned_data[field]
+                if operator == 'IN~':
+                    loval = form.cleaned_data[base + '_lo']
+                    hival = form.cleaned_data[base + '_hi']
+                    if loval in (None, 'None'):
+                        loval = 'min'
+                    if hival in (None, 'None'):
+                        hival = 'max'
+                    if ((loval != 'min') and (hival != 'max') and (loval > hival)):
                     ## hi and lo are reversed, assume that is a mistake
-                    loval, hival = hival, loval
-                if ((loval != 'min') or (hival != 'max')):
-                    desiderata[base] = [loval, hival]
+                        loval, hival = hival, loval
+                    if ((loval != 'min') or (hival != 'max')):
+                        desiderata[base] = [loval, hival]
+                elif operator == '=~':
+                    print('what is ',operator)
+                else:
+                    None
     return desiderata
 
 
