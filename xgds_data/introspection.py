@@ -4,6 +4,7 @@
 # All Rights Reserved.
 # __END_LICENSE__
 
+from taggit.managers import TaggableManager
 
 def modelFields(model):
     """
@@ -33,5 +34,6 @@ def maskField(model, field):
     """
     Should we omit this field from search and display?
     """
-    return (field.name is 'msgJson')
+    return (field.name is 'msgJson') or isinstance(field,TaggableManager)
+
 

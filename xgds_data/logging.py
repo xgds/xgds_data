@@ -63,7 +63,10 @@ def recordList(reslog, results):
                                          getListItemProperty(results[r - 1],'__class__')._meta.pk.name ) )
 
                      for r in ranks]
-            ResponseList.objects.bulk_create(items)
+            try:
+                ResponseList.objects.bulk_create(items)
+            except Exception as e:
+                print(e)
 
 
 def log_and_render(request, reqlog, template, rendargs,

@@ -14,7 +14,7 @@ from django import forms
 from django.db import connection
 from django.db.models import Q
 from django.db.models.fields import PositiveIntegerField, PositiveSmallIntegerField
-from django.db.models.fields.related import OneToOneField, RelatedField
+from django.db.models.fields.related import OneToOneField, ManyToManyField, RelatedField
 
 from xgds_data.introspection import modelFields, resolveField, maskField
 from xgds_data.models import cacheStatistics
@@ -630,8 +630,11 @@ def getResults(myModel, softFilter, scorer = None, queryStart = 0, queryEnd = No
                 except KeyError:
                     del resultd[f.name] # presumably this means something is not consistent in the model, it does happen
 
-        modeld = dict( [ (f.name,resultd[f.name]) for f in modelFields(myModel) \
-                        if f.name in resultd    ] )
+        modeld = dict( [ (f.name,resultd[f.name]) \
+                             for f in modelFields(myModel) \
+                             if f.name in resultd \
+                             ## yuk... but something goes wrong insert M2MF
+                             and not isinstance(f,ManyToManyField) ] )
         instance = myModel(**modeld)
         resultd['__instance__'] = instance
         resultd['__string__'] = str(instance)

@@ -36,7 +36,7 @@ class SearchForm(forms.Form):
                                 ('!=', '!='))
         for field in modelFields(mymodel):
             if isinstance(field, (fields.AutoField, fields.files.FileField)) \
-                    or maskField(mymodel, field):
+                    or maskField(mymodel, field) or field is mymodel._meta.pk:
                 pass  # nothing
             elif isinstance(field, (fields.BooleanField, fields.NullBooleanField)):
                 self.fields[field.name + '_operator'] = \
@@ -114,23 +114,25 @@ class SearchForm(forms.Form):
                                       required=True)
                 self.fields[field.name] = forms.CharField(required=False)
             else:
-                self.fields[field.name + '_operator'] = \
-                    forms.ChoiceField(choices=categoricalOperators,
-                                      initial=categoricalOperators[0][0],
-                                      required=True)
+                ##self.fields[field.name + '_operator'] = \
+                ##    forms.ChoiceField(choices=categoricalOperators,
+                ##                      initial=categoricalOperators[0][0],
+                ##                      required=True)
                 ## that can't be the right way to get the name
                 longname = '.'.join([field.__class__.__module__,
                                      field.__class__.__name__])
+                print("Search doesn't deal with %s yet" % longname)
                 ## put the field name in as the default just to tell me, the programmer, that this
                 ## class isn't properly dealt with yet.
-                self.fields[field.name] = \
-                    forms.CharField(initial=longname,
-                                    required=False)
+                ##self.fields[field.name] = \
+                ##    forms.CharField(initial=longname,
+                ##                    required=False)
 
     def as_table(self):
         output = []
 
-        for mfield in self.model._meta.fields:
+        for mfield in modelFields(self.model):
+            ## self.model._meta.fields:
             n = mfield.name
             if (n in self.fields or
                 ((n + '_lo') in self.fields and
