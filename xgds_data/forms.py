@@ -10,7 +10,8 @@ from django.utils.safestring import mark_safe
 from django.db.models.fields.related import RelatedField
 from django.forms.widgets import RadioSelect
 
-from xgds_data.introspection import modelFields, maskField
+from xgds_data import settings
+from xgds_data.introspection import modelFields, maskField, isAbstract
 # pylint: disable=R0924
 
 class QueryForm(forms.Form):
@@ -73,9 +74,22 @@ class SearchForm(forms.Form):
                 self.fields[field.name + '_hi'] = forms.FloatField(required=False)
             elif (isinstance(field, fields.related.ForeignKey) or
                   isinstance(field, fields.related.ManyToManyField)):
-                if ((enumerableFields and (field in enumerableFields)) or
-                    ((enumerableFields is None) and
-                     field.model.objects.values(field.name).order_by().distinct().count() <= 1000)):
+                pulldown = False
+                relModel = field.rel.to
+                if (relModel == 'self'):
+                    relModel = field.model
+                
+                print(field)
+                if enumerableFields:
+                    pulldown = (field in enumerableFields)
+                elif (not isAbstract(relModel)) \
+                    and relModel.objects.count() <= settings.XGDS_DATA_MAX_PULLDOWNABLE:
+                    pulldown = True
+                elif ((not isAbstract(field.model)) and 
+                      field.model.objects.values(field.name).order_by().distinct().count() <= settings.XGDS_DATA_MAX_PULLDOWNABLE):
+                    pulldown = True
+                    
+                if pulldown:
                     self.fields[field.name + '_operator'] = \
                         forms.ChoiceField(choices=categoricalOperators,
                                           initial=categoricalOperators[0][0],
@@ -276,7 +290,8 @@ class AxesForm(forms.Form):
                                         fields.IntegerField,
                                         fields.TimeField))) and
                     (not maskField(x.model, x)) and
-                    (x.model.objects.values(x.name).order_by().distinct().count() <= 100)):
+                    (not isAbstract(x.model)) and
+                    (x.model.objects.values(x.name).order_by().distinct().count() <= settings.XGDS_DATA_MAX_SERIESABLE)):
                     seriesablefields.append(x)
         if len(chartablefields) > 1:
             datachoices = (tuple((x, x)

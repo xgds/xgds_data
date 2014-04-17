@@ -28,7 +28,7 @@ from django.utils.html import escape
 from geocamUtil.loader import getModelByName
 
 from xgds_data import settings
-from xgds_data.introspection import modelFields, maskField
+from xgds_data.introspection import modelFields, maskField, isAbstract
 from xgds_data.forms import QueryForm, SearchForm, AxesForm, SpecializedForm
 from xgds_data.logging import recordRequest, recordList, log_and_render
 from xgds_data.logconfig import logEnabled
@@ -177,7 +177,7 @@ def chooseSearchModel(request, moduleName):
     List the models in the module, so they can be selected for search
     """
     app = get_app(moduleName)
-    models = [m.__name__ for m in get_models(app) if not m._meta.abstract]
+    models = [m.__name__ for m in get_models(app) if not isAbstract(m)]
 
     return render(request, 'xgds_data/chooseSearchModel.html',
                   {'title': 'Search ' + moduleName,
