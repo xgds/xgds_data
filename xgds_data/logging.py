@@ -18,7 +18,6 @@ if logEnabled():
                                   ResponseArgument,
                                   ResponseList)
 
-
 def recordRequest(request):
     """
     Logs the request in the database
@@ -79,7 +78,8 @@ def log_and_render(request, reqlog, template, rendargs,
     if nolog is None:
         nolog = []
     if logEnabled():
-        reslog = ResponseLog.objects.create(request=reqlog, template=template)
+        reslog = ResponseLog.create(request=reqlog, template=template)
+        reslog.save()
         for key in rendargs:
             if nolog.count(key) == 0:
                 ResponseArgument.objects.create(response=reslog, name=key, value=rendargs.get(key).__str__()[:1024])

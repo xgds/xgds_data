@@ -4,7 +4,6 @@
 # All Rights Reserved.
 # __END_LICENSE__
 
-import sys
 from datetime import datetime
 
 from django.db import models
@@ -41,6 +40,7 @@ def get_client_ip(request):
         ip = request.META.get('REMOTE_ADDR')
     return ip
 
+
 if logEnabled():
     class RequestLog(models.Model):
         timestampSeconds = models.DateTimeField(blank=False)
@@ -73,15 +73,22 @@ if logEnabled():
         def __unicode__(self):
             return 'Request %s:%s' % (self.id, self.path)
 
+
     class RequestArgument(models.Model):
         request = models.ForeignKey(RequestLog, null=False, blank=False)
         name = models.CharField(max_length=256, blank=False)
         value = models.TextField(blank=True)
 
+
     class ResponseLog(models.Model):
-        timestampSeconds = models.DateTimeField(blank=False, default=datetime.utcnow())
+        timestampSeconds = models.DateTimeField(blank=False)
         request = models.ForeignKey(RequestLog, null=False, blank=False)
         template = models.CharField(max_length=256, blank=True)
+        
+        @classmethod
+        def create(cls,request,template=None):
+            return cls(timestampSeconds=datetime.utcnow(),request=request,template=template)
+
 
     class ResponseArgument(models.Model):
         response = models.ForeignKey(ResponseLog, null=False, blank=False)
@@ -93,6 +100,7 @@ if logEnabled():
         rank = models.PositiveIntegerField(blank=False)
         fclass = models.CharField(max_length=1024, blank=True)
         fid = models.PositiveIntegerField(blank=False)  # might be risky to assume this is always a pos int
+
 
 if cacheStatistics():
     class ModelStatistic(models.Model):
