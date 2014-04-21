@@ -79,7 +79,6 @@ class SearchForm(forms.Form):
                 if (relModel == 'self'):
                     relModel = field.model
                 
-                print(field)
                 if enumerableFields:
                     pulldown = (field in enumerableFields)
                 elif (not isAbstract(relModel)) \

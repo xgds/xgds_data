@@ -6,6 +6,8 @@
 
 from taggit.managers import TaggableManager
 
+from xgds_data import settings
+
 def modelFields(model):
     """
     Retrieve the fields associated with the given model
@@ -34,6 +36,19 @@ def maskField(model, field):
     """
     Should we omit this field from search and display?
     """
-    return (field.name is 'msgJson') or isinstance(field,TaggableManager)
+    return (field.name in settings.XGDS_DATA_MASKED_FIELD) or isinstance(field,TaggableManager)
+
+
+def concreteDescendents(model):
+    """
+    Get non-abstract descendants of this class. Does not check subclasses on concrete descendants.
+    """
+    if isAbstract(model):
+        submodels = []
+        for sub in model.__subclasses__():
+            submodels = submodels + concreteDescendents(sub)
+        return submodels
+    else:
+        return [model]
 
 
