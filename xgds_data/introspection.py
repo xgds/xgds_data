@@ -22,6 +22,13 @@ def isAbstract(model):
     return model._meta.abstract
 
 
+def pk(model):
+    """
+    return the primary key
+    """
+    return model._meta.pk
+
+
 def resolveField(model, fieldName):
     """
     Retrieve the field corresponding to the the name, if any

@@ -17,7 +17,7 @@ from django.db.models import Q
 from django.db.models.fields import PositiveIntegerField, PositiveSmallIntegerField
 from django.db.models.fields.related import OneToOneField, ManyToManyField, RelatedField
 
-from xgds_data.introspection import modelFields, resolveField, maskField, isAbstract, concreteDescendents
+from xgds_data.introspection import modelFields, resolveField, maskField, isAbstract, concreteDescendents, pk
 from xgds_data.models import cacheStatistics
 if cacheStatistics():
     from xgds_data.models import ModelStatistic
@@ -159,7 +159,7 @@ def makeFilters(formset, soft=True):
                         clause = Q(**{field + '__exact': 0})
                 else:
                     operator = form.cleaned_data[field + '_operator']
-                    if form.cleaned_data[field] is None or re.match("\s*",form.cleaned_data[field]):
+                    if form.cleaned_data[field] is None or re.match("\s*$",form.cleaned_data[field]):
                         pass
                     else:
                         if (operator == '=~'):
@@ -250,7 +250,7 @@ def randomSample(model, expression, size, offset=None, limit=None):
     Selects a random set of records, assuming even distibution of ids; not very Django-y
     """
     table = model._meta.db_table
-    pkname = model._meta.pk.attname
+    pkname = pk(model).attname
     randselect = 'SELECT {1} from {0} WHERE {2} IS NOT NULL ORDER BY RAND() limit {3}'.format(table, pkname, expression, size)
     ## turns out mysql has a direct way of selecting random ways; below is a more complicated way that requires
     ## consecutive ids, etc
@@ -273,9 +273,9 @@ def joinClause(parentLinkField):
     Figures out the additional clause needed for linkages to a parent class
     """
     return '{0}.{1} = {2}.{3}'.format(parentLinkField.model._meta.db_table,
-                                      parentLinkField.model._meta.pk.attname,
+                                      pk(parentLinkField.model).attname,
                                       parentLinkField.rel.get_related_field().model._meta.db_table,
-                                      parentLinkField.rel.get_related_field().model._meta.pk.attname)
+                                      pk(parentLinkField.rel.get_related_field().model).attname)
 
 
 def countMatches(model, expression, where, threshold):
@@ -778,7 +778,7 @@ def sortedTopKRanges(model, desiderata, query, k):
                     ## but might also be better done in db
                     for x in qresults:
                         # results[x[model._meta.pk.attname]] = x
-                        results[getattr(x, model._meta.pk.attname)] = x
+                        results[getattr(x, pk(model).attname)] = x
 
                 runtime = timer(runtime, fld + " A")
 
@@ -820,7 +820,7 @@ def sortedTopKRanges(model, desiderata, query, k):
             results = {}
             for x in keep:
                 # results[x[model._meta.pk.attname]] = x
-                results[getattr(x, model._meta.pk.attname)] = x
+                results[getattr(x, pk(model).attname)] = x
 
 #            check = wanting
             for fld in desiderata:

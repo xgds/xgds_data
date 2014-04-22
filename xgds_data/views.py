@@ -28,7 +28,7 @@ from django.utils.html import escape
 from geocamUtil.loader import getModelByName
 
 from xgds_data import settings
-from xgds_data.introspection import modelFields, maskField, isAbstract
+from xgds_data.introspection import modelFields, maskField, isAbstract, pk
 from xgds_data.forms import QueryForm, SearchForm, AxesForm, SpecializedForm
 from xgds_data.logging import recordRequest, recordList, log_and_render
 from xgds_data.logconfig import logEnabled
@@ -70,7 +70,7 @@ def searchModelsDefault():
     nestedModels = [get_models(app)
                     for app in get_apps()
                     if not isSkippedApp(app.__name__) and get_models(app)]
-    return dict([(model.__name__, model) for model in list(chain(*nestedModels)) if not model._meta.abstract])
+    return dict([(model.__name__, model) for model in list(chain(*nestedModels)) if not isAbstract(model)])
 
 if (hasattr(settings, 'XGDS_DATA_SEARCH_MODELS')):
     SEARCH_MODELS = dict([(name, getModelByName(name))
@@ -442,7 +442,7 @@ def searchChosenModel(request, moduleName, modelName, expert=False):
                                'module': moduleName,
                                'model': modelName,
                                'expert': expert,
-                               'pk':  myModel._meta.pk,                              
+                               'pk':  pk(myModel),                              
                                'datetimefields': datetimefields,
                                'displayFields': displayFields,
                                'formset': formset,
@@ -474,7 +474,7 @@ def megahandler(obj):
 
 
 def getRelated(modelField):
-    return dict([ (getattr(x, x._meta.pk.name), escape(str(x))) 
+    return dict([ (getattr(x, pk(x).name), escape(str(x))) 
             for x in modelField.rel.to.objects.all() ])
 
 
@@ -555,7 +555,7 @@ def plotQueryResults(request, moduleName, modelName, start, end, soft=True):
                            'title': 'Plot ' + modelName,
                            'module': moduleName,
                            'model': modelName,
-                           'pk': myModel._meta.pk.name,
+                           'pk': pk(myModel).name,
                            'start': start,
                            'end': end,
                            'soft': soft,

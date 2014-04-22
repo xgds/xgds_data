@@ -8,10 +8,10 @@ from django import forms
 from django.db.models import fields
 from django.utils.safestring import mark_safe
 from django.db.models.fields.related import RelatedField
-from django.forms.widgets import RadioSelect
+from django.forms.widgets import RadioSelect, TextInput
 
 from xgds_data import settings
-from xgds_data.introspection import modelFields, maskField, isAbstract
+from xgds_data.introspection import modelFields, maskField, isAbstract, pk
 # pylint: disable=R0924
 
 class QueryForm(forms.Form):
@@ -40,7 +40,7 @@ class SearchForm(forms.Form):
                            ('!=', '!='))
         for field in modelFields(mymodel):
             if isinstance(field, (fields.AutoField, fields.files.FileField)) \
-                    or maskField(mymodel, field) or field is mymodel._meta.pk:
+                    or maskField(mymodel, field) or field is pk(mymodel):
                 pass  # nothing
             elif isinstance(field, (fields.BooleanField, fields.NullBooleanField)):
                 self.fields[field.name + '_operator'] = \
@@ -74,21 +74,22 @@ class SearchForm(forms.Form):
                 self.fields[field.name + '_hi'] = forms.FloatField(required=False)
             elif (isinstance(field, fields.related.ForeignKey) or
                   isinstance(field, fields.related.ManyToManyField)):
-                pulldown = False
+                widget = None
                 relModel = field.rel.to
                 if (relModel == 'self'):
                     relModel = field.model
                 
                 if enumerableFields:
-                    pulldown = (field in enumerableFields)
-                elif (not isAbstract(relModel)) \
-                    and relModel.objects.count() <= settings.XGDS_DATA_MAX_PULLDOWNABLE:
-                    pulldown = True
-                elif ((not isAbstract(field.model)) and 
-                      field.model.objects.values(field.name).order_by().distinct().count() <= settings.XGDS_DATA_MAX_PULLDOWNABLE):
-                    pulldown = True
+                    if (field in enumerableFields):
+                        widget = 'pulldown'
+                elif (not isAbstract(relModel)):
+                    if (relModel.objects.count() <= settings.XGDS_DATA_MAX_PULLDOWNABLE) or \
+                      (field.model.objects.values(field.name).order_by().distinct().count() <= settings.XGDS_DATA_MAX_PULLDOWNABLE):
+                        widget = 'pulldown'
+                    else:
+                        widget = 'textbox'
                     
-                if pulldown:
+                if widget is 'pulldown':
                     self.fields[field.name + '_operator'] = \
                         forms.ChoiceField(choices=categoricalOperators,
                                           initial=categoricalOperators[0][0],
@@ -102,9 +103,23 @@ class SearchForm(forms.Form):
                                                # order_by('name'),
                                                empty_label="<Any>",
                                                required=False)
-                else:
-                    ## should deal with differently, probably text box
-                    pass
+                elif widget is 'textbox':
+                    self.fields[field.name + '_operator'] = \
+                        forms.ChoiceField(choices=stringOperators,
+                                          initial=stringOperators[0][0],
+                                          required=True)
+                    qset = field.related.parent_model.objects.all()
+                    try:
+                        to_field = [x for x in modelFields(field.rel.to) if x.name == 'name'][0]
+                    except:
+                        to_field = pk(field.rel.to)
+                    self.fields[field.name] = \
+                        forms.ModelChoiceField(queryset=qset,
+                                               to_field_name=to_field.name,
+                                               initial=None,
+                                               widget=TextInput,
+                                               required=False)
+                    # self.fields[field.name] = forms.CharField(required=False)
             elif isinstance(field, fields.PositiveIntegerField):
                 self.fields[field.name + '_operator'] = \
                     forms.ChoiceField(choices=rangeOperators,
