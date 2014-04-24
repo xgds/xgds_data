@@ -331,7 +331,7 @@ $('select').change(clearResults);
 	  
 	  <tbody>
 	{% for result in results %}
-		{% with myid=result|getattribute:pk.name %}
+
 		    {% with myscore=result|getattribute:'score' %}
 				{% if myscore >= 1 %}
 					{% if forloop.counter|modulo:2 == 1 %}
@@ -347,7 +347,7 @@ $('select').change(clearResults);
 					{% endif %}
 				{% endif %}			
 		    {% endwith %}
-		{% endwith %}	
+
 	
 		{% if checkable %}
 		<td>
