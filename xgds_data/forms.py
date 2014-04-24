@@ -84,7 +84,8 @@ class SearchForm(forms.Form):
                         widget = 'pulldown'
                 elif (not isAbstract(relModel)):
                     if (relModel.objects.count() <= settings.XGDS_DATA_MAX_PULLDOWNABLE) or \
-                      (field.model.objects.values(field.name).order_by().distinct().count() <= settings.XGDS_DATA_MAX_PULLDOWNABLE):
+                      (not isAbstract(mymodel) and \
+                       (field.model.objects.values(field.name).order_by().distinct().count() <= settings.XGDS_DATA_MAX_PULLDOWNABLE)):
                         widget = 'pulldown'
                     else:
                         widget = 'textbox'
