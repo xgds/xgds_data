@@ -26,9 +26,12 @@ def recordRequest(request):
         data = request.REQUEST
         reqlog = RequestLog.create(request)
         reqlog.save()
-        for key in data:
-            arg = RequestArgument.objects.create(request=reqlog, name=key, value=data.get(key))
-            arg.save()
+        args = []
+        for a in data.keys():
+            args = args + [ RequestArgument(request=reqlog, name=a, value=v) for v in data.getlist(a) ]
+        # args = [ RequestArgument(request=reqlog, name=key, value=data.get(key)) for key in data ]
+        RequestArgument.objects.bulk_create(args)
+
         return reqlog
     else:
         return None
@@ -80,9 +83,25 @@ def log_and_render(request, reqlog, template, rendargs,
     if logEnabled():
         reslog = ResponseLog.create(request=reqlog, template=template)
         reslog.save()
+        
+        args = []
+#        for a in rendargs.keys():
+#            args = args + [ ResponseArgument(response=reslog, name=key, value=rendargs.get(key).__str__()[:1024]) \
+#                            for key in rendargs.getlist(a) if nolog.count(key) == 0 ]
         for key in rendargs:
             if nolog.count(key) == 0:
-                ResponseArgument.objects.create(response=reslog, name=key, value=rendargs.get(key).__str__()[:1024])
+                try:
+                    # check if an object is a list or tuple (but not string)
+                    # http://stackoverflow.com/questions/1835018/python-check-if-an-object-is-a-list-or-tuple-but-not-string
+                    assert not isinstance(rendargs.get(key), basestring)
+                    args = args + [ ResponseArgument(response=reslog, name=key, value=str(v)[:1024]) for v in rendargs.get(key) ]
+                except (TypeError, AssertionError):
+                    # not iterable
+                    args = args + [ ResponseArgument(response=reslog, name=key, value=str(rendargs.get(key))[:1024]) ]
+#        args = [ ResponseArgument(response=reslog, name=key, value=rendargs.get(key).__str__()[:1024]) \
+#                  if nolog.count(key) == 0 ]
+ 
+        ResponseArgument.objects.bulk_create(args)
         if listing:
             recordList(reslog, listing)
     return render(request, template, rendargs, content_type=content_type)
