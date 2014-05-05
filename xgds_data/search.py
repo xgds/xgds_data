@@ -423,7 +423,8 @@ def getResults(myModel, softFilter, scorer = None, queryStart = 0, queryEnd = No
             query = query.extra(select={'score': 1})
             # hardCount = query.count()
             if minCount is None:
-                totalCount = query.values(*queryFields).count()
+                #totalCount = query.values(*queryFields).count()
+                totalCount = query.count()
             else:
                 totalCount = minCount
     
