@@ -38,10 +38,12 @@ urlpatterns = patterns(
         name='xgds_data_searchSimilar'),
     url(r'^similar/(?P<moduleName>[^/]+)/(?P<modelName>[^/]+)/(?P<pkid>\d+)$', 'searchSimilar',
         name='xgds_data_searchSimilar'),
+                       
+    url(r'^replayRequest/(?P<rid>\d+)$', 'replayRequest', name='xgds_data_replayRequest'),
 
     # legacy urls
-    url(r'^chooseSearchModel/(?P<moduleName>[^/]+)/$', 'chooseSearchModel',
-        name='xgds_data_chooseSearchModel_orig'),
-    url(r'^searchChosenModel/(?P<moduleName>[^/]+)/(?P<modelName>[^/]+)/$', 'searchChosenModel',
-        name='xgds_data_searchChosenModel_orig'),
+    #url(r'^chooseSearchModel/(?P<moduleName>[^/]+)/$', 'chooseSearchModel',
+    #    name='xgds_data_chooseSearchModel_orig'),
+    #url(r'^searchChosenModel/(?P<moduleName>[^/]+)/(?P<modelName>[^/]+)/$', 'searchChosenModel',
+    #    name='xgds_data_searchChosenModel_orig'),
 )

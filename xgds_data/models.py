@@ -8,6 +8,7 @@ from datetime import datetime
 
 from django.db import models
 from django.contrib.auth.models import User
+from django.http import HttpRequest
 
 from xgds_data import settings
 from xgds_data.logconfig import logEnabled
@@ -100,6 +101,20 @@ if logEnabled():
         rank = models.PositiveIntegerField(blank=False)
         fclass = models.CharField(max_length=1024, blank=True)
         fid = models.PositiveIntegerField(blank=False)  # might be risky to assume this is always a pos int
+
+
+    class HttpRequestReplay(HttpRequest):
+        def __init__(self, request, path, data, *args, **kwargs):
+            HttpRequest.__init__(self, *args, **kwargs)
+            self.GET = data
+            self.POST = data
+            self.REQUEST = data
+            self.COOKIES = request.COOKIES
+            self.META = request.META
+            self.path = path
+            self.user = request.user
+            self.session = request.session
+
 
 
 if cacheStatistics():

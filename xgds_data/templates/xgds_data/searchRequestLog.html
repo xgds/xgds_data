@@ -1,0 +1,75 @@
+{% extends "xgds_data/searchChosenModelBase.html" %}
+{% load xgds_data_extras %}
+{% load url from future %}
+
+
+{% block listing  %}
+<div id="outerresults">
+
+    <table class="ResultList" id="tableresults">
+   <thead>
+	<tr>
+	{% if checkable %}
+		<th><input type="checkbox" id="pick_master" /></th>
+	{% endif %}
+	<th>Record</th>
+	  {% for x in displayFields %}
+	  <th>{{ x.verbose_name }}</th>
+	  {% endfor %}
+	  <th>Replay</th>
+	  </tr>
+	  </thead>
+	  
+	  <tbody>
+	{% for result in results %}
+
+		    {% with myscore=result|getattribute:'score' %}
+				{% if myscore >= 1 %}
+					{% if forloop.counter|modulo:2 == 1 %}
+						<tr class="ResultListExactOdd">
+					{% else %}
+						<tr class="ResultListExactEven">
+					{% endif %}
+				{% else %}
+					{% if forloop.counter|modulo:2 == 1 %}
+						<tr class="ResultListInexactOdd">
+					{% else %}
+						<tr class="ResultListInexactEven">
+					{% endif %}
+				{% endif %}			
+		    {% endwith %}
+
+	
+		{% if checkable %}
+		<td>
+			{% if result|getattribute:pk.name in picks %}
+			<input type="checkbox" id="pick_{{result|getattribute:pk.name}}" name="picks" value="{{result|getattribute:pk.name}}" CHECKED />
+			{% else %}
+		    <input type="checkbox" id="pick_{{result|getattribute:pk.name}}" name="picks" value="{{result|getattribute:pk.name}}"/>
+		    {% endif %}
+		     </td>
+	     {% endif %}
+	   <td>{{result|getattribute:'__string__'}}</td>
+ 	 {% for x in displayFields %}
+	  {% with myval=result|getattribute:x.name %}
+	   <TD >
+	     <SPAN {% if myval|isNumeric %}style="white-space:nowrap;"{% endif %}>
+	  	{{ x|display:myval }}
+	    </SPAN>
+	  </TD>
+	  {% endwith %}
+	  {% endfor %}
+	   <TD >
+	     <SPAN {% if myval|isNumeric %}style="white-space:nowrap;"{% endif %}>
+	  	<A HREF="{% url 'xgds_data_replayRequest' result|getattribute:pk.name %}">Replay</A>
+	    </SPAN>
+	  </TD>
+	</tr>
+
+	
+	{% endfor %}
+		</tbody>
+	</table>
+</div>
+
+{% endblock listing %}

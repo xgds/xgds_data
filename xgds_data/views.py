@@ -32,10 +32,12 @@ from xgds_data.introspection import modelFields, maskField, isAbstract, pk
 from xgds_data.forms import QueryForm, SearchForm, AxesForm, SpecializedForm
 from xgds_data.logging import recordRequest, recordList, log_and_render
 from xgds_data.logconfig import logEnabled
+from xgds_data.search import makeFilters, sortFormula, getResults, pageLimits
 if logEnabled():
-    from xgds_data.models import ResponseLog
-from xgds_data.search import makeFilters, sortFormula, countMatches, \
-    divineWhereClause, sortThreshold, getResults, pageLimits
+    from django.core.urlresolvers import resolve
+    from django.utils.datastructures import MergeDict
+    from django.http import QueryDict
+    from xgds_data.models import RequestLog, RequestArgument, ResponseLog, HttpRequestReplay
 
 
 def index(request):
@@ -567,3 +569,20 @@ def plotQueryResults(request, moduleName, modelName, start, end, soft=True):
                            },
                           nolog=['plotData', 'labels', 'formset', 'axesform'],
                           listing=objs)
+
+
+#if logEnabled():
+def replayRequest(request,rid):
+    reqlog = RequestLog.objects.get(id=rid)
+    reqargs = RequestArgument.objects.filter(request=reqlog)
+    view, args, kwargs = resolve(reqlog.path)
+    onedict = {}
+    multidict = QueryDict('',mutable=True)
+    for arg in reqargs:
+        onedict[arg.name] = arg.value
+        multidict.appendlist(arg.name,arg.value)
+    redata = MergeDict(multidict,onedict)
+    rerequest = HttpRequestReplay(request,reqlog.path,redata)
+    kwargs['request'] = rerequest
+
+    return view(*args, **kwargs)

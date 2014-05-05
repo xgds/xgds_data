@@ -30,34 +30,6 @@ def timer(t, msg):
     return newtime
 
 
-def divineWhereClause(myModel, filters):
-    """
-    Pulls out the where clause and quotes the likely literals. Probably really brittle and should be replaced
-    """
-    post = str(myModel.objects.filter(filters).query)
-    orderbystart = post.find(' ORDER BY ')
-    if orderbystart > -1:
-        post = post[:orderbystart]
-    wherestart = post.find(' WHERE ')
-    if wherestart > -1:
-        newwhere = ' WHERE '
-        for seg in re.compile("( [AO][NR]D? )").split(post[(wherestart + 7):]):
-            eqpos = seg.find('= ')
-            if (eqpos > -1):
-                quotable = seg.rstrip(') ')[(eqpos + 1):].strip()
-                quotepos = seg.find(quotable)
-                newseg = (seg[:quotepos] +
-                          '"' + quotable + '"' +
-                          seg[(quotepos + len(quotable)):])
-            else:
-                newseg = seg
-            newwhere = newwhere + newseg
-    else:
-        newwhere = None
-
-    return newwhere
-
-
 def walkQ(qstmt):
     """
     A somewhat aborted attempt to piece together the corresponding sql from a Q object
@@ -179,44 +151,6 @@ def makeFilters(formset, soft=True):
     return filters
 
 
-def scoreNumericOLD(fieldName, val, minimum, maximum):
-    """
-    provide a score for a numeric clause that ranges from 1 (best) to 0 (worst)
-    """
-    if val is None:
-        return '1'  # same constant for everyone, so it factors out
-    elif val == 'min':
-        val = minimum
-    elif val == 'max':
-        val = maximum
-    if isinstance(val, list):
-        lorange = val[0]
-        hirange = val[1]
-    else:
-        lorange = val
-        hirange = val
-
-    def mktimeIfNeeded(d):
-        if isinstance(d, datetime.datetime):
-            return time.mktime(d.timetuple())
-        else:
-            return d
-
-    lorange = mktimeIfNeeded(lorange)
-    hirange = mktimeIfNeeded(hirange)
-    minimum = mktimeIfNeeded(minimum)
-    maximum = mktimeIfNeeded(maximum)
-
-    if ((lorange <= minimum) and (maximum <= hirange)):
-        return '1'
-    else:
-        return ("1-(greatest(least({1}-{0},{0}-{2}),0)/{3})"
-                .format(fieldName,
-                        lorange,
-                        hirange,
-                        max(0, lorange - minimum, maximum - hirange)))
-
-
 def baseScore(fieldRef, lorange, hirange):
     """
     provide a score for a numeric clause that ranges from 1 (best) to 0 (worst)
@@ -266,45 +200,6 @@ def randomSample(model, expression, size, offset=None, limit=None):
     cursor.execute(sql)
 ##    runtime = timer(runtime, "<<< inner random sample >>>")
     return cursor.fetchall()
-
-
-def joinClause(parentLinkField):
-    """
-    Figures out the additional clause needed for linkages to a parent class
-    """
-    return '{0}.{1} = {2}.{3}'.format(parentLinkField.model._meta.db_table,
-                                      pk(parentLinkField.model).attname,
-                                      parentLinkField.rel.get_related_field().model._meta.db_table,
-                                      pk(parentLinkField.rel.get_related_field().model).attname)
-
-
-def countMatches(model, expression, where, threshold):
-    """
-    Get the full count of records matching the restriction; can be slow
-    """
-    joinFields = [x for x in modelFields(model) if isinstance(x, OneToOneField) and x.rel.parent_link]
-    joinClauses = [joinClause(plf) for plf in joinFields]
-    if joinClauses:
-        whereClauses = joinClauses
-        if where:
-            whereClauses.insert(0, where)
-            where = ' AND '.join(whereClauses)
-        else:
-            where = ' AND '.join(whereClauses)
-            where = "WHERE " + where
-
-    tables = [model._meta.db_table]
-    for f in joinFields:
-        tables.append(f.rel.get_related_field().model._meta.db_table)
-    cursor = connection.cursor()
-    if where:
-        sql = 'select sum({1} >= {3}) from {0} {2};'.format(','.join(tables), expression, where, threshold)
-    else:
-        sql = 'select sum({1} >= {2}) from {0};'.format(','.join(tables), expression, threshold)
-##    runtime = datetime.datetime.now()
-    cursor.execute(sql)
-##    runtime = timer(runtime, "<<< inner count matches >>>")
-    return int(cursor.fetchone()[0])
 
 
 def countApproxMatches(model, scorer, maxSize, threshold):
@@ -483,6 +378,124 @@ def sortFormulaRanges(model, desiderata):
         return None
 
 
+def sortThreshold():
+    """
+    Guess on a good threshold to cutoff the search results
+    """
+    ## rather arbitrary cutoff, which would return 30% of results if scores are uniform
+    return 0.7
+
+
+def pageLimits(page, pageSize):
+    """
+    bla
+    """
+    return ((page - 1)* pageSize, page * pageSize)
+
+
+def getResults(myModel, softFilter, scorer = None, queryStart = 0, queryEnd = None, minCount = None):
+    """
+    Get the query results as dicts, so relevance scores can be included
+    """
+    results = []
+    if isAbstract(myModel):
+        aggresults = []
+        aggcount = 0
+        for subm in concreteDescendents(myModel):
+            subresults, subcount = getResults(subm, softFilter, scorer = scorer, queryStart = 0, queryEnd = queryEnd, minCount = minCount)
+            aggcount = aggcount + subcount
+            aggresults = aggresults + subresults
+        aggresults = sorted(aggresults,key=itemgetter('score'), reverse=True)
+        aggresults = aggresults[queryStart:]
+        return (aggresults, aggcount)
+    else:
+        query = myModel.objects.filter(softFilter)
+        queryFields = [x.name for x in modelFields(myModel) if not maskField(myModel,x) ]
+        if scorer:
+            countquery = query.extra(where=['%s >= %s' % (scorer, sortThreshold())])
+            totalCount = countquery.count()
+            query = query.extra(select={'score': scorer}, order_by=['-score'])
+            if (minCount is not None) and (totalCount < minCount):
+                ## this only makes sense if it's an approximate count
+                ## and that approximate count is too low
+                totalCount = minCount
+        else:
+            query = query.extra(select={'score': 1})
+            # hardCount = query.count()
+            if minCount is None:
+                totalCount = query.values(*queryFields).count()
+            else:
+                totalCount = minCount
+    
+        queryFields.append('score')
+        qvalues = query.values(*queryFields)
+    
+        if queryEnd:
+            queryEnd = min(totalCount,queryEnd)
+        else:
+            queryEnd = totalCount
+            
+        qvalues = qvalues[queryStart:queryEnd]
+    
+        foreigners = dict([ (f, set()) for f in modelFields(myModel) if isinstance(f,RelatedField)])
+        for d in qvalues:
+            for k in iter(foreigners):
+                try:
+                    relatives = d[k.name]
+                except KeyError:
+                    pass  # it's ok if that key is missing
+                else:
+                    try:
+                        iterator = iter(relatives)
+                        assert not isinstance(relatives, basestring)
+                    except (TypeError, AssertionError):
+                        # not iterable
+                        foreigners[k].add(relatives)
+                    else:
+                        for f in iterator:
+                            foreigners[k].add(f)
+                
+        for f in iter(foreigners):
+            relf = f.rel.get_related_field()
+            objects = relf.model.objects.filter(**{relf.attname + '__in': foreigners[f]})
+            foreigners[f] = dict([(getattr(x,relf.name),x) for x in objects])
+            
+        for d in qvalues:
+            resultd = d.copy()
+            resultd['__class__'] = myModel
+            for f in iter(foreigners):
+                if f.name in resultd:
+                    try:
+                        resultd[f.name] = foreigners[f][resultd[f.name] ]
+                    except KeyError:
+                        del resultd[f.name] # presumably this means something is not consistent in the model, it does happen
+    
+            modeld = dict( [ (f.name,resultd[f.name]) \
+                                 for f in modelFields(myModel) \
+                                 if f.name in resultd \
+                                 ## yuk... but something goes wrong insert M2MF
+                                 and not isinstance(f,ManyToManyField) ] )
+            instance = myModel(**modeld)
+            resultd['__instance__'] = instance
+            resultd['__string__'] = str(instance)
+            results.append( resultd )
+        return (results, totalCount)
+
+
+## The following is experimental and not currently in use
+
+def makeQinfo(model, query, fld, loend, hiend, order=None):
+    """
+    Helper function for sortedTopK; may go away
+    """
+    if loend is not None:
+        query = query.filter(**{fld + '__gte': loend})
+    if hiend is not None:
+        query = query.filter(**{fld + '__lt': hiend})
+
+    return {'query': query, 'order': order}
+
+
 def unitScore(value, lorange, hirange, median):
     """
     Scores a value from 1 (best) to 0 (worst)
@@ -552,125 +565,6 @@ def instanceScore(instance, desiderata, medians=None):
     for d in desiderata.keys():
         values[d] = getattr(instance, d)
     return multiScore(instance.__class__, values, desiderata, medians=medians)
-
-
-def sortThreshold():
-    """
-    Guess on a good threshold to cutoff the search results
-    """
-    ## rather arbitrary cutoff, which would return 30% of results if scores are uniform
-    return 0.7
-
-
-def pageLimits(page, pageSize):
-    """
-    bla
-    """
-    return ((page - 1)* pageSize, page * pageSize)
-
-
-def getResults(myModel, softFilter, scorer = None, queryStart = 0, queryEnd = None, minCount = None):
-    """
-    Get the query results as dicts, so relevance scores can be included
-    """
-    results = []
-    if isAbstract(myModel):
-        aggresults = []
-        aggcount = 0
-        for subm in concreteDescendents(myModel):
-            subresults, subcount = getResults(subm, softFilter, scorer = scorer, queryStart = 0, queryEnd = queryEnd, minCount = minCount)
-            aggcount = aggcount + subcount
-            aggresults = aggresults + subresults
-        aggresults = sorted(aggresults,key=itemgetter('score'), reverse=True)
-        aggresults = aggresults[queryStart:]
-        return (aggresults, aggcount)
-    else:
-        query = myModel.objects.filter(softFilter)
-        queryFields = [x.name for x in modelFields(myModel) if not maskField(myModel,x) ]
-        if scorer:
-            query = query.extra(select={'score': scorer}, order_by=['-score'])
-            ## totalCount = countApproxMatches(myModel, scorer, query.count(), sortThreshold())
-            totalCount = countMatches(myModel,
-                                       scorer,
-                                       divineWhereClause(myModel, softFilter),
-                                       sortThreshold())
-            if (minCount is not None) and (totalCount < minCount):
-                ## this only makes sense if it's an approximate count
-                ## and that approximate count is too low
-                totalCount = minCount
-        else:
-            query = query.extra(select={'score': 1})
-            # hardCount = query.count()
-            if minCount is None:
-                totalCount = query.values(*queryFields).count()
-            else:
-                totalCount = minCount
-    
-        queryFields.append('score')
-        qvalues = query.values(*queryFields)
-    
-        if queryEnd:
-            queryEnd = min(totalCount,queryEnd)
-        else:
-            queryEnd = totalCount
-            
-        qvalues = qvalues[queryStart:queryEnd]
-    
-        foreigners = dict([ (f, set()) for f in modelFields(myModel) if isinstance(f,RelatedField)])
-        for d in qvalues:
-            for k in iter(foreigners):
-                try:
-                    relatives = d[k.name]
-                except KeyError:
-                    pass  # it's ok if that key is missing
-                else:
-                    try:
-                        iterator = iter(relatives)
-                        assert not isinstance(relatives, basestring)
-                    except (TypeError, AssertionError):
-                        # not iterable
-                        foreigners[k].add(relatives)
-                    else:
-                        for f in iterator:
-                            foreigners[k].add(f)
-                
-        for f in iter(foreigners):
-            relf = f.rel.get_related_field()
-            objects = relf.model.objects.filter(**{relf.attname + '__in': foreigners[f]})
-            foreigners[f] = dict([(getattr(x,relf.name),x) for x in objects])
-            
-        for d in qvalues:
-            resultd = d.copy()
-            resultd['__class__'] = myModel
-            for f in iter(foreigners):
-                if f.name in resultd:
-                    try:
-                        resultd[f.name] = foreigners[f][resultd[f.name] ]
-                    except KeyError:
-                        del resultd[f.name] # presumably this means something is not consistent in the model, it does happen
-    
-            modeld = dict( [ (f.name,resultd[f.name]) \
-                                 for f in modelFields(myModel) \
-                                 if f.name in resultd \
-                                 ## yuk... but something goes wrong insert M2MF
-                                 and not isinstance(f,ManyToManyField) ] )
-            instance = myModel(**modeld)
-            resultd['__instance__'] = instance
-            resultd['__string__'] = str(instance)
-            results.append( resultd )
-        return (results, totalCount)
-
-
-def makeQinfo(model, query, fld, loend, hiend, order=None):
-    """
-    Helper function for sortedTopK; may go away
-    """
-    if loend is not None:
-        query = query.filter(**{fld + '__gte': loend})
-    if hiend is not None:
-        query = query.filter(**{fld + '__lt': hiend})
-
-    return {'query': query, 'order': order}
 
 
 def sortedTopK(model, formset, query, k):
