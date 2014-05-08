@@ -397,7 +397,7 @@ def getResults(myModel, softFilter, scorer = None, queryStart = 0, queryEnd = No
     """
     Get the query results as dicts, so relevance scores can be included
     """
-    results = []
+    #results = []
     if isAbstract(myModel):
         aggresults = []
         aggcount = 0
@@ -410,7 +410,8 @@ def getResults(myModel, softFilter, scorer = None, queryStart = 0, queryEnd = No
         return (aggresults, aggcount)
     else:
         query = myModel.objects.filter(softFilter)
-        queryFields = [x.name for x in modelFields(myModel) if not maskField(myModel,x) ]
+        # queryFields = [x.name for x in modelFields(myModel) if not maskField(myModel,x) ]
+        deferFields = [x.name for x in modelFields(myModel) if maskField(myModel,x) ]
         if scorer:
             countquery = query.extra(where=['%s >= %s' % (scorer, sortThreshold())])
             totalCount = countquery.count()
@@ -423,64 +424,67 @@ def getResults(myModel, softFilter, scorer = None, queryStart = 0, queryEnd = No
             query = query.extra(select={'score': 1})
             # hardCount = query.count()
             if minCount is None:
-                #totalCount = query.values(*queryFields).count()
                 totalCount = query.count()
             else:
                 totalCount = minCount
-    
-        queryFields.append('score')
-        qvalues = query.values(*queryFields)
+
+        query = query.defer(*deferFields)    
+#        queryFields.append('score')
+#        qvalues = query.values(*queryFields)
     
         if queryEnd:
             queryEnd = min(totalCount,queryEnd)
         else:
             queryEnd = totalCount
-            
-        qvalues = qvalues[queryStart:queryEnd]
+        
+        query = query[queryStart:queryEnd]
+        # qvalues = qvalues[queryStart:queryEnd]
+        
+        return (query, totalCount)
     
-        foreigners = dict([ (f, set()) for f in modelFields(myModel) if isinstance(f,RelatedField)])
-        for d in qvalues:
-            for k in iter(foreigners):
-                try:
-                    relatives = d[k.name]
-                except KeyError:
-                    pass  # it's ok if that key is missing
-                else:
-                    try:
-                        iterator = iter(relatives)
-                        assert not isinstance(relatives, basestring)
-                    except (TypeError, AssertionError):
-                        # not iterable
-                        foreigners[k].add(relatives)
-                    else:
-                        for f in iterator:
-                            foreigners[k].add(f)
-                
-        for f in iter(foreigners):
-            relf = f.rel.get_related_field()
-            objects = relf.model.objects.filter(**{relf.attname + '__in': foreigners[f]})
-            foreigners[f] = dict([(getattr(x,relf.name),x) for x in objects])
-            
-        for d in qvalues:
-            resultd = d.copy()
-            resultd['__class__'] = myModel
-            for f in iter(foreigners):
-                if f.name in resultd:
-                    try:
-                        resultd[f.name] = foreigners[f][resultd[f.name] ]
-                    except KeyError:
-                        del resultd[f.name] # presumably this means something is not consistent in the model, it does happen
-    
-            modeld = dict( [ (f.name,resultd[f.name]) \
-                                 for f in modelFields(myModel) \
-                                 if f.name in resultd \
-                                 ## yuk... but something goes wrong insert M2MF
-                                 and not isinstance(f,ManyToManyField) ] )
-            instance = myModel(**modeld)
-            resultd['__instance__'] = instance
-            resultd['__string__'] = str(instance)
-            results.append( resultd )
-        return (results, totalCount)
+#        foreigners = dict([ (f, set()) for f in modelFields(myModel) if isinstance(f,RelatedField)])
+#        for d in qvalues:
+#            for k in iter(foreigners):
+#                try:
+#                    relatives = d[k.name]
+#                except KeyError:
+#                    pass  # it's ok if that key is missing
+#                else:
+#                    try:
+#                        iterator = iter(relatives)
+#                        assert not isinstance(relatives, basestring)
+#                    except (TypeError, AssertionError):
+#                        # not iterable
+#                        foreigners[k].add(relatives)
+#                    else:
+#                        for f in iterator:
+#                            foreigners[k].add(f)
+#                
+#        for f in iter(foreigners):
+#            relf = f.rel.get_related_field()
+#            objects = relf.model.objects.filter(**{relf.attname + '__in': foreigners[f]})
+#            foreigners[f] = dict([(getattr(x,relf.name),x) for x in objects])
+#            
+#        for d in qvalues:
+#            resultd = d.copy()
+#            resultd['__class__'] = myModel
+#            for f in iter(foreigners):
+#                if f.name in resultd:
+#                    try:
+#                        resultd[f.name] = foreigners[f][resultd[f.name] ]
+#                    except KeyError:
+#                        del resultd[f.name] # presumably this means something is not consistent in the model, it does happen
+#    
+#            modeld = dict( [ (f.name,resultd[f.name]) \
+#                                 for f in modelFields(myModel) \
+#                                 if f.name in resultd \
+#                                 ## yuk... but something goes wrong insert M2MF
+#                                 and not isinstance(f,ManyToManyField) ] )
+#            instance = myModel(**modeld)
+#            resultd['__instance__'] = instance
+#            resultd['__string__'] = str(instance)
+#            results.append( resultd )
+#        return (results, totalCount)
 
 
 ## The following is experimental and not currently in use

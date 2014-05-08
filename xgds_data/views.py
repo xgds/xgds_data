@@ -411,9 +411,10 @@ def searchChosenModel(request, moduleName, modelName, expert=False):
         writer = csv.writer(response)
         writer.writerow([f.name for f in displayFields])
         for r in results:
-            writer.writerow([csvEncode(r.get(f.name,None)) for f in displayFields ])
+            ##            r.get(f.name,None)
+            writer.writerow([csvEncode(getattr(r,f.name,None)) for f in displayFields ])
         if logEnabled():
-            reslog = ResponseLog.objects.create(request=reqlog)
+            reslog = ResponseLog.create(request=reqlog)
             recordList(reslog, results)
         return response
     else:   
@@ -519,10 +520,10 @@ def plotQueryResults(request, moduleName, modelName, start, end, soft=True):
         scorer = sortFormula(myModel, formset)
         softFilter = makeFilters(formset, soft)
         objs, totalCount = getResults(myModel, softFilter, scorer, start, end)
-        plotdata = [dict([ (fld.name, megahandler(x.get(fld.name,None)) )
+        plotdata = [dict([ (fld.name, megahandler(getattr(x,fld.name,None)) )
                      for fld in myFields])
                     for x in objs]
-        pldata = [ x['__string__'] for x in objs]
+        pldata = [ str(x) for x in objs]
 
         ## the following code determines if there are any foreign keys that can be selected, and if so,
         ## replaces the corresponding values (which will be ids) with the string representation

@@ -358,7 +358,7 @@ $('select').change(clearResults);
 		    {% endif %}
 		     </td>
 	     {% endif %}
-	   <td>{{result|getattribute:'__string__'}}</td>
+	   <td>{{result}}</td>
  	 {% for x in displayFields %}
 	  {% with myval=result|getattribute:x.name %}
 	   <TD >
