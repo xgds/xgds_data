@@ -59,3 +59,10 @@ def concreteDescendents(model):
         return [model]
 
 
+def concrete_model(model):
+    """
+    Get the concrete model
+    """
+    return model._meta.concrete_model
+
+
