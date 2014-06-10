@@ -318,6 +318,14 @@ def searchHandoff(request, moduleName, modelName, fn, soft = True):
         
     return fn(request,results)
 
+    
+def safegetattr(obj,attname,default = None):
+    """ Because sometimes the database itself is inconsistent """
+    try:
+        return getattr(obj,attname,default)
+    except:
+        return None
+    
 
 def searchChosenModel(request, moduleName, modelName, expert=False):
     """
@@ -412,7 +420,7 @@ def searchChosenModel(request, moduleName, modelName, expert=False):
         writer.writerow([f.name for f in displayFields])
         for r in results:
             ##            r.get(f.name,None)
-            writer.writerow([csvEncode(getattr(r,f.name,None)) for f in displayFields ])
+            writer.writerow([csvEncode(safegetattr(r,f.name,None)) for f in displayFields ])
         if logEnabled():
             reslog = ResponseLog.create(request=reqlog)
             recordList(reslog, results)
@@ -520,7 +528,7 @@ def plotQueryResults(request, moduleName, modelName, start, end, soft=True):
         scorer = sortFormula(myModel, formset)
         softFilter = makeFilters(formset, soft)
         objs, totalCount = getResults(myModel, softFilter, scorer, start, end)
-        plotdata = [dict([ (fld.name, megahandler(getattr(x,fld.name,None)) )
+        plotdata = [dict([ (fld.name, megahandler(safegetattr(x,fld.name,None)) )
                      for fld in myFields])
                     for x in objs]
         pldata = [ str(x) for x in objs]
