@@ -10,10 +10,9 @@ numeric_test = re.compile(r'^[\.\-Ee\d]+$')
 register = template.Library()
 
 
-# # http://stackoverflow.com/questions/844746/performing-a-getattr-style-lookup-in-a-django-template
+# http://stackoverflow.com/questions/844746/performing-a-getattr-style-lookup-in-a-django-template
 def getattribute(value, arg):
     """Gets an attribute of an object dynamically from a string name"""
-
     if hasattr(value, str(arg)):
         v = getattr(value, arg)
     elif hasattr(value, 'has_key') and arg in value:
@@ -24,7 +23,6 @@ def getattribute(value, arg):
         v = settings.TEMPLATE_STRING_IF_INVALID
     if (isinstance(v, Manager)):
         v = ' '.join([str(x) for x in v.all()])
-
     return v
 
 register.filter('getattribute', getattribute)
@@ -32,13 +30,13 @@ register.filter('getattribute', getattribute)
 
 def display(field, value):
     """Returns html snippet appropriate for value and field"""
-    if isinstance(field,ImageField):
-        return mark_safe('<A HREF="'+field.storage.url(value)+'"><IMG SRC="'+field.storage.url(value)+'" WIDTH="100"></A>')
+    if isinstance(field, ImageField):
+        return mark_safe('<A HREF="' + field.storage.url(value) + '"><IMG SRC="' + field.storage.url(value) + '" WIDTH="100"></A>')
     else:
         return value
 
 register.filter('display', display)
-                
+
 
 def modulo(value, arg):
     """Computes value % arg"""
