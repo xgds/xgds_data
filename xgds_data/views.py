@@ -25,7 +25,10 @@ from django.db.models import Model
 from django.forms.formsets import formset_factory
 from django.utils.html import escape
 
-from geocamUtil.loader import getModelByName
+try:
+    from geocamUtil.loader import getModelByName
+except:
+    pass
 
 from xgds_data import settings
 from xgds_data.introspection import modelFields, maskField, isAbstract, pk

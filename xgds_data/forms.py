@@ -83,9 +83,13 @@ class SearchForm(forms.Form):
                     if (field in enumerableFields):
                         widget = 'pulldown'
                 elif (not isAbstract(relModel)):
-                    if (relModel.objects.count() <= settings.XGDS_DATA_MAX_PULLDOWNABLE) or \
-                      (not isAbstract(mymodel) and \
-                       (field.model.objects.values(field.name).order_by().distinct().count() <= settings.XGDS_DATA_MAX_PULLDOWNABLE)):
+                    try:
+                        maxpulldown = settings.XGDS_DATA_MAX_PULLDOWNABLE
+                    except:
+                        maxpulldown = 100
+                    if (relModel.objects.count() <= maxpulldown) or \
+                            (not isAbstract(mymodel) and \
+                           (field.model.objects.values(field.name).order_by().distinct().count() <= maxpulldown)):
                         widget = 'pulldown'
                     else:
                         widget = 'textbox'
@@ -296,7 +300,12 @@ class AxesForm(forms.Form):
                               fields.TimeField)) and (not maskField(x.model, x)):
                 chartablefields.append(x)
         if (seriesablefields is None):
+            try:
+                maxseriesable = settings.XGDS_DATA_MAX_SERIESABLE
+            except:
+                maxseriesable = 100
             seriesablefields = []
+
             for x in mfields:
                 if ((not isinstance(x, (fields.AutoField,
                                         fields.DateField,
@@ -306,7 +315,7 @@ class AxesForm(forms.Form):
                                         fields.TimeField))) and
                     (not maskField(x.model, x)) and
                     (not isAbstract(x.model)) and
-                    (x.model.objects.values(x.name).order_by().distinct().count() <= settings.XGDS_DATA_MAX_SERIESABLE)):
+                    (x.model.objects.values(x.name).order_by().distinct().count() <= maxseriesable)):
                     seriesablefields.append(x)
         if len(chartablefields) > 1:
             datachoices = (tuple((x, x)

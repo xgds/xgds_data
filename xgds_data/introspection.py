@@ -4,7 +4,10 @@
 # All Rights Reserved.
 # __END_LICENSE__
 
-from taggit.managers import TaggableManager
+try:
+    from taggit.managers import TaggableManager
+except:
+    pass
 
 from xgds_data import settings
 
@@ -39,11 +42,20 @@ def resolveField(model, fieldName):
 
     return None
 
+
 def maskField(model, field):
     """
     Should we omit this field from search and display?
     """
-    return (field.name in settings.XGDS_DATA_MASKED_FIELD) or isinstance(field,TaggableManager)
+    try:
+        if isinstance(field,TaggableManager):
+            return true
+    except:
+        pass
+    try:
+        return (field.name in settings.XGDS_DATA_MASKED_FIELD)
+    except:
+        return False
 
 
 def concreteDescendents(model):
