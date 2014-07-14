@@ -11,7 +11,7 @@ from django.db.models.fields.related import RelatedField
 from django.forms.widgets import RadioSelect, TextInput
 
 from xgds_data import settings
-from xgds_data.introspection import modelFields, maskField, isAbstract, pk
+from xgds_data.introspection import modelFields, maskField, isOrdinalOveridden, isAbstract, pk, ordinalField
 # pylint: disable=R0924
 
 class QueryForm(forms.Form):
@@ -42,6 +42,32 @@ class SearchForm(forms.Form):
             if isinstance(field, (fields.AutoField, fields.files.FileField)) \
                     or maskField(mymodel, field) or field is pk(mymodel):
                 pass  # nothing
+            elif ordinalField(mymodel, field):
+                self.fields[field.name + '_operator'] = \
+                    forms.ChoiceField(choices=rangeOperators,
+                                      initial=rangeOperators[0][0],
+                                      required=True)
+                if isinstance(field, fields.DateTimeField):
+                    self.fields[field.name + '_lo'] = forms.DateTimeField(required=False)
+                    self.fields[field.name + '_hi'] = forms.DateTimeField(required=False)
+                elif isinstance(field, (fields.DecimalField, fields.FloatField)):
+                    self.fields[field.name + '_lo'] = forms.FloatField(required=False)
+                    self.fields[field.name + '_hi'] = forms.FloatField(required=False)
+                elif isinstance(field, fields.PositiveIntegerField):
+                    self.fields[field.name + '_lo'] = forms.IntegerField(min_value=1,
+                                           required=False)
+                    self.fields[field.name + '_hi'] = forms.IntegerField(min_value=1,
+                                           required=False)
+                elif isinstance(field, fields.IntegerField):
+                    self.fields[field.name + '_lo'] = forms.IntegerField(required=False)
+                    self.fields[field.name + '_hi'] = forms.IntegerField(required=False)                
+                
+            elif isinstance(field, (fields.CharField, fields.TextField)) or isOrdinalOveridden(mymodel, field):
+                self.fields[field.name + '_operator'] = \
+                    forms.ChoiceField(choices=stringOperators,
+                                      initial=stringOperators[0][0],
+                                      required=True)
+                self.fields[field.name] = forms.CharField(required=False)
             elif isinstance(field, (fields.BooleanField, fields.NullBooleanField)):
                 self.fields[field.name + '_operator'] = \
                     forms.ChoiceField(choices=categoricalOperators,
@@ -52,26 +78,7 @@ class SearchForm(forms.Form):
                                                (True, True),
                                                (False, False)),
                                       required=False)
-            elif isinstance(field, fields.DateTimeField):
-                self.fields[field.name + '_operator'] = \
-                    forms.ChoiceField(choices=rangeOperators,
-                                      initial=rangeOperators[0][0],
-                                      required=True)
-                self.fields[field.name + '_lo'] = forms.DateTimeField(required=False)
-                self.fields[field.name + '_hi'] = forms.DateTimeField(required=False)
-            elif isinstance(field, (fields.CharField, fields.TextField)):
-                self.fields[field.name + '_operator'] = \
-                    forms.ChoiceField(choices=stringOperators,
-                                      initial=stringOperators[0][0],
-                                      required=True)
-                self.fields[field.name] = forms.CharField(required=False)
-            elif isinstance(field, fields.FloatField):
-                self.fields[field.name + '_operator'] = \
-                    forms.ChoiceField(choices=rangeOperators,
-                                      initial=rangeOperators[0][0],
-                                      required=True)
-                self.fields[field.name + '_lo'] = forms.FloatField(required=False)
-                self.fields[field.name + '_hi'] = forms.FloatField(required=False)
+
             elif (isinstance(field, fields.related.ForeignKey) or
                   isinstance(field, fields.related.ManyToManyField)):
                 widget = None
@@ -125,24 +132,7 @@ class SearchForm(forms.Form):
                                                widget=TextInput,
                                                required=False)
                     # self.fields[field.name] = forms.CharField(required=False)
-            elif isinstance(field, fields.PositiveIntegerField):
-                self.fields[field.name + '_operator'] = \
-                    forms.ChoiceField(choices=rangeOperators,
-                                      initial=rangeOperators[0][0],
-                                      required=True)
-                self.fields[field.name + '_lo'] = \
-                    forms.IntegerField(min_value=1,
-                                       required=False)
-                self.fields[field.name + '_hi'] = \
-                    forms.IntegerField(min_value=1,
-                                       required=False)
-            elif isinstance(field, fields.IntegerField):
-                self.fields[field.name + '_operator'] = \
-                    forms.ChoiceField(choices=rangeOperators,
-                                      initial=rangeOperators[0][0],
-                                      required=True)
-                self.fields[field.name + '_lo'] = forms.IntegerField(required=False)
-                self.fields[field.name + '_hi'] = forms.IntegerField(required=False)
+
             else:
                 ##self.fields[field.name + '_operator'] = \
                 ##    forms.ChoiceField(choices=categoricalOperators,
@@ -173,10 +163,7 @@ class SearchForm(forms.Form):
                        {'label': unicode(mfield.verbose_name),
                         'ofield': unicode(ofield.as_hidden())
                         })
-                if isinstance(mfield, (fields.DateTimeField,
-                                       fields.FloatField,
-                                       fields.IntegerField,
-                                       fields.PositiveIntegerField)):
+                if ordinalField(self.model, mfield):
                     loname, hiname = mfield.name + '_lo', mfield.name + '_hi'
                     fieldlo = forms.forms.BoundField(self, self.fields[loname], loname)
                     fieldhi = forms.forms.BoundField(self, self.fields[hiname], hiname)
@@ -206,10 +193,7 @@ class SearchForm(forms.Form):
                 row = (u'<tr><td style="text-align:right; font-weight:bold;">%(label)s</td><td>%(ofield)s</td>' %
                        {'label': unicode(mfield.verbose_name),
                         'ofield': unicode(ofield)})
-                if isinstance(mfield, (fields.DateTimeField,
-                                       fields.FloatField,
-                                       fields.IntegerField,
-                                       fields.PositiveIntegerField)):
+                if ordinalField(self.model, mfield):
                     loname, hiname = mfield.name + '_lo', mfield.name + '_hi'
                     fieldlo = forms.forms.BoundField(self, self.fields[loname], loname)
                     fieldhi = forms.forms.BoundField(self, self.fields[hiname], hiname)
@@ -242,11 +226,7 @@ class SortForm(forms.Form):
         for x in modelFields(mymodel):
             if isinstance(x, fields.AutoField) or maskField(mymodel, x):
                 pass
-            elif isinstance(x, (fields.DateField,
-                                fields.DecimalField,
-                                fields.FloatField,
-                                fields.IntegerField,
-                                fields.TimeField)):
+            elif ordinalField(self.model, x):
                 if x.verbose_name != "":
                     sortingfields.append(x)
         if len(sortingfields) > 1:
@@ -293,11 +273,7 @@ class AxesForm(forms.Form):
         forms.Form.__init__(self, *args, **kwargs)
         chartablefields = []
         for x in mfields:
-            if isinstance(x, (fields.DateField,
-                              fields.DecimalField,
-                              fields.FloatField,
-                              fields.IntegerField,
-                              fields.TimeField)) and (not maskField(x.model, x)):
+            if ordinalField(x.model, x) and (not maskField(x.model, x)):
                 chartablefields.append(x)
         if (seriesablefields is None):
             try:
@@ -307,12 +283,8 @@ class AxesForm(forms.Form):
             seriesablefields = []
 
             for x in mfields:
-                if ((not isinstance(x, (fields.AutoField,
-                                        fields.DateField,
-                                        fields.DecimalField,
-                                        fields.FloatField,
-                                        fields.IntegerField,
-                                        fields.TimeField))) and
+                if ((not isinstance(x, fields.AutoField)) and
+                    (not ordinalField(x.model, x)) and
                     (not maskField(x.model, x)) and
                     (not isAbstract(x.model)) and
                     (x.model.objects.values(x.name).order_by().distinct().count() <= maxseriesable)):
