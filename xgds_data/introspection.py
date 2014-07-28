@@ -88,13 +88,7 @@ def isOrdinalOveridden(model, field):
     Is this a field that looks ordinal, but isn't really?
     """
     try:
-        for moduleName in settings.XGDS_DATA_NONORDINAL_FIELDS:
-            for modelName in settings.XGDS_DATA_NONORDINAL_FIELDS.get(moduleName):
-                cfieldName = settings.XGDS_DATA_NONORDINAL_FIELDS.get(moduleName).get(modelName)
-                if (cfieldName == field.name) and issubclass(model,resolveModel(moduleName,modelName)):
-                    return True
-        
-        return False
+        return settingApplies(settings.XGDS_DATA_NONORDINAL_FIELDS, model, field)
     except:
         return False
 
