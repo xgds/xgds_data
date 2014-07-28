@@ -54,6 +54,19 @@ def resolveField(model, fieldName):
     return None
 
 
+def settingApplies(settng, model, field):
+    """
+    Does the setting list this field?
+    """
+    for moduleName in settng:
+        for modelName in settng.get(moduleName):
+            for cfieldName in settng.get(moduleName).get(modelName):
+                if (cfieldName == field.name) and issubclass(model,resolveModel(moduleName,modelName)):
+                    return True
+    
+    return False
+
+
 def maskField(model, field):
     """
     Should we omit this field from search and display?
@@ -63,8 +76,9 @@ def maskField(model, field):
             return True
     except:
         pass
+    
     try:
-        return (field.name in settings.XGDS_DATA_MASKED_FIELD)
+        return settingApplies(settings.XGDS_DATA_MASKED_FIELDS, model, field)
     except:
         return False
 
