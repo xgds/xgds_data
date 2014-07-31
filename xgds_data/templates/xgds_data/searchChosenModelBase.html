@@ -360,13 +360,13 @@ $('select').change(clearResults);
 	     {% endif %}
 	   <td>{{result}}</td>
  	 {% for x in displayFields %}
-	  {% with myval=result|getattribute:x %}
 	   <TD >
+	  {% with myval=result|getattribute:x %}
 	     <SPAN {% if myval|isNumeric %}style="white-space:nowrap;"{% endif %}>
 	  	{{ x|display:myval }}
 	    </SPAN>
-	  </td>
 	  {% endwith %}
+	  </TD>
 	  {% endfor %}
 	</tr>
 

@@ -87,9 +87,24 @@ def maskField(field):
         pass
     
     try:
-        return field.name in settingsForModel(settings.XGDS_DATA_MASKED_FIELDS, field.model)
+        if field.name in settingsForModel(settings.XGDS_DATA_UNMASKED_FIELDS, field.model):
+            return False
     except:
-        return False
+        pass
+
+    try:
+        if field.name in settingsForModel(settings.XGDS_DATA_MASKED_FIELDS, field.model):
+            return True
+    except:
+        pass
+
+    try:
+        if field is pk(field.model):
+            return True
+    except:
+        pass
+
+    return False
 
 
 def isOrdinalOveridden(model, field):
@@ -99,8 +114,8 @@ def isOrdinalOveridden(model, field):
     try:
         return field.name in settingsForModel(settings.XGDS_DATA_NONORDINAL_FIELDS, model)
     except:
-        print('Error on',field)
         return False
+
 
 def ordinalField(model, field):
     """

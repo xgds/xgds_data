@@ -336,7 +336,7 @@ def searchChosenModel(request, moduleName, modelName, expert=False):
     modelmodule = get_app(moduleName)
     myModel = getattr(modelmodule, modelName)
     myFields = [x for x in modelFields(myModel) if not maskField(x) ]
-    displayFields = [x for x in myFields if not (getattr(x,'primary_key',None)) ]
+
     tmpFormClass = SpecializedForm(SearchForm, myModel)
     tmpFormSet = formset_factory(tmpFormClass)
     debug = []
@@ -420,21 +420,21 @@ def searchChosenModel(request, moduleName, modelName, expert=False):
         # if you want to download instead of display in browser
         # response['Content-Disposition'] = 'attachment; filename='+modelName + '.csv'
         writer = csv.writer(response)
-        writer.writerow([f.name for f in displayFields])
+        writer.writerow([f.name for f in myFields])
         for r in results:
             ##            r.get(f.name,None)
-            writer.writerow([csvEncode(safegetattr(r,f.name,None)) for f in displayFields ])
+            writer.writerow([csvEncode(safegetattr(r,f.name,None)) for f in myFields ])
         if logEnabled():
             reslog = ResponseLog.create(request=reqlog)
             recordList(reslog, results)
         return response
     else:   
         datetimefields = []
-        for x in displayFields:
+        for x in myFields:
             if isinstance(x, DateTimeField):
                 for y in range(0, formCount + 1):
                     datetimefields.append(formsetifyFieldName(y, x.name))
-        axesform = AxesForm(displayFields, data)
+        axesform = AxesForm(myFields, data)
     
         if (not axesform.fields.get('yaxis')):
             ## if yaxis is not defined, then we can't really plot
@@ -448,7 +448,7 @@ def searchChosenModel(request, moduleName, modelName, expert=False):
                   'yaxis': axesform.fields.get('yaxis').initial,
                   'series': axesform.fields.get('series').initial}
             qd.update(data)
-            axesform = AxesForm(displayFields, qd)
+            axesform = AxesForm(myFields, qd)
         template = resolveSetting('XGDS_DATA_SEARCH_TEMPLATES', myModel, 'xgds_data/searchChosenModel.html')
         checkable = resolveSetting('XGDS_DATA_CHECKABLE', myModel, False)
 
@@ -457,11 +457,11 @@ def searchChosenModel(request, moduleName, modelName, expert=False):
                                'module': moduleName,
                                'model': modelName,
                                'expert': expert,
-                               'pk':  pk(myModel),                              
+                               'pk':  pk(myModel),
                                'datetimefields': datetimefields,
-                               'displayFields': displayFields,
+                               'displayFields': myFields,
                                'formset': formset,
-                               'axesform': axesform,                              
+                               'axesform': axesform,
                                'results': results,
                                'count': totalCount,
                                'exactCount': hardCount,

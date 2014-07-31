@@ -1,6 +1,7 @@
 import re
 from django import template
 from django.conf import settings
+from django.contrib.auth.models import User
 from django.db.models.manager import Manager
 from django.db.models.fields.files import ImageField
 from django.utils.safestring import mark_safe
@@ -12,6 +13,8 @@ register = template.Library()
 
 from django.db import models
 from xgds_data.models import VirtualField
+
+
 # http://stackoverflow.com/questions/844746/performing-a-getattr-style-lookup-in-a-django-template
 def getattribute(value, arg):
     """Gets an attribute of an object dynamically from a string name"""
@@ -27,8 +30,6 @@ def getattribute(value, arg):
             throughInstance = getattr(value,arg.throughfield)
             includedFieldName = arg.name
             v = getattr(throughInstance,includedFieldName)
-            if (isinstance(v,Manager)): # this occurs when following a foreign key "backwards"
-                v = v.all()
         except:
             print('Error on ',value,arg)
     elif isinstance(arg,models.Field):
@@ -46,8 +47,15 @@ def display(field, value):
     """Returns html snippet appropriate for value and field"""
     if isinstance(field, ImageField):
         return mark_safe('<A HREF="' + field.storage.url(value) + '"><IMG SRC="' + field.storage.url(value) + '" WIDTH="100"></A>')
-    else:
+    elif isinstance(value, basestring):
         return value
+    elif isinstance(value, User):
+        return ', '.join([value.last_name,value.first_name])
+    else:
+        try:
+            return ', '.join(value)
+        except TypeError:
+            return value
 
 register.filter('display', display)
 

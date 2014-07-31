@@ -40,8 +40,7 @@ class SearchForm(forms.Form):
                            ('=', '='),
                            ('!=', '!='))
         for field in modelFields(mymodel):
-            if isinstance(field, (fields.AutoField, fields.files.FileField)) \
-                    or maskField(field) or field is pk(mymodel):
+            if maskField(field):
                 pass  # nothing
             elif ordinalField(mymodel, field):
                 self.fields[field.name + '_operator'] = \
@@ -63,7 +62,7 @@ class SearchForm(forms.Form):
                     self.fields[field.name + '_lo'] = forms.IntegerField(required=False)
                     self.fields[field.name + '_hi'] = forms.IntegerField(required=False)                
                 
-            elif isinstance(field, (fields.CharField, fields.TextField)) or isOrdinalOveridden(mymodel, field):
+            elif isinstance(field, (fields.AutoField, fields.CharField, fields.TextField)) or isOrdinalOveridden(mymodel, field):
                 self.fields[field.name + '_operator'] = \
                     forms.ChoiceField(choices=stringOperators,
                                       initial=stringOperators[0][0],
@@ -225,7 +224,7 @@ class SortForm(forms.Form):
         self.model = mymodel
         sortingfields = []
         for x in modelFields(mymodel):
-            if isinstance(x, fields.AutoField) or maskField(x):
+            if maskField(x):
                 pass
             elif ordinalField(self.model, x):
                 if x.verbose_name != "":
@@ -285,7 +284,7 @@ class AxesForm(forms.Form):
             seriesablefields = []
 
             for x in mfields:
-                if ((not isinstance(x, (fields.AutoField, GenericForeignKey, VirtualField))) and
+                if ((not isinstance(x, (GenericForeignKey, VirtualField))) and
                     (not ordinalField(x.model, x)) and
                     (not maskField(x)) and
                     (not isAbstract(x.model)) and
