@@ -83,7 +83,7 @@
 	} else {
 		document.QueryForm.action = "{% url 'xgds_data_searchChosenModel' module model 'expert' %}";
 	}
-    document.QueryForm["fnctn"].value = 'query';
+    document.QueryForm["fnctn"].value = 'change';
     document.QueryForm.submit();
   }
 
@@ -392,7 +392,7 @@ $('select').change(clearResults);
 			<input type="submit" value="Next" id="nextpage" disabled />
 		{% endif %}
 
-{% elif formset.cleaned_data %}
+{% elif count %}
 	<HR>
 	No records match 
 {% endif %}

@@ -409,6 +409,9 @@ def searchChosenModel(request, moduleName, modelName, expert=False):
             more = queryStart + len(results) < totalCount
         else:
             debug = formset.errors
+    elif (mode == 'change'):
+        formCount = int(data['form-TOTAL_FORMS'])
+        formset = tmpFormSet(data)
     else:
         formset = tmpFormSet()
         
