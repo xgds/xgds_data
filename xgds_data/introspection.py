@@ -28,30 +28,16 @@ def settingsForModel(settng, model):
     return mysettings
 
 
-def settingApplies(settng, field):
-    """
-    Does the setting list this field?
-    """
-    for model in field.model.__mro__:
-        try:
-            if field.name in settng.get(model._meta.app_label).get(model._meta.object_name):
-                return True
-        except:
-            pass
-        
-    return False
-
-
 def modelFields(model):
     """
     Retrieve the fields associated with the given model
     """
     fields = model._meta.fields + model._meta.many_to_many + model._meta.virtual_fields
-    for throughFieldName, relName, relVerboseName in settingsForModel(settings.XGDS_DATA_EXPAND_RELATED, model):
-        try:
+    try:
+        for throughFieldName, relName, relVerboseName in settingsForModel(settings.XGDS_DATA_EXPAND_RELATED, model):
             fields = fields + [ VirtualField(throughFieldName,relName, relVerboseName) ]
-        except:
-            print('Error ',throughFieldName)
+    except:
+        pass
 
     return fields
 
@@ -101,7 +87,7 @@ def maskField(field):
         pass
     
     try:
-        return settingApplies(settings.XGDS_DATA_MASKED_FIELDS, field)
+        return field.name in settingsForModel(settings.XGDS_DATA_MASKED_FIELDS, field.model)
     except:
         return False
 
@@ -111,8 +97,9 @@ def isOrdinalOveridden(model, field):
     Is this a field that looks ordinal, but isn't really?
     """
     try:
-        return settingApplies(settings.XGDS_DATA_NONORDINAL_FIELDS, model, field)
+        return field.name in settingsForModel(settings.XGDS_DATA_NONORDINAL_FIELDS, model)
     except:
+        print('Error on',field)
         return False
 
 def ordinalField(model, field):
