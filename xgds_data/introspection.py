@@ -12,12 +12,48 @@ except:
 from django.db.models import get_app
 from django.db.models import fields
 from xgds_data import settings
+from xgds_data.models import VirtualField
+
+def settingsForModel(settng, model):
+    """
+    Does the setting list this field?
+    """
+    mysettings = []
+    for amodel in model.__mro__:
+        try:
+            mysettings = mysettings + settng.get(amodel._meta.app_label).get(amodel._meta.object_name)
+        except:
+            pass
+        
+    return mysettings
+
+
+def settingApplies(settng, field):
+    """
+    Does the setting list this field?
+    """
+    for model in field.model.__mro__:
+        try:
+            if field.name in settng.get(model._meta.app_label).get(model._meta.object_name):
+                return True
+        except:
+            pass
+        
+    return False
+
 
 def modelFields(model):
     """
     Retrieve the fields associated with the given model
     """
-    return model._meta.fields + model._meta.many_to_many
+    fields = model._meta.fields + model._meta.many_to_many + model._meta.virtual_fields
+    for throughFieldName, relName, relVerboseName in settingsForModel(settings.XGDS_DATA_EXPAND_RELATED, model):
+        try:
+            fields = fields + [ VirtualField(throughFieldName,relName, relVerboseName) ]
+        except:
+            print('Error ',throughFieldName)
+
+    return fields
 
 
 def isAbstract(model):
@@ -54,20 +90,7 @@ def resolveField(model, fieldName):
     return None
 
 
-def settingApplies(settng, model, field):
-    """
-    Does the setting list this field?
-    """
-    for moduleName in settng:
-        for modelName in settng.get(moduleName):
-            for cfieldName in settng.get(moduleName).get(modelName):
-                if (cfieldName == field.name) and issubclass(model,resolveModel(moduleName,modelName)):
-                    return True
-    
-    return False
-
-
-def maskField(model, field):
+def maskField(field):
     """
     Should we omit this field from search and display?
     """
@@ -78,7 +101,7 @@ def maskField(model, field):
         pass
     
     try:
-        return settingApplies(settings.XGDS_DATA_MASKED_FIELDS, model, field)
+        return settingApplies(settings.XGDS_DATA_MASKED_FIELDS, field)
     except:
         return False
 

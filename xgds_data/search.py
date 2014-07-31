@@ -13,7 +13,7 @@ from operator import itemgetter
 
 from django import forms
 from django.db import connection
-from django.db.models import Q
+from django.db.models import Q,Field
 from django.db.models.fields import PositiveIntegerField, PositiveSmallIntegerField
 from django.db.models.fields.related import OneToOneField, ManyToManyField, RelatedField
 
@@ -392,7 +392,7 @@ def pageLimits(page, pageSize):
     """
     return ((page - 1)* pageSize, page * pageSize)
 
-
+from xgds_data.models import VirtualField
 def getResults(myModel, softFilter, scorer = None, queryStart = 0, queryEnd = None, minCount = None):
     """
     Get the query results as dicts, so relevance scores can be included
@@ -410,8 +410,8 @@ def getResults(myModel, softFilter, scorer = None, queryStart = 0, queryEnd = No
         return (aggresults, aggcount)
     else:
         query = myModel.objects.filter(softFilter)
-        # queryFields = [x.name for x in modelFields(myModel) if not maskField(myModel,x) ]
-        deferFields = [x.name for x in modelFields(myModel) if maskField(myModel,x) ]
+        # queryFields = [x.name for x in modelFields(myModel) if not maskField(x) ]
+        deferFields = [x.name for x in modelFields(myModel) if maskField(x) and isinstance(x,Field) ]
         if scorer:
             countquery = query.extra(where=['%s >= %s' % (scorer, sortThreshold())])
             totalCount = countquery.count()

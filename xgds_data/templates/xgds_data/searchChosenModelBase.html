@@ -324,7 +324,7 @@ $('select').change(clearResults);
 	{% endif %}
 	<th>Record</th>
 	  {% for x in displayFields %}
-	  <th>{{ x.verbose_name }}</th>
+	  <th>{{ x|verbose_name }}</th>
 	  {% endfor %}
 	  </tr>
 	  </thead>
@@ -360,7 +360,7 @@ $('select').change(clearResults);
 	     {% endif %}
 	   <td>{{result}}</td>
  	 {% for x in displayFields %}
-	  {% with myval=result|getattribute:x.name %}
+	  {% with myval=result|getattribute:x %}
 	   <TD >
 	     <SPAN {% if myval|isNumeric %}style="white-space:nowrap;"{% endif %}>
 	  	{{ x|display:myval }}

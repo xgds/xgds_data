@@ -9,6 +9,7 @@ from django.db.models import fields
 from django.utils.safestring import mark_safe
 from django.db.models.fields.related import RelatedField
 from django.forms.widgets import RadioSelect, TextInput
+from django.contrib.contenttypes.generic import GenericForeignKey
 
 from xgds_data import settings
 from xgds_data.introspection import modelFields, maskField, isOrdinalOveridden, isAbstract, pk, ordinalField
@@ -40,7 +41,7 @@ class SearchForm(forms.Form):
                            ('!=', '!='))
         for field in modelFields(mymodel):
             if isinstance(field, (fields.AutoField, fields.files.FileField)) \
-                    or maskField(mymodel, field) or field is pk(mymodel):
+                    or maskField(field) or field is pk(mymodel):
                 pass  # nothing
             elif ordinalField(mymodel, field):
                 self.fields[field.name + '_operator'] = \
@@ -224,7 +225,7 @@ class SortForm(forms.Form):
         self.model = mymodel
         sortingfields = []
         for x in modelFields(mymodel):
-            if isinstance(x, fields.AutoField) or maskField(mymodel, x):
+            if isinstance(x, fields.AutoField) or maskField(x):
                 pass
             elif ordinalField(self.model, x):
                 if x.verbose_name != "":
@@ -264,6 +265,7 @@ def SpecializedForm(formModel, myModel):
     return tmpFormClass
 
 
+from xgds_data.models import VirtualField
 class AxesForm(forms.Form):
     """
     Dynamically creates the form to choose the axes and series of a corresponding plot
@@ -273,7 +275,7 @@ class AxesForm(forms.Form):
         forms.Form.__init__(self, *args, **kwargs)
         chartablefields = []
         for x in mfields:
-            if ordinalField(x.model, x) and (not maskField(x.model, x)):
+            if (not isinstance(x, VirtualField)) and ordinalField(x.model, x) and (not maskField(x)):
                 chartablefields.append(x)
         if (seriesablefields is None):
             try:
@@ -283,9 +285,9 @@ class AxesForm(forms.Form):
             seriesablefields = []
 
             for x in mfields:
-                if ((not isinstance(x, fields.AutoField)) and
+                if ((not isinstance(x, (fields.AutoField, GenericForeignKey, VirtualField))) and
                     (not ordinalField(x.model, x)) and
-                    (not maskField(x.model, x)) and
+                    (not maskField(x)) and
                     (not isAbstract(x.model)) and
                     (x.model.objects.values(x.name).order_by().distinct().count() <= maxseriesable)):
                     seriesablefields.append(x)

@@ -29,6 +29,18 @@ def truncate(val, limit):
         return val[0:(limit - 2)]  # save an extra space because the db seems to want that
 
 
+class VirtualField(models.Field):
+    description = "A hand of cards (bridge style)"
+
+    def __init__(self, throughfield, base_name, base_verbose_name, *args, **kwargs):
+        super(VirtualField, self).__init__(*args, **kwargs)
+        #self.model = basefield.model
+        self.throughfield = throughfield
+        self.name = base_name
+        self.verbose_name = base_verbose_name
+
+
+
 ## taken from http://stackoverflow.com/questions/4581789/how-do-i-get-user-ip-address-in-django
 def get_client_ip(request):
     """

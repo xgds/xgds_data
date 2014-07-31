@@ -301,8 +301,6 @@ def searchHandoff(request, moduleName, modelName, fn, soft = True):
     """
     modelmodule = get_app(moduleName)
     myModel = getattr(modelmodule, modelName)
-    myFields = [x for x in modelFields(myModel) if not maskField(myModel,x) ]
-    displayFields = [x for x in myFields if not (x.primary_key) ]
     tmpFormClass = SpecializedForm(SearchForm, myModel)
     tmpFormSet = formset_factory(tmpFormClass)
     debug = []
@@ -310,7 +308,6 @@ def searchHandoff(request, moduleName, modelName, fn, soft = True):
 
     results = None
 
-    formCount = int(data['form-TOTAL_FORMS'])
     formset = tmpFormSet(data)
     if formset.is_valid():
         scorer = sortFormula(myModel, formset)
@@ -338,7 +335,7 @@ def searchChosenModel(request, moduleName, modelName, expert=False):
     reqlog = recordRequest(request)
     modelmodule = get_app(moduleName)
     myModel = getattr(modelmodule, modelName)
-    myFields = [x for x in modelFields(myModel) if not maskField(myModel,x) ]
+    myFields = [x for x in modelFields(myModel) if not maskField(x) ]
     displayFields = [x for x in myFields if not (getattr(x,'primary_key',None)) ]
     tmpFormClass = SpecializedForm(SearchForm, myModel)
     tmpFormSet = formset_factory(tmpFormClass)
@@ -451,6 +448,7 @@ def searchChosenModel(request, moduleName, modelName, expert=False):
             axesform = AxesForm(displayFields, qd)
         template = resolveSetting('XGDS_DATA_SEARCH_TEMPLATES', myModel, 'xgds_data/searchChosenModel.html')
         checkable = resolveSetting('XGDS_DATA_CHECKABLE', myModel, False)
+
         return log_and_render(request, reqlog, template,
                               {'title': 'Search ' + modelName,
                                'module': moduleName,
@@ -510,7 +508,7 @@ def plotQueryResults(request, moduleName, modelName, start, end, soft=True):
     reqlog = recordRequest(request)
     modelmodule = __import__('.'.join([moduleName, 'models'])).models
     myModel = getattr(modelmodule, modelName)
-    myFields = [ x for x in modelFields(myModel) if not maskField(myModel,x) ]
+    myFields = [ x for x in modelFields(myModel) if not maskField(x) ]
     tmpFormClass = SpecializedForm(SearchForm, myModel)
     tmpFormSet = formset_factory(tmpFormClass)
     data = request.REQUEST
