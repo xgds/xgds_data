@@ -15,10 +15,11 @@ from django import forms
 from django.db import connection
 from django.db.models import Q,Field
 from django.db.models.fields import PositiveIntegerField, PositiveSmallIntegerField
-from django.db.models.fields.related import OneToOneField, ManyToManyField, RelatedField
+from django.contrib.contenttypes.generic import GenericForeignKey
 
-from xgds_data.introspection import modelFields, resolveField, maskField, isAbstract, concreteDescendents, pk
-from xgds_data.models import cacheStatistics
+from xgds_data.introspection import modelFields, resolveField, maskField, isAbstract, concreteDescendents, \
+    pk, db_table, isgeneric
+from xgds_data.models import cacheStatistics, VirtualIncludedField
 if cacheStatistics():
     from xgds_data.models import ModelStatistic
 from xgds_data.DataStatistics import tableSize, segmentBounds, nextPercentile
@@ -67,11 +68,32 @@ def walkQ(qstmt):
         return '1 != 1'
 
 
-def makeFilters(formset, soft=True):
+def genericArguments(model, formset, soft=True):
     """
-    Helper for searchChosenModel; figures out restrictions given a formset
+    Gets the portion of a formset that applies to generic pointers
+    """
+    mfields = dict([ (f.name,f) for f in modelFields(model)  ])    
+    fdict = dict()
+    for form in formset:
+        for fieldname, fieldval in form.cleaned_data.iteritems():
+            if (fieldname.endswith('_lo') or fieldname.endswith('_hi')):
+                fieldname = fieldname[:-3]
+
+            mf = mfields.get(fieldname)
+            if (mf is not None) and isgeneric(mf) and (fieldval is not None):
+                for tm in mf.throughModels():
+                    if not fdict.has_key(mf):
+                        fdict[mf] = set()
+                    fdict[mf].add(tm)
+    return(fdict)
+
+
+def makeFilters(model, formset, soft=True):
+    """
+    Helper for getMatches; figures out restrictions given a formset
     """
     filters = None
+    mfields = dict([ (f.name,f) for f in modelFields(model)  ])
     ##if (threshold == 1):
     ##    filters = None
     ##else:
@@ -79,71 +101,83 @@ def makeFilters(formset, soft=True):
     ## forms are interpreted as internally conjunctive, externally disjunctive
     for form in formset:
         subfilter = Q()
-        for field in form.cleaned_data:
-            if form.cleaned_data[field] is not None:
-                clause = None
-                negate = False
-                if field.endswith('_operator'):
-                    pass
-                elif (field.endswith('_lo') or field.endswith('_hi')):
-                    base = field[:-3]
-                    loval = form.cleaned_data[base + '_lo']
-                    hival = form.cleaned_data[base + '_hi']
-                    operator = form.cleaned_data[base + '_operator']
-                    if soft and (operator == 'IN~'):
-                        ## this isn't a restriction, so ignore
+        for fieldname in form.cleaned_data:
+            fieldval = form.cleaned_data[fieldname]
+            fieldoperator = form.cleaned_data.get(fieldname + '_operator')
+            formfield = form[fieldname].field
+            basename = fieldname
+            if (basename.endswith('_lo') or basename.endswith('_hi')):
+                basename = basename[:-3]
+            mf = mfields.get(basename)
+            if mf is None:
+                pass
+            else:
+                if isinstance(mf,VirtualIncludedField):
+                    fieldname = mf.throughfield_name+'__'+fieldname
+                if (fieldval is not None) and (not isgeneric(mf)):
+                    clause = None
+                    negate = False
+                    if fieldname.endswith('_operator'):
                         pass
-                    else:
-                        negate = form.cleaned_data[base + '_operator'] == 'NOT IN'
-                        if (loval is not None and hival is not None):
-                            if loval > hival:
-                                ## hi and lo are reversed, assume that is a mistake
-                                swap = loval
-                                loval = hival
-                                hival = swap
-                            if field.endswith('_lo'):
-                                ## range query- handle on _lo to prevent from doing it twice
-                                ## this aren't simple Q objects so don't set clause variable
-                                if negate:
-                                    negate = False
-                                    subfilter &= (Q(**{base + '__lt': loval}) |
-                                                  Q(**{base + '__gt': hival}))
-                                else:
-                                    subfilter &= (Q(**{base + '__gte': loval}) &
-                                                  Q(**{base + '__lte': hival}))
-                        elif loval is not None:
-                            clause = Q(**{base + '__gte': loval})
-                        elif hival is not None:
-                            clause = Q(**{base + '__lte': hival})
-                elif isinstance(form[field].field, forms.ModelMultipleChoiceField):
-                    clause = Q(**{field + '__in': form.cleaned_data[field]})
-                    negate = form.cleaned_data[field + '_operator'] == 'NOT IN'
-                elif isinstance(form[field].field, forms.ModelChoiceField):
-                    negate = form.cleaned_data[field + '_operator'] == '!='
-                    clause = Q(**{field + '__exact': form.cleaned_data[field]})
-                elif isinstance(form[field].field, forms.ChoiceField):
-                    negate = form.cleaned_data[field + '_operator'] == '!='
-                    if form.cleaned_data[field] == 'True':
-                        ## True values appear to be represented as numbers greater than 0
-                        clause = Q(**{field + '__gt': 0})
-                    elif form.cleaned_data[field] == 'False':
-                        ## False values appear to be represented as 0
-                        clause = Q(**{field + '__exact': 0})
-                else:
-                    operator = form.cleaned_data[field + '_operator']
-                    if form.cleaned_data[field] is None or re.match("\s*$",form.cleaned_data[field]):
-                        pass
-                    else:
-                        if (operator == '=~'):
+                    elif (fieldname.endswith('_lo') or fieldname.endswith('_hi')):
+                        loval = form.cleaned_data[basename + '_lo']
+                        hival = form.cleaned_data[basename + '_hi']
+                        fieldoperator = form.cleaned_data[basename + '_operator']
+                        if isinstance(mf,VirtualIncludedField):
+                            basename = mf.throughfield_name+'__'+basename
+                        if soft and (fieldoperator == 'IN~'):
+                            ## this isn't a restriction, so ignore
                             pass
                         else:
-                            negate = (operator == '!=')
-                            clause = Q(**{field + '__icontains': form.cleaned_data[field]})
-                if clause:
-                    if negate:
-                        subfilter &= ~clause
+                            negate = fieldoperator == 'NOT IN'
+                            if (loval is not None and hival is not None):
+                                if loval > hival:
+                                    ## hi and lo are reversed, assume that is a mistake
+                                    swap = loval
+                                    loval = hival
+                                    hival = swap
+                                if fieldname.endswith('_lo'):
+                                    ## range query- handle on _lo to prevent from doing it twice
+                                    ## this aren't simple Q objects so don't set clause variable
+                                    if negate:
+                                        negate = False
+                                        subfilter &= (Q(**{basename + '__lt': loval}) |
+                                                      Q(**{basename + '__gt': hival}))
+                                    else:
+                                        subfilter &= (Q(**{basename + '__gte': loval}) &
+                                                      Q(**{basename + '__lte': hival}))
+                            elif loval is not None:
+                                clause = Q(**{basename + '__gte': loval})
+                            elif hival is not None:
+                                clause = Q(**{basename + '__lte': hival})
+                    elif isinstance(formfield, forms.ModelMultipleChoiceField):
+                        negate = fieldoperator == 'NOT IN'
+                        clause = Q(**{fieldname + '__in': fieldval})
+                    elif isinstance(formfield, forms.ModelChoiceField):
+                        negate = fieldoperator == '!='
+                        clause = Q(**{fieldname + '__exact': fieldval})
+                    elif isinstance(formfield, forms.ChoiceField):
+                        negate = fieldoperator == '!='
+                        if fieldval == 'True':
+                            ## True values appear to be represented as numbers greater than 0
+                            clause = Q(**{fieldname + '__gt': 0})
+                        elif fieldval == 'False':
+                            ## False values appear to be represented as 0
+                            clause = Q(**{fieldname + '__exact': 0})
                     else:
-                        subfilter &= clause
+                        if fieldval is None or re.match("\s*$",fieldval):
+                            pass
+                        else:
+                            if (fieldoperator == '=~'):
+                                pass
+                            else:
+                                negate = (fieldoperator == '!=')
+                                clause = Q(**{fieldname + '__icontains': fieldval})
+                    if clause:
+                        if negate:
+                            subfilter &= ~clause
+                        else:
+                            subfilter &= clause
         if filters:
             filters |= subfilter
         else:
@@ -183,10 +217,11 @@ def randomSample(model, expression, size, offset=None, limit=None):
     """
     Selects a random set of records, assuming even distibution of ids; not very Django-y
     """
-    table = model._meta.db_table
+    table = db_table(model)
+    ##pkname = dbFieldRef(pk(model)) # blows up the USING clause, apparently
     pkname = pk(model).attname
     randselect = 'SELECT {1} from {0} WHERE {2} IS NOT NULL ORDER BY RAND() limit {3}'.format(table, pkname, expression, size)
-    ## turns out mysql has a direct way of selecting random ways; below is a more complicated way that requires
+    ## turns out mysql has a direct way of selecting random rows; below is a more complicated way that requires
     ## consecutive ids, etc
     #randselect = '(SELECT CEIL(RAND() * (SELECT MAX({1}) FROM {0})) AS {1} from {0} limit {2})'.format(table, pkname, size)
     if offset is None or limit is None:
@@ -236,14 +271,17 @@ def medianEval(model, expression, size):
         sampleSize = min(size, 1000)
         result = ()
         triesLeft = 100
+        ## not sure why, but sometimes nothing is returned
         while (len(result) == 0) and (triesLeft > 0):
-            ## not sure why, but sometimes nothing is returned
-            result = randomSample(model, expression, sampleSize, sampleSize / 2, 1)
+            ## trying to pick the middle in advance is too risky because we may not get back as many as expected
+            ## (for instance, when the field value is sometimes NULL)
+            ## result = randomSample(model, expression, sampleSize), sampleSize / 2, 1)            
+            result = randomSample(model, expression, sampleSize)
             triesLeft = triesLeft - 1
         if len(result) == 0:
             return None
         else:
-            return result[0][0]
+            return result[int((len(result)-1)/2)][0]
 
 
 def medianRangeEval(model, field, lorange, hirange, size, fieldRef):
@@ -274,7 +312,12 @@ def dbFieldRef(field):
     """
     return the alias for this field in the database query
     """
-    return field.model._meta.db_table + '.' + field.attname
+    ##if isinstance(field,VirtualIncludedField):
+    try:
+        return db_table(field.targetFields()[0].model) + '.' + field.name
+    except:
+    ##else:
+        return db_table(field.model) + '.' + field.attname
 
 
 def autoweight(model, field, lorange, hirange, tableSize):
@@ -295,7 +338,7 @@ def autoweight(model, field, lorange, hirange, tableSize):
     return 1
 
 
-def scoreNumeric(model, field, lorange, hirange, tsize):
+def scoreNumeric(field, lorange, hirange, tsize):
     """
     provide a score for a numeric clause that ranges from 1 (best) to 0 (worst)
     """
@@ -309,7 +352,11 @@ def scoreNumeric(model, field, lorange, hirange, tsize):
     if (unsigned):
         fieldRef = "cast({0} as SIGNED)".format(fieldRef)
     # median = medianEval(field.model, baseScore(fieldRef, lorange, hirange), tsize)
-    median = medianRangeEval(field.model, field, lorange, hirange, tsize, fieldRef)
+    try:
+        tf = field.targetFields()[0]
+        median = medianRangeEval(tf.model, tf, lorange, hirange, tsize, fieldRef)
+    except:
+        median = medianRangeEval(field.model, field, lorange, hirange, tsize, fieldRef)
     if median is None:
         return '1'
     elif median == 0:
@@ -348,8 +395,15 @@ def desiredRanges(frms):
                 elif operator == '=~':
                     print('what is ',operator)
                 else:
-                    None
+                    pass
     return desiderata
+
+
+def ishard(frms):
+    """
+    Does the query lack soft constraints?
+    """
+    return (len(desiredRanges(frms)) == 0)
 
 
 def sortFormula(model, formset):
@@ -359,6 +413,21 @@ def sortFormula(model, formset):
     return sortFormulaRanges(model, desiredRanges(formset))
 
 
+def totalweight(model, formset):
+    """
+    Counts how many ranges count against this model
+    """
+    desiderata = desiredRanges(formset)
+    tw = 0
+    for b in desiderata.keys():
+        field = resolveField(model, b)
+        if (field is None) or isgeneric(field):
+            pass
+        else:
+            tw = tw + 1
+    return tw
+                
+                
 def sortFormulaRanges(model, desiderata):
     """
     Helper for searchChosenModel; comes up with a formula for ordering the results
@@ -367,13 +436,23 @@ def sortFormulaRanges(model, desiderata):
         tsize = tableSize(model)
 #        weights = dict([(b,autoweight(model, resolveField(model, b), desiderata[b][0], desiderata[b][1], tsize)) \
 #                              for b in desiderata.keys()])
-        totalweight = len(desiderata)
+        # totalweight = len(desiderata)
 #        for w in weights.values():
 #            totalweight = totalweight + w
-        scores = dict([(b,scoreNumeric(model, resolveField(model, b), desiderata[b][0], desiderata[b][1], tsize)) \
-                              for b in desiderata.keys()])
-        formula = ' + '.join([scores[b] for b in desiderata.keys()])
-        return '({0})/{1} '.format(formula, totalweight)  # scale to have a max of 1
+        scores = dict()
+        for b in desiderata.keys():
+            field = resolveField(model, b)
+            if (field is None) or isgeneric(field):
+                pass
+            else:
+                scores[b] = scoreNumeric(field, desiderata[b][0], desiderata[b][1], tsize)
+#        scores = dict([(b,scoreNumeric(resolveField(model, b), desiderata[b][0], desiderata[b][1], tsize)) \
+#                              for b in desiderata.keys()])
+        if len(scores) == 0:
+            return None
+        else:
+            formula = ' + '.join([x for x in scores.itervalues()])
+            return '({0})/{1} '.format(formula, len(scores))  # scale to have a max of 1
     else:
         return None
 
@@ -392,31 +471,73 @@ def pageLimits(page, pageSize):
     """
     return ((page - 1)* pageSize, page * pageSize)
 
-from xgds_data.models import VirtualField
-def getResults(myModel, softFilter, scorer = None, queryStart = 0, queryEnd = None, minCount = None):
+
+def getCount(myModel, formset, soft):
+    """
+    Get the query results as dicts, so relevance scores can be included
+    """
+    return getMatches(myModel, formset, soft, countOnly = True)
+
+
+## formerly getResults
+def getMatches(myModel, formset, soft, queryStart = 0, queryEnd = None, minCount = None, countOnly = False, threshold = None):
     """
     Get the query results as dicts, so relevance scores can be included
     """
     #results = []
+    myfilter = makeFilters(myModel, formset, soft)
+    if soft:
+        scorer = sortFormula(myModel, formset)
+    else:
+        scorer = None
+
     if isAbstract(myModel):
         aggresults = []
         aggcount = 0
         for subm in concreteDescendents(myModel):
-            subresults, subcount = getResults(subm, softFilter, scorer = scorer, queryStart = 0, queryEnd = queryEnd, minCount = minCount)
+            subresults, subcount = getMatches(subm, myfilter, soft, queryStart = 0, queryEnd = queryEnd, minCount = minCount)
             aggcount = aggcount + subcount
             aggresults = aggresults + subresults
         aggresults = sorted(aggresults,key=itemgetter('score'), reverse=True)
         aggresults = aggresults[queryStart:]
         return (aggresults, aggcount)
     else:
-        query = myModel.objects.filter(softFilter)
-        # queryFields = [x.name for x in modelFields(myModel) if not maskField(x) ]
-        deferFields = [x.name for x in modelFields(myModel) if maskField(x) and isinstance(x,Field) ]
+        ## not retrieving GenericKey fields may just mean we end up
+        ## loading them one at a time, later, so don't defer those
+        ## This might be too loose (e.g., if the GenericKey is not used
+        cantDefer = []
+        for x in modelFields(myModel):
+            if isinstance(x,GenericForeignKey):
+                cantDefer.extend([x.ct_field,x.fk_field])
+        deferFields = [x.name for x in modelFields(myModel) if maskField(x) and isinstance(x,Field) and x.name not in cantDefer ]
+        
+        gargs = genericArguments(myModel, formset, soft)
+        gmatches = dict()
+        gweights = dict()
+        for gfield in gargs.keys():
+            for gmodel in gargs[gfield]:
+                gresults = dict()
+                for m in getMatches(gmodel, formset, soft, threshold = 0)[0]:
+                    gresults[m.pk] = m.score
+                gmatches[gfield] = gresults
+                gweights[gfield] = totalweight(gmodel, formset)
+                #print(gmodel, soft, countOnly, len(gresults.keys()))
+        processGeneric = len(gmatches.keys()) > 0
+        
+        query = myModel.objects.filter(myfilter)
+        query = query.defer(*deferFields)
+        if threshold is None:
+            threshold = sortThreshold()
+
         if scorer:
-            countquery = query.extra(where=['%s >= %s' % (scorer, sortThreshold())])
-            totalCount = countquery.count()
+            if processGeneric:
+                totalCount = None # we need to do the full query to get the count
+            else:
+                countquery = query.extra(where=['%s >= %s' % (scorer, threshold) ])
+                totalCount = countquery.count()
+                
             query = query.extra(select={'score': scorer}, order_by=['-score'])
-            if (minCount is not None) and (totalCount < minCount):
+            if (minCount is not None) and (totalCount is not None) and (totalCount < minCount):
                 ## this only makes sense if it's an approximate count
                 ## and that approximate count is too low
                 totalCount = minCount
@@ -424,67 +545,53 @@ def getResults(myModel, softFilter, scorer = None, queryStart = 0, queryEnd = No
             query = query.extra(select={'score': 1})
             # hardCount = query.count()
             if minCount is None:
-                totalCount = query.count()
+                if processGeneric:
+                    totalCount = None # we need to do the full query to get the count
+                else:
+                    totalCount = query.count()
             else:
                 totalCount = minCount
 
-        query = query.defer(*deferFields)    
-#        queryFields.append('score')
-#        qvalues = query.values(*queryFields)
-    
-        if queryEnd:
-            queryEnd = min(totalCount,queryEnd)
+        if processGeneric:
+            myweight = totalweight(myModel, formset)
+            rescore = dict()
+            for x in query:
+                myscore = getattr(x,'score')
+                mysum = myweight*myscore
+                maxsum = myweight
+                valid = True
+                for gfield, gresults in gmatches.iteritems():
+                    gid = getattr(x,gfield.throughfield_name).pk
+                    gweight = gweights[gfield]
+                    gscore = gresults.get(gid)
+                    if gscore is not None:
+                        mysum = mysum + gweight*gscore
+                        maxsum = maxsum + gweight
+                    else:
+                        valid = False
+                if not valid:
+                    rescore[x] = 0
+                elif mysum == maxsum:
+                    rescore[x] = 1
+                else:
+                    rescore[x] = mysum/maxsum
+            query = [x[0] for x in sorted(rescore.iteritems(), key=itemgetter(1),reverse=True)]
+            for x in query:
+                setattr(x,'score',rescore[x])
+            query = [x for x in query if getattr(x,'score') >= threshold ]
+            totalCount = len(query)
+
+        if (countOnly):
+            return totalCount
         else:
-            queryEnd = totalCount
-        
-        query = query[queryStart:queryEnd]
-        # qvalues = qvalues[queryStart:queryEnd]
-        
-        return (query, totalCount)
-    
-#        foreigners = dict([ (f, set()) for f in modelFields(myModel) if isinstance(f,RelatedField)])
-#        for d in qvalues:
-#            for k in iter(foreigners):
-#                try:
-#                    relatives = d[k.name]
-#                except KeyError:
-#                    pass  # it's ok if that key is missing
-#                else:
-#                    try:
-#                        iterator = iter(relatives)
-#                        assert not isinstance(relatives, basestring)
-#                    except (TypeError, AssertionError):
-#                        # not iterable
-#                        foreigners[k].add(relatives)
-#                    else:
-#                        for f in iterator:
-#                            foreigners[k].add(f)
-#                
-#        for f in iter(foreigners):
-#            relf = f.rel.get_related_field()
-#            objects = relf.model.objects.filter(**{relf.attname + '__in': foreigners[f]})
-#            foreigners[f] = dict([(getattr(x,relf.name),x) for x in objects])
-#            
-#        for d in qvalues:
-#            resultd = d.copy()
-#            resultd['__class__'] = myModel
-#            for f in iter(foreigners):
-#                if f.name in resultd:
-#                    try:
-#                        resultd[f.name] = foreigners[f][resultd[f.name] ]
-#                    except KeyError:
-#                        del resultd[f.name] # presumably this means something is not consistent in the model, it does happen
-#    
-#            modeld = dict( [ (f.name,resultd[f.name]) \
-#                                 for f in modelFields(myModel) \
-#                                 if f.name in resultd \
-#                                 ## yuk... but something goes wrong insert M2MF
-#                                 and not isinstance(f,ManyToManyField) ] )
-#            instance = myModel(**modeld)
-#            resultd['__instance__'] = instance
-#            resultd['__string__'] = str(instance)
-#            results.append( resultd )
-#        return (results, totalCount)
+            if queryEnd:
+                queryEnd = min(totalCount,queryEnd)
+            else:
+                queryEnd = totalCount
+            query = query[queryStart:queryEnd]
+            # qvalues = qvalues[queryStart:queryEnd]
+            
+            return (query, totalCount)
 
 
 ## The following is experimental and not currently in use

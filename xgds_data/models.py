@@ -9,9 +9,12 @@ from datetime import datetime
 from django.db import models
 from django.contrib.auth.models import User
 from django.http import HttpRequest
+from django.contrib.contenttypes.generic import ContentType, GenericForeignKey
 
 from xgds_data import settings
 from xgds_data.logconfig import logEnabled
+from xgds_data.introspection import modelFields
+#import xgds_data.introspection
 
 
 def cacheStatistics():
@@ -29,17 +32,42 @@ def truncate(val, limit):
         return val[0:(limit - 2)]  # save an extra space because the db seems to want that
 
 
-class VirtualField(models.Field):
-    description = "A hand of cards (bridge style)"
+class VirtualIncludedField(models.Field):
+    description = "Including fields from a linked object as if they were your own"
 
-    def __init__(self, throughfield, base_name, base_verbose_name, *args, **kwargs):
-        super(VirtualField, self).__init__(*args, **kwargs)
-        #self.model = basefield.model
-        self.throughfield = throughfield
+    def __init__(self, mymodel, throughfield_name, base_name, base_verbose_name, *args, **kwargs):
+        super(VirtualIncludedField, self).__init__(*args, **kwargs)
+        self.model = mymodel
+        self.throughfield_name = throughfield_name
         self.name = base_name
         self.verbose_name = base_verbose_name
 
+    def throughModels(self):
+        match = None
+        for f in modelFields(self.model):
+            if f.name == self.throughfield_name:
+                match = f
+        if (match is not None):
+            try: 
+                throughmodels = [ ContentType.objects.get_for_id(x[0]).model_class() \
+                             for x in self.model.objects.values_list(match.ct_field).distinct() ]
+            except: ## not a GenericForeignKey
+                ## this route has never been tested
+                throughmodels = [ match.rel.to ]
+            return throughmodels
+        else:
+            return []
 
+    def targetFields(self):
+        targets = []
+        for tm in self.throughModels():
+            for tmf in modelFields(tm):
+                if tmf.name == self.name:
+                    targets.append(tmf)
+        return targets
+
+    def isgeneric(self):
+        return True
 
 ## taken from http://stackoverflow.com/questions/4581789/how-do-i-get-user-ip-address-in-django
 def get_client_ip(request):

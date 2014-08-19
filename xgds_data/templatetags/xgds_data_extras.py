@@ -12,7 +12,7 @@ numeric_test = re.compile(r'^[\.\-Ee\d]+$')
 register = template.Library()
 
 from django.db import models
-from xgds_data.models import VirtualField
+from xgds_data.models import VirtualIncludedField
 
 
 # http://stackoverflow.com/questions/844746/performing-a-getattr-style-lookup-in-a-django-template
@@ -24,10 +24,10 @@ def getattribute(value, arg):
         v = value[arg]
     elif integer_test.match(str(arg)) and len(value) > int(arg):
         v = value[int(arg)]
-    elif isinstance(arg,VirtualField):
+    elif isinstance(arg,VirtualIncludedField):
         try:
             #throughInstance = arg.throughfield.__get__(value);
-            throughInstance = getattr(value,arg.throughfield)
+            throughInstance = getattr(value,arg.throughfield_name)
             includedFieldName = arg.name
             v = getattr(throughInstance,includedFieldName)
         except:

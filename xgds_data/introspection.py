@@ -12,7 +12,8 @@ except:
 from django.db.models import get_app
 from django.db.models import fields
 from xgds_data import settings
-from xgds_data.models import VirtualField
+#from xgds_data.models import VirtualIncludedField
+import xgds_data.models
 
 def settingsForModel(settng, model):
     """
@@ -35,7 +36,7 @@ def modelFields(model):
     fields = model._meta.fields + model._meta.many_to_many + model._meta.virtual_fields
     try:
         for throughFieldName, relName, relVerboseName in settingsForModel(settings.XGDS_DATA_EXPAND_RELATED, model):
-            fields = fields + [ VirtualField(throughFieldName,relName, relVerboseName) ]
+            fields = fields + [ xgds_data.models.VirtualIncludedField(model, throughFieldName, relName, relVerboseName) ]
     except:
         pass
 
@@ -54,6 +55,13 @@ def pk(model):
     return the primary key
     """
     return model._meta.pk
+
+
+def db_table(model):
+    """
+    return the database table for this model
+    """
+    return model._meta.db_table
 
 
 def resolveModel(moduleName, modelName):
@@ -117,11 +125,20 @@ def isOrdinalOveridden(model, field):
         return False
 
 
+## need to make this handle virtual field properly- probably pull out code from form and put in virtual field
 def ordinalField(model, field):
     """
     Does this field support ranges?
     """
-    if isinstance(field, (fields.DateTimeField,
+    if isinstance(field, xgds_data.models.VirtualIncludedField):
+        if isOrdinalOveridden(model,field):
+            return False
+        else:
+            for tmf in field.targetFields():
+                if not ordinalField(tmf.model,tmf):
+                    return False
+            return True
+    elif isinstance(field, (fields.DateTimeField,
                           fields.DecimalField,
                            fields.FloatField,
                            fields.IntegerField,
@@ -151,3 +168,12 @@ def concrete_model(model):
     return model._meta.concrete_model
 
 
+def isgeneric(field):
+    """
+    Is this a generic pointer?
+    """
+    try:
+        return field.isgeneric()
+    except AttributeError:
+        return False
+    

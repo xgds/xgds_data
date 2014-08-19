@@ -9,9 +9,10 @@ from django.db.models import fields
 from django.utils.safestring import mark_safe
 from django.db.models.fields.related import RelatedField
 from django.forms.widgets import RadioSelect, TextInput
-from django.contrib.contenttypes.generic import GenericForeignKey
+from django.contrib.contenttypes.generic import ContentType, GenericForeignKey
 
 from xgds_data import settings
+from xgds_data.models import VirtualIncludedField
 from xgds_data.introspection import modelFields, maskField, isOrdinalOveridden, isAbstract, pk, ordinalField
 # pylint: disable=R0924
 
@@ -23,6 +24,133 @@ class QueryForm(forms.Form):
                                          initial=True)
 
 
+def formFields(mymodel, field, enumerableFields):
+    """
+    Returns a dict of Form fields to add to the form, based on the model field
+    """
+    rangeOperators = (('IN~', 'IN~'),
+                      ('IN', 'IN'),
+                      ('NOT IN', 'NOT IN'))
+    categoricalOperators = (('=', '='),
+                            ('!=', '!='))
+    stringOperators = (#('=~', '=~'),
+                       ('=', '='),
+                       ('!=', '!='))
+    formfields = {}
+    if maskField(field):
+        pass  # nothing
+    elif isinstance(field, VirtualIncludedField):
+        tmfs = field.targetFields()
+        if len(tmfs):
+            ## need to assume all are the same, so just use the first one
+            formfields.update(formFields(tmfs[0].model, tmfs[0], enumerableFields))
+    elif ordinalField(mymodel, field):
+        formfields[field.name + '_operator'] = \
+            forms.ChoiceField(choices=rangeOperators,
+                              initial=rangeOperators[0][0],
+                              required=True)
+        if isinstance(field, fields.DateTimeField):
+            formfields[field.name + '_lo'] = forms.DateTimeField(required=False)
+            formfields[field.name + '_hi'] = forms.DateTimeField(required=False)
+        elif isinstance(field, (fields.DecimalField, fields.FloatField)):
+            formfields[field.name + '_lo'] = forms.FloatField(required=False)
+            formfields[field.name + '_hi'] = forms.FloatField(required=False)
+        elif isinstance(field, fields.PositiveIntegerField):
+            formfields[field.name + '_lo'] = forms.IntegerField(min_value=1,
+                                   required=False)
+            formfields[field.name + '_hi'] = forms.IntegerField(min_value=1,
+                                   required=False)
+        elif isinstance(field, fields.IntegerField):
+            formfields[field.name + '_lo'] = forms.IntegerField(required=False)
+            formfields[field.name + '_hi'] = forms.IntegerField(required=False)                
+        
+    elif isinstance(field, (fields.AutoField, fields.CharField, fields.TextField)) or isOrdinalOveridden(mymodel, field):
+        formfields[field.name + '_operator'] = \
+            forms.ChoiceField(choices=stringOperators,
+                              initial=stringOperators[0][0],
+                              required=True)
+        formfields[field.name] = forms.CharField(required=False)
+    elif isinstance(field, (fields.BooleanField, fields.NullBooleanField)):
+        formfields[field.name + '_operator'] = \
+            forms.ChoiceField(choices=categoricalOperators,
+                              initial=categoricalOperators[0][0],
+                              required=True)
+        formfields[field.name] = \
+            forms.ChoiceField(choices=((None, '<Any>'),
+                                       (True, True),
+                                       (False, False)),
+                              required=False)
+    
+    elif (isinstance(field, fields.related.ForeignKey) or
+          isinstance(field, fields.related.ManyToManyField)):
+        widget = None
+        relModel = field.rel.to
+        if (relModel == 'self'):
+            relModel = field.model
+        
+        if enumerableFields:
+            if (field in enumerableFields):
+                widget = 'pulldown'
+        elif (not isAbstract(relModel)):
+            try:
+                maxpulldown = settings.XGDS_DATA_MAX_PULLDOWNABLE
+            except:
+                maxpulldown = 100
+            if (relModel.objects.count() <= maxpulldown) or \
+                    (not isAbstract(mymodel) and \
+                   (field.model.objects.values(field.name).order_by().distinct().count() <= maxpulldown)):
+                widget = 'pulldown'
+            else:
+                widget = 'textbox'
+            
+        if widget is 'pulldown':
+            formfields[field.name + '_operator'] = \
+                forms.ChoiceField(choices=categoricalOperators,
+                                  initial=categoricalOperators[0][0],
+                                  required=True)
+            # can't use as queryset arg because it needs a queryset, not a list
+            #foreigners = sorted(field.related.parent_model.objects.all(), key=lambda x: unicode(x))
+            qset = field.related.parent_model.objects.all()
+            formfields[field.name] = \
+                forms.ModelChoiceField(queryset=qset,
+                                       initial=qset,
+                                       # order_by('name'),
+                                       empty_label="<Any>",
+                                       required=False)
+        elif widget is 'textbox':
+            formfields[field.name + '_operator'] = \
+                forms.ChoiceField(choices=stringOperators,
+                                  initial=stringOperators[0][0],
+                                  required=True)
+            qset = field.related.parent_model.objects.all()
+            try:
+                to_field = [x for x in modelFields(field.rel.to) if x.name == 'name'][0]
+            except:
+                to_field = pk(field.rel.to)
+            formfields[field.name] = \
+                forms.ModelChoiceField(queryset=qset,
+                                       to_field_name=to_field.name,
+                                       initial=None,
+                                       widget=TextInput,
+                                       required=False)
+            # self.fields[field.name] = forms.CharField(required=False)
+    else:
+        ##self.fields[field.name + '_operator'] = \
+        ##    forms.ChoiceField(choices=categoricalOperators,
+        ##                      initial=categoricalOperators[0][0],
+        ##                      required=True)
+        ## that can't be the right way to get the name
+        longname = '.'.join([field.__class__.__module__,
+                             field.__class__.__name__])
+        print("Search doesn't deal with %s yet" % longname)
+        ## put the field name in as the default just to tell me, the programmer, that this
+        ## class isn't properly dealt with yet.
+        ##self.fields[field.name] = \
+        ##    forms.CharField(initial=longname,
+        ##                    required=False)
+    return formfields
+
+
 class SearchForm(forms.Form):
     """
     Dynamically creates a form to search the given class
@@ -31,153 +159,44 @@ class SearchForm(forms.Form):
         enumerableFields = kwargs.pop('enumerableFields', None)
         forms.Form.__init__(self, *args, **kwargs)
         self.model = mymodel
-        rangeOperators = (('IN~', 'IN~'),
-                          ('IN', 'IN'),
-                          ('NOT IN', 'NOT IN'))
-        categoricalOperators = (('=', '='),
-                                ('!=', '!='))
-        stringOperators = (#('=~', '=~'),
-                           ('=', '='),
-                           ('!=', '!='))
+
         for field in modelFields(mymodel):
-            if maskField(field):
-                pass  # nothing
-            elif ordinalField(mymodel, field):
-                self.fields[field.name + '_operator'] = \
-                    forms.ChoiceField(choices=rangeOperators,
-                                      initial=rangeOperators[0][0],
-                                      required=True)
-                if isinstance(field, fields.DateTimeField):
-                    self.fields[field.name + '_lo'] = forms.DateTimeField(required=False)
-                    self.fields[field.name + '_hi'] = forms.DateTimeField(required=False)
-                elif isinstance(field, (fields.DecimalField, fields.FloatField)):
-                    self.fields[field.name + '_lo'] = forms.FloatField(required=False)
-                    self.fields[field.name + '_hi'] = forms.FloatField(required=False)
-                elif isinstance(field, fields.PositiveIntegerField):
-                    self.fields[field.name + '_lo'] = forms.IntegerField(min_value=1,
-                                           required=False)
-                    self.fields[field.name + '_hi'] = forms.IntegerField(min_value=1,
-                                           required=False)
-                elif isinstance(field, fields.IntegerField):
-                    self.fields[field.name + '_lo'] = forms.IntegerField(required=False)
-                    self.fields[field.name + '_hi'] = forms.IntegerField(required=False)                
-                
-            elif isinstance(field, (fields.AutoField, fields.CharField, fields.TextField)) or isOrdinalOveridden(mymodel, field):
-                self.fields[field.name + '_operator'] = \
-                    forms.ChoiceField(choices=stringOperators,
-                                      initial=stringOperators[0][0],
-                                      required=True)
-                self.fields[field.name] = forms.CharField(required=False)
-            elif isinstance(field, (fields.BooleanField, fields.NullBooleanField)):
-                self.fields[field.name + '_operator'] = \
-                    forms.ChoiceField(choices=categoricalOperators,
-                                      initial=categoricalOperators[0][0],
-                                      required=True)
-                self.fields[field.name] = \
-                    forms.ChoiceField(choices=((None, '<Any>'),
-                                               (True, True),
-                                               (False, False)),
-                                      required=False)
-
-            elif (isinstance(field, fields.related.ForeignKey) or
-                  isinstance(field, fields.related.ManyToManyField)):
-                widget = None
-                relModel = field.rel.to
-                if (relModel == 'self'):
-                    relModel = field.model
-                
-                if enumerableFields:
-                    if (field in enumerableFields):
-                        widget = 'pulldown'
-                elif (not isAbstract(relModel)):
-                    try:
-                        maxpulldown = settings.XGDS_DATA_MAX_PULLDOWNABLE
-                    except:
-                        maxpulldown = 100
-                    if (relModel.objects.count() <= maxpulldown) or \
-                            (not isAbstract(mymodel) and \
-                           (field.model.objects.values(field.name).order_by().distinct().count() <= maxpulldown)):
-                        widget = 'pulldown'
-                    else:
-                        widget = 'textbox'
-                    
-                if widget is 'pulldown':
-                    self.fields[field.name + '_operator'] = \
-                        forms.ChoiceField(choices=categoricalOperators,
-                                          initial=categoricalOperators[0][0],
-                                          required=True)
-                    # can't use as queryset arg because it needs a queryset, not a list
-                    #foreigners = sorted(field.related.parent_model.objects.all(), key=lambda x: unicode(x))
-                    qset = field.related.parent_model.objects.all()
-                    self.fields[field.name] = \
-                        forms.ModelChoiceField(queryset=qset,
-                                               initial=qset,
-                                               # order_by('name'),
-                                               empty_label="<Any>",
-                                               required=False)
-                elif widget is 'textbox':
-                    self.fields[field.name + '_operator'] = \
-                        forms.ChoiceField(choices=stringOperators,
-                                          initial=stringOperators[0][0],
-                                          required=True)
-                    qset = field.related.parent_model.objects.all()
-                    try:
-                        to_field = [x for x in modelFields(field.rel.to) if x.name == 'name'][0]
-                    except:
-                        to_field = pk(field.rel.to)
-                    self.fields[field.name] = \
-                        forms.ModelChoiceField(queryset=qset,
-                                               to_field_name=to_field.name,
-                                               initial=None,
-                                               widget=TextInput,
-                                               required=False)
-                    # self.fields[field.name] = forms.CharField(required=False)
-
-            else:
-                ##self.fields[field.name + '_operator'] = \
-                ##    forms.ChoiceField(choices=categoricalOperators,
-                ##                      initial=categoricalOperators[0][0],
-                ##                      required=True)
-                ## that can't be the right way to get the name
-                longname = '.'.join([field.__class__.__module__,
-                                     field.__class__.__name__])
-                print("Search doesn't deal with %s yet" % longname)
-                ## put the field name in as the default just to tell me, the programmer, that this
-                ## class isn't properly dealt with yet.
-                ##self.fields[field.name] = \
-                ##    forms.CharField(initial=longname,
-                ##                    required=False)
+            self.fields.update(formFields(mymodel, field, enumerableFields))
 
     def as_table(self):
         output = []
 
         for mfield in modelFields(self.model):
             ## self.model._meta.fields:
-            n = mfield.name
-            if (n in self.fields or
-                ((n + '_lo') in self.fields and
-                 (n + '_hi') in self.fields)):
-                ofieldname = n + '_operator'
+            #n = mfield.name
+            fieldname = mfield.name
+            ##if (isinstance(mfield,VirtualIncludedField)):
+            ##    fieldname = mfield.compound_name()
+            if (fieldname in self.fields or
+                ((fieldname + '_lo') in self.fields and
+                 (fieldname + '_hi') in self.fields)):
+                ofieldname = fieldname + '_operator'
                 ofield = forms.forms.BoundField(self, self.fields[ofieldname], ofieldname)
                 row = (u'<tr><td style="text-align:right; font-weight:bold;">%(label)s</td><td>%(ofield)s</td>' %
                        {'label': unicode(mfield.verbose_name),
                         'ofield': unicode(ofield.as_hidden())
                         })
                 if ordinalField(self.model, mfield):
-                    loname, hiname = mfield.name + '_lo', mfield.name + '_hi'
+                    loname, hiname = fieldname + '_lo', fieldname + '_hi'
                     fieldlo = forms.forms.BoundField(self, self.fields[loname], loname)
                     fieldhi = forms.forms.BoundField(self, self.fields[hiname], hiname)
                     row = (row + u'<td>%(fieldlo)s</td><td>up to</td><td>%(fieldhi)s</td>' %
                            {'fieldlo': unicode(fieldlo),
                             'fieldhi': unicode(fieldhi)})
                 else:
-                    bfield = forms.forms.BoundField(self, self.fields[mfield.name],
-                                                    mfield.name)
+                    bfield = forms.forms.BoundField(self, self.fields[fieldname],
+                                                    fieldname)
                     row = (row + u'<td colspan=3>%(field)s</td>' %
                            {'field': unicode(bfield)})
 
                 row = row + u'</tr>'
                 output.append(row)
+      
         return mark_safe(u'\n'.join(output))
 
     def as_expert_table(self):
@@ -264,7 +283,6 @@ def SpecializedForm(formModel, myModel):
     return tmpFormClass
 
 
-from xgds_data.models import VirtualField
 class AxesForm(forms.Form):
     """
     Dynamically creates the form to choose the axes and series of a corresponding plot
@@ -274,7 +292,7 @@ class AxesForm(forms.Form):
         forms.Form.__init__(self, *args, **kwargs)
         chartablefields = []
         for x in mfields:
-            if (not isinstance(x, VirtualField)) and ordinalField(x.model, x) and (not maskField(x)):
+            if (not isinstance(x, VirtualIncludedField)) and ordinalField(x.model, x) and (not maskField(x)):
                 chartablefields.append(x)
         if (seriesablefields is None):
             try:
@@ -284,7 +302,7 @@ class AxesForm(forms.Form):
             seriesablefields = []
 
             for x in mfields:
-                if ((not isinstance(x, (GenericForeignKey, VirtualField))) and
+                if ((not isinstance(x, (GenericForeignKey, VirtualIncludedField))) and
                     (not ordinalField(x.model, x)) and
                     (not maskField(x)) and
                     (not isAbstract(x.model)) and

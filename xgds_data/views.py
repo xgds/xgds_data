@@ -35,7 +35,7 @@ from xgds_data.introspection import modelFields, maskField, isAbstract, pk
 from xgds_data.forms import QueryForm, SearchForm, AxesForm, SpecializedForm
 from xgds_data.logging import recordRequest, recordList, log_and_render
 from xgds_data.logconfig import logEnabled
-from xgds_data.search import makeFilters, sortFormula, getResults, pageLimits
+from xgds_data.search import getCount, ishard, getMatches, pageLimits
 if logEnabled():
     from django.core.urlresolvers import resolve
     from django.utils.datastructures import MergeDict
@@ -310,9 +310,7 @@ def searchHandoff(request, moduleName, modelName, fn, soft = True):
 
     formset = tmpFormSet(data)
     if formset.is_valid():
-        scorer = sortFormula(myModel, formset)
-        softFilter = makeFilters(formset, soft)
-        results, totalCount = getResults(myModel, softFilter, scorer)
+        results, totalCount = getMatches(myModel, formset, soft)
     else:
         debug = formset.errors
         
@@ -392,17 +390,13 @@ def searchChosenModel(request, moduleName, modelName, expert=False):
                 queryStart = 0
                 queryEnd = None
 
-            scorer = sortFormula(myModel, formset)
-            softFilter = makeFilters(formset, soft)
-            if scorer:
-                hardFilter = makeFilters(formset, False)
-                hardCount = myModel.objects.filter(hardFilter).count()
-            else:
+            if ishard(formset):
                 hardCount = None
+            else:
+                hardCount = getCount(myModel, formset, False)
             
-            results, totalCount = getResults(myModel, softFilter, scorer, \
+            results, totalCount = getMatches(myModel, formset, soft, \
                                              queryStart, queryEnd, minCount = hardCount)
-
             if hardCount is None:
                 hardCount = totalCount
 
@@ -528,10 +522,7 @@ def plotQueryResults(request, moduleName, modelName, start, end, soft=True):
         ## a lot of this code mimics what is in searchChosenModel
         ## should figure out a way of centralizing instead of copying
  
- 
-        scorer = sortFormula(myModel, formset)
-        softFilter = makeFilters(formset, soft)
-        objs, totalCount = getResults(myModel, softFilter, scorer, start, end)
+        objs, totalCount = getMatches(myModel, formset, soft, start, end)
         plotdata = [dict([ (fld.name, megahandler(safegetattr(x,fld.name,None)) )
                      for fld in myFields])
                     for x in objs]
@@ -543,7 +534,7 @@ def plotQueryResults(request, moduleName, modelName, start, end, soft=True):
 
         seriesValues = dict([ (m.name, getRelated(m))
                         for m in myFields
-                        if (m.rel is not None and m.name in seriesChoices)])
+                        if ((m.name in seriesChoices) and (m.rel is not None) )])
         for x in plotdata:
             for k in seriesValues.keys():
                 if x[k] is not None:
