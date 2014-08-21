@@ -14,7 +14,7 @@ from django.contrib.contenttypes.generic import ContentType, GenericForeignKey
 from xgds_data import settings
 from xgds_data.logconfig import logEnabled
 #from xgds_data.introspection import modelFields
-import xgds_data.introspection
+from xgds_data import introspection
 
 
 def cacheStatistics():
