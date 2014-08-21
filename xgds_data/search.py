@@ -7,6 +7,7 @@
 import re
 import time
 import datetime
+import pytz
 
 from math import floor, log10, pow as mpow  # shadows built-in pow()
 from operator import itemgetter
@@ -16,6 +17,8 @@ from django.db import connection
 from django.db.models import Q,Field
 from django.db.models.fields import PositiveIntegerField, PositiveSmallIntegerField
 from django.contrib.contenttypes.generic import GenericForeignKey
+from django.db.models import Min, Max
+from django.conf import settings
 
 from xgds_data.introspection import modelFields, resolveField, maskField, isAbstract, concreteDescendents, \
     pk, db_table, isgeneric
@@ -23,6 +26,7 @@ from xgds_data.models import cacheStatistics, VirtualIncludedField
 if cacheStatistics():
     from xgds_data.models import ModelStatistic
 from xgds_data.DataStatistics import tableSize, segmentBounds, nextPercentile
+from xgds_data.utils import total_seconds
 
 
 def timer(t, msg):
@@ -198,9 +202,12 @@ def baseScore(fieldRef, lorange, hirange):
         hirange = time.mktime(hirange.timetuple())
     ## perhaps could swap lo, hi if lo > hi
     if (timeConversion):
-        ## UGH: mysql's UNIX_TIMESTAMP always assumes system timezone, but we are storing UTC
-        ## Solution: convert to system time zone and then get unix timestamp
-        fieldRef = 'UNIX_TIMESTAMP(CONVERT_TZ({0},"+00:00",@@session.time_zone))'.format(fieldRef)
+        if settings.DATABASES['default']['ENGINE'] == 'django.db.backends.postgresql_psycopg2':
+            fieldRef = "EXTRACT(EPOCH FROM ({0} AT TIME ZONE 'UTC'))".format(fieldRef)
+        else:
+            ## UGH: mysql's UNIX_TIMESTAMP always assumes system timezone, but we are storing UTC
+            ## Solution: convert to system time zone and then get unix timestamp
+            fieldRef = 'UNIX_TIMESTAMP(CONVERT_TZ({0},"+00:00",@@session.time_zone))'.format(fieldRef)
 
     if lorange == hirange:
         return "abs({0}-{1})".format(fieldRef, lorange)
@@ -305,7 +312,64 @@ def medianRangeEval(model, field, lorange, hirange, size, fieldRef):
             return(vals[int(round(len(vals) * 0.5)) - 1])
     ## if we haven't returned a value already
     ##print('NOT Guessed')
-    return medianEval(model, baseScore(fieldRef, lorange, hirange), size)
+    if settings.DATABASES['default']['ENGINE'] == 'django.db.backends.postgresql_psycopg2':
+        fname = field.name
+        dataranges = model.objects.aggregate(Min(fname),Max(fname))
+        datamin = dataranges[fname+'__min']
+        datamax = dataranges[fname+'__max']
+        if (isinstance(datamin,datetime.datetime) and (datamin.tzinfo is None)):
+            datamin = datamin.replace(tzinfo=pytz.utc)
+        if (isinstance(datamax,datetime.datetime) and (datamax.tzinfo is None)):
+            datamax = datamax.replace(tzinfo=pytz.utc)
+
+        if (lorange == 'min'):
+            lorange = None
+        if (hirange == 'max'):
+            hirange = None
+
+        ## odd formulation for an average works with datetimes, too
+        datamid = datamin + (datamax-datamin)/2
+        if (hirange is not None) and (hirange < datamin):
+            retv = datamid - hirange
+        elif (lorange is not None) and (lorange > datamax):
+            retv = lorange - datamid
+        else:
+            if (lorange is None) or (lorange < datamin):
+                lorange = datamin
+            if (hirange is None) or (hirange > datamax):
+                hirange = datamax
+
+            belowweight = lorange - datamin
+            inweight = hirange - lorange
+            aboveweight = datamax - hirange
+
+            curweight = belowweight + inweight + aboveweight
+            halfweight = curweight / 2
+
+            curweight = curweight - inweight
+            if (curweight <= halfweight):
+                ## half or more are score 0, so that's the median
+                return 0
+            curweight = curweight - 2 * min(belowweight,aboveweight)
+            if (curweight <= halfweight):
+                ## excess is the overshoot... back up to 50%
+                excess = halfweight - curweight
+                if belowweight < aboveweight:
+                    retv =  lorange - (datamin + excess/2)
+                else:
+                    retv =(datamax - excess/2) - hirange
+            else:
+                if belowweight < aboveweight:
+                    retv = datamid - hirange
+                else:
+                    retv = lorange - datamid
+
+        if isinstance(retv,datetime.timedelta):
+            retv = total_seconds(retv)
+
+        return retv
+    else:
+        return medianEval(model, baseScore(fieldRef, lorange, hirange), size)
 
 
 def dbFieldRef(field):
@@ -362,7 +426,11 @@ def scoreNumeric(field, lorange, hirange, tsize):
     elif median == 0:
         ## would get divide by zero with standard formula below
         ## defining 0/x == 0 always, limit of standard formula leads to special case for 0, below.
-        return "({0} = {1})".format(baseScore(fieldRef, lorange, hirange), median)
+        retv = "({0} = {1})".format(baseScore(fieldRef, lorange, hirange), median)
+        if settings.DATABASES['default']['ENGINE'] == 'django.db.backends.postgresql_psycopg2':
+            return "CAST({0} AS INT)".format(retv)
+        else:
+            return retv
     else:
         return "1 /(1 + {0}/{1})".format(baseScore(fieldRef, lorange, hirange), median)
     #return "1-(1 + {1}) /(2 + 2 * {0})".format(baseScore(fieldRef, lorange, hirange),

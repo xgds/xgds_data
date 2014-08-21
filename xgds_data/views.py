@@ -36,6 +36,7 @@ from xgds_data.forms import QueryForm, SearchForm, AxesForm, SpecializedForm
 from xgds_data.logging import recordRequest, recordList, log_and_render
 from xgds_data.logconfig import logEnabled
 from xgds_data.search import getCount, ishard, getMatches, pageLimits
+from xgds_data.utils import total_seconds
 if logEnabled():
     from django.core.urlresolvers import resolve
     from django.utils.datastructures import MergeDict
@@ -285,14 +286,6 @@ def searchSimilar(request, moduleName, modelName, pkid):
                            'formset': formset,
                            'axesform': axesform},
                           nolog=['formset', 'axesform'])
-
-
-def total_seconds(timediff):
-    """Get total seconds for a time delta"""
-    try:
-        return timediff.total_seconds()
-    except:
-        return (timediff.microseconds + (timediff.seconds + timediff.days * 24 * 3600) * 10**6) / 10**6
 
 
 def searchHandoff(request, moduleName, modelName, fn, soft = True):

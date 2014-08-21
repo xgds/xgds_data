@@ -96,9 +96,11 @@ def formFields(mymodel, field, enumerableFields):
                 maxpulldown = settings.XGDS_DATA_MAX_PULLDOWNABLE
             except:
                 maxpulldown = 100
+            relatedCount = relModel.objects.count()
             if (relModel.objects.count() <= maxpulldown) or \
-                    (not isAbstract(mymodel) and \
-                   (field.model.objects.values(field.name).order_by().distinct().count() <= maxpulldown)):
+                    (relatedCount <= (10 * maxpulldown) and \
+                     (not isAbstract(mymodel) and \
+                      (field.model.objects.values(field.name).order_by().distinct().count() <= maxpulldown))):
                 widget = 'pulldown'
             else:
                 widget = 'textbox'
@@ -300,13 +302,16 @@ class AxesForm(forms.Form):
             except:
                 maxseriesable = 100
             seriesablefields = []
+            seriesCount = x.model.objects.count()
 
             for x in mfields:
                 if ((not isinstance(x, (GenericForeignKey, VirtualIncludedField))) and
                     (not ordinalField(x.model, x)) and
                     (not maskField(x)) and
                     (not isAbstract(x.model)) and
-                    (x.model.objects.values(x.name).order_by().distinct().count() <= maxseriesable)):
+                    ((seriesCount < maxseriesable) or
+                     ((seriesCount < maxseriesable*1000) and
+                     (x.model.objects.values(x.name).order_by().distinct().count() <= maxseriesable)))):
                     seriesablefields.append(x)
         if len(chartablefields) > 1:
             datachoices = (tuple((x, x)

@@ -13,8 +13,8 @@ from django.contrib.contenttypes.generic import ContentType, GenericForeignKey
 
 from xgds_data import settings
 from xgds_data.logconfig import logEnabled
-from xgds_data.introspection import modelFields
-#import xgds_data.introspection
+#from xgds_data.introspection import modelFields
+import xgds_data.introspection
 
 
 def cacheStatistics():
@@ -44,7 +44,7 @@ class VirtualIncludedField(models.Field):
 
     def throughModels(self):
         match = None
-        for f in modelFields(self.model):
+        for f in introspection.modelFields(self.model):
             if f.name == self.throughfield_name:
                 match = f
         if (match is not None):
@@ -61,7 +61,7 @@ class VirtualIncludedField(models.Field):
     def targetFields(self):
         targets = []
         for tm in self.throughModels():
-            for tmf in modelFields(tm):
+            for tmf in introspection.modelFields(tm):
                 if tmf.name == self.name:
                     targets.append(tmf)
         return targets
