@@ -306,18 +306,19 @@ def searchHandoff(request, moduleName, modelName, fn, soft = True):
         results, totalCount = getMatches(myModel, formset, soft)
     else:
         debug = formset.errors
-        
+
     return fn(request,results)
 
-    
+
 def safegetattr(obj,attname,default = None):
     """ Because sometimes the database itself is inconsistent """
     try:
         return getattr(obj,attname,default)
     except:
         return None
-    
 
+
+import StringIO
 def searchChosenModel(request, moduleName, modelName, expert=False):
     """
     Search over the fields of the selected model
@@ -387,7 +388,7 @@ def searchChosenModel(request, moduleName, modelName, expert=False):
                 hardCount = None
             else:
                 hardCount = getCount(myModel, formset, False)
-            
+
             results, totalCount = getMatches(myModel, formset, soft, \
                                              queryStart, queryEnd, minCount = hardCount)
             if hardCount is None:
@@ -401,28 +402,41 @@ def searchChosenModel(request, moduleName, modelName, expert=False):
         formset = tmpFormSet(data)
     else:
         formset = tmpFormSet()
-        
+
     if (mode == 'csv'):
         response = HttpResponse(content_type='text/csv')
         # if you want to download instead of display in browser
         # response['Content-Disposition'] = 'attachment; filename='+modelName + '.csv'
-        writer = csv.writer(response)
-        writer.writerow([f.name for f in myFields])
-        for r in results:
+
+        try:
+            ecsv = __import__('.'.join([moduleName, 'exportCsv']))
+            output = StringIO.StringIO()
+            ##print(ecsv.exportCsv.exportCsv)
+            ecsv.exportCsv.exportCsv(results,output)
+            response.write(output.getvalue())
+            output.close()
+        except Exception as inst:
+            print(inst)
+            print('well, that didnt work')
+
+            writer = csv.writer(response)
+            writer.writerow([f.name for f in myFields])
+            for r in results:
             ##            r.get(f.name,None)
-            writer.writerow([csvEncode(safegetattr(r,f.name,None)) for f in myFields ])
+                writer.writerow([csvEncode(safegetattr(r,f.name,None)) for f in myFields ])
+
         if logEnabled():
             reslog = ResponseLog.create(request=reqlog)
             recordList(reslog, results)
         return response
-    else:   
+    else:
         datetimefields = []
         for x in myFields:
             if isinstance(x, DateTimeField):
                 for y in range(0, formCount + 1):
                     datetimefields.append(formsetifyFieldName(y, x.name))
         axesform = AxesForm(myFields, data)
-    
+
         if (not axesform.fields.get('yaxis')):
             ## if yaxis is not defined, then we can't really plot
             axesform = None
@@ -458,11 +472,11 @@ def searchChosenModel(request, moduleName, modelName, expert=False):
                                'more': more,
                                'picks': picks,
                                'checkable': checkable,
-                               'debug': debug,                               
+                               'debug': debug,
                                },
                               nolog=['formset', 'axesform', 'results', 'resultsids', 'scores'],
                               listing=results)
-    
+
 
 def megahandler(obj):
     if isinstance(obj, datetime.datetime):
@@ -476,7 +490,7 @@ def megahandler(obj):
 
 
 def getRelated(modelField):
-    return dict([ (getattr(x, pk(x).name), escape(str(x))) 
+    return dict([ (getattr(x, pk(x).name), escape(str(x)))
             for x in modelField.rel.to.objects.all() ])
 
 
@@ -514,7 +528,7 @@ def plotQueryResults(request, moduleName, modelName, start, end, soft=True):
     if formset.is_valid():
         ## a lot of this code mimics what is in searchChosenModel
         ## should figure out a way of centralizing instead of copying
- 
+
         objs, totalCount = getMatches(myModel, formset, soft, start, end)
         plotdata = [dict([ (fld.name, megahandler(safegetattr(x,fld.name,None)) )
                      for fld in myFields])

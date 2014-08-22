@@ -76,7 +76,7 @@ def genericArguments(model, formset, soft=True):
     """
     Gets the portion of a formset that applies to generic pointers
     """
-    mfields = dict([ (f.name,f) for f in modelFields(model)  ])    
+    mfields = dict([ (f.name,f) for f in modelFields(model)  ])
     fdict = dict()
     for form in formset:
         for fieldname, fieldval in form.cleaned_data.iteritems():
@@ -273,7 +273,7 @@ def medianEval(model, expression, size):
     """
     count = model.objects.count()
     if count == 0:
-        return None    
+        return None
     else:
         sampleSize = min(size, 1000)
         result = ()
@@ -282,7 +282,7 @@ def medianEval(model, expression, size):
         while (len(result) == 0) and (triesLeft > 0):
             ## trying to pick the middle in advance is too risky because we may not get back as many as expected
             ## (for instance, when the field value is sometimes NULL)
-            ## result = randomSample(model, expression, sampleSize), sampleSize / 2, 1)            
+            ## result = randomSample(model, expression, sampleSize), sampleSize / 2, 1)
             result = randomSample(model, expression, sampleSize)
             triesLeft = triesLeft - 1
         if len(result) == 0:
@@ -494,8 +494,8 @@ def totalweight(model, formset):
         else:
             tw = tw + 1
     return tw
-                
-                
+
+
 def sortFormulaRanges(model, desiderata):
     """
     Helper for searchChosenModel; comes up with a formula for ordering the results
@@ -578,7 +578,7 @@ def getMatches(myModel, formset, soft, queryStart = 0, queryEnd = None, minCount
             if isinstance(x,GenericForeignKey):
                 cantDefer.extend([x.ct_field,x.fk_field])
         deferFields = [x.name for x in modelFields(myModel) if maskField(x) and isinstance(x,Field) and x.name not in cantDefer ]
-        
+
         gargs = genericArguments(myModel, formset, soft)
         gmatches = dict()
         gweights = dict()
@@ -591,7 +591,7 @@ def getMatches(myModel, formset, soft, queryStart = 0, queryEnd = None, minCount
                 gweights[gfield] = totalweight(gmodel, formset)
                 #print(gmodel, soft, countOnly, len(gresults.keys()))
         processGeneric = len(gmatches.keys()) > 0
-        
+
         query = myModel.objects.filter(myfilter)
         query = query.defer(*deferFields)
         if threshold is None:
@@ -603,7 +603,7 @@ def getMatches(myModel, formset, soft, queryStart = 0, queryEnd = None, minCount
             else:
                 countquery = query.extra(where=['%s >= %s' % (scorer, threshold) ])
                 totalCount = countquery.count()
-                
+
             query = query.extra(select={'score': scorer}, order_by=['-score'])
             if (minCount is not None) and (totalCount is not None) and (totalCount < minCount):
                 ## this only makes sense if it's an approximate count
@@ -658,7 +658,7 @@ def getMatches(myModel, formset, soft, queryStart = 0, queryEnd = None, minCount
                 queryEnd = totalCount
             query = query[queryStart:queryEnd]
             # qvalues = qvalues[queryStart:queryEnd]
-            
+
             return (query, totalCount)
 
 
