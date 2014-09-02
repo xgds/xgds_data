@@ -7,6 +7,7 @@
 import re
 import time
 import datetime
+import calendar
 import pytz
 
 from math import floor, log10, pow as mpow  # shadows built-in pow()
@@ -196,10 +197,12 @@ def baseScore(fieldRef, lorange, hirange):
     timeConversion = False
     if isinstance(lorange, datetime.datetime):
         timeConversion = True
-        lorange = time.mktime(lorange.timetuple())
+        lorange = calendar.timegm(lorange.timetuple())
+        ##lorange = time.mktime(lorange.timetuple())
     if isinstance(hirange, datetime.datetime):
         timeConversion = True
-        hirange = time.mktime(hirange.timetuple())
+        hirange = calendar.timegm(hirange.timetuple())
+        ##hirange = time.mktime(hirange.timetuple())
     ## perhaps could swap lo, hi if lo > hi
     if (timeConversion):
         if settings.DATABASES['default']['ENGINE'] == 'django.db.backends.postgresql_psycopg2':
