@@ -57,6 +57,13 @@ def pk(model):
     return model._meta.pk
 
 
+def verbose_name(model):
+    """
+    return the verbose name of the model
+    """
+    return model._meta.verbose_name
+
+
 def db_table(model):
     """
     return the database table for this model

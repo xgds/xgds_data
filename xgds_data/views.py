@@ -11,6 +11,7 @@ import json
 import csv
 import datetime
 import calendar
+import StringIO
 from itertools import chain
 
 from django.shortcuts import render_to_response, render
@@ -31,7 +32,7 @@ except:
     pass
 
 from xgds_data import settings
-from xgds_data.introspection import modelFields, maskField, isAbstract, pk
+from xgds_data.introspection import modelFields, maskField, isAbstract, pk, verbose_name
 from xgds_data.forms import QueryForm, SearchForm, AxesForm, SpecializedForm
 from xgds_data.logging import recordRequest, recordList, log_and_render
 from xgds_data.logconfig import logEnabled
@@ -183,12 +184,16 @@ def chooseSearchModel(request, moduleName):
     List the models in the module, so they can be selected for search
     """
     app = get_app(moduleName)
-    models = [m.__name__ for m in get_models(app) if not isAbstract(m)]
+    models = dict([(verbose_name(m),m) for m in get_models(app) if not isAbstract(m)])
+    ordered_names = sorted(models.keys())
+    
 
     return render(request, 'xgds_data/chooseSearchModel.html',
                   {'title': 'Search ' + moduleName,
                    'module': moduleName,
-                   'models': sorted(models)}
+                   'models': models,
+                   'ordered_names': ordered_names
+                   }
                   )
 
 
@@ -277,7 +282,7 @@ def searchSimilar(request, moduleName, modelName, pkid):
     axesform = AxesForm(myFields, data)
     template = resolveSetting('XGDS_DATA_SEARCH_TEMPLATES', myModel, 'xgds_data/searchChosenModel.html')
     return log_and_render(request, reqlog, template,
-                          {'title': 'Search ' + modelName,
+                          {'title': 'Search ' + verbose_name(myModel),
                            'module': moduleName,
                            'model': modelName,
                            'debug': debug,
@@ -318,7 +323,6 @@ def safegetattr(obj,attname,default = None):
         return None
 
 
-import StringIO
 def searchChosenModel(request, moduleName, modelName, expert=False):
     """
     Search over the fields of the selected model
@@ -454,7 +458,7 @@ def searchChosenModel(request, moduleName, modelName, expert=False):
         checkable = resolveSetting('XGDS_DATA_CHECKABLE', myModel, False)
 
         return log_and_render(request, reqlog, template,
-                              {'title': 'Search ' + modelName,
+                              {'title': 'Search ' + verbose_name(myModel),
                                'module': moduleName,
                                'model': modelName,
                                'expert': expert,

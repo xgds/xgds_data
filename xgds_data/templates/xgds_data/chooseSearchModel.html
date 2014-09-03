@@ -1,4 +1,6 @@
 {% extends "base.html" %}
+{% load xgds_data_extras %}
+
 {% load url from future %}
 {% load nav %}
 {% block siteSection %}{{ title }}{% endblock %}
@@ -13,8 +15,8 @@
 
 {% block contents %}
 <h2>{{ title }}</h2>
-Pick model to search:
-{% for model in models %}
-  <div class="navLink"><a href="{% url 'xgds_data_searchChosenModel' module model %}">{{ model }}</a></div>
+You may search for any of the following:
+{% for name in ordered_names %}
+  <div class="navLink"><a href="{% url 'xgds_data_searchChosenModel' module models|getattribute:name|getattribute:'__name__' %}">{{ name }}</a></div>
 {% endfor %}
 {% endblock %}
