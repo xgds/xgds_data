@@ -9,7 +9,7 @@ from django.db.models import fields
 from django.utils.safestring import mark_safe
 from django.db.models.fields.related import RelatedField
 from django.forms.widgets import RadioSelect, TextInput
-from django.contrib.contenttypes.generic import ContentType, GenericForeignKey
+from django.contrib.contenttypes.generic import GenericForeignKey
 
 from xgds_data import settings
 from xgds_data.models import VirtualIncludedField
@@ -34,8 +34,7 @@ def formFields(mymodel, field, enumerableFields):
                       ('NOT IN', 'NOT IN'))
     categoricalOperators = (('=', '='),
                             ('!=', '!='))
-    stringOperators = (  # ('=~', '=~'),
-                       ('=', '='),
+    stringOperators = (('=', '='),
                        ('!=', '!='))
     formfields = {}
     if maskField(field):
@@ -95,12 +94,12 @@ def formFields(mymodel, field, enumerableFields):
         elif (not isAbstract(relModel)):
             try:
                 maxpulldown = settings.XGDS_DATA_MAX_PULLDOWNABLE
-            except:
+            except AttributeError:
                 maxpulldown = 100
             relatedCount = relModel.objects.count()
             if (relModel.objects.count() <= maxpulldown) or \
-                    (relatedCount <= (10 * maxpulldown) and \
-                     (not isAbstract(mymodel) and \
+                    (relatedCount <= (10 * maxpulldown) and
+                     (not isAbstract(mymodel) and
                       (field.model.objects.values(field.name).order_by().distinct().count() <= maxpulldown))):
                 widget = 'pulldown'
             else:
@@ -242,7 +241,7 @@ class SortForm(forms.Form):
     """
     def __init__(self, mymodel, *args, **kwargs):
         forms.Form.__init__(self, *args, **kwargs)
-        numorder = 5 ## should be a passed in parameter
+        numorder = 5  # should be a passed in parameter
         self.model = mymodel
         sortingfields = []
         for x in modelFields(mymodel):
@@ -252,18 +251,18 @@ class SortForm(forms.Form):
                 if x.verbose_name != "":
                     sortingfields.append(x)
         if len(sortingfields) > 1:
-            datachoices = (tuple((None, 'None') for x in [1])  +
+            datachoices = (tuple((None, 'None') for x in [1]) +
                            tuple((x.name, x.verbose_name)
                                  for x in sortingfields))
-            for order in range(1, numorder+1):
-                self.fields['order'+str(order)] = forms.ChoiceField(choices=datachoices,
-                                                                    initial=datachoices[0][0],
-                                                                    required=True)
-                self.fields['direction'+str(order)] = forms.ChoiceField(choices=(('ASC', 'Ascending'),
-                                                                                 ('DESC', 'Descending')),
-                                                                        widget=RadioSelect(),
-                                                                        initial='ASC',
-                                                                        required=True)
+            for order in range(1, numorder + 1):
+                self.fields['order' + str(order)] = forms.ChoiceField(choices=datachoices,
+                                                                      initial=datachoices[0][0],
+                                                                      required=True)
+                self.fields['direction' + str(order)] = forms.ChoiceField(choices=(('ASC', 'Ascending'),
+                                                                                   ('DESC', 'Descending')),
+                                                                          widget=RadioSelect(),
+                                                                          initial='ASC',
+                                                                          required=True)
 
 
 def SpecializedForm(formModel, myModel):
@@ -294,26 +293,30 @@ class AxesForm(forms.Form):
         seriesablefields = kwargs.pop('seriesablefields', None)
         forms.Form.__init__(self, *args, **kwargs)
         chartablefields = []
+        seriesCount = None
         for x in mfields:
             if (not isinstance(x, VirtualIncludedField)) and ordinalField(x.model, x) and (not maskField(x)):
                 chartablefields.append(x)
-        if (seriesablefields is None):
-            try:
-                maxseriesable = settings.XGDS_DATA_MAX_SERIESABLE
-            except:
-                maxseriesable = 100
-            seriesablefields = []
-            seriesCount = x.model.objects.count()
 
-            for x in mfields:
-                if ((not isinstance(x, (GenericForeignKey, VirtualIncludedField))) and
-                    (not ordinalField(x.model, x)) and
-                    (not maskField(x)) and
-                    (not isAbstract(x.model)) and
-                    ((seriesCount < maxseriesable) or
-                     ((seriesCount < maxseriesable * 1000) and
-                     (x.model.objects.values(x.name).order_by().distinct().count() <= maxseriesable)))):
-                    seriesablefields.append(x)
+            if (seriesablefields is None):
+                try:
+                    maxseriesable = settings.XGDS_DATA_MAX_SERIESABLE
+                except AttributeError:
+                    maxseriesable = 100
+                seriesablefields = []
+            if seriesCount is None:
+                seriesCount = x.model.objects.count()  # an upper bound
+
+        for y in mfields:
+            if ((not isinstance(y, (GenericForeignKey, VirtualIncludedField))) and
+                (not ordinalField(y.model, y)) and
+                (not maskField(y)) and
+                (not isAbstract(y.model)) and
+                ((seriesCount < maxseriesable) or
+                 ((seriesCount < maxseriesable * 1000) and
+                  (y.model.objects.values(y.name).order_by().distinct().count() <= maxseriesable)))):
+                seriesablefields.append(y)
+
         if len(chartablefields) > 1:
             datachoices = (tuple((x, x)
                                  for x in ['Rank']) +

@@ -6,7 +6,7 @@
 
 try:
     from taggit.managers import TaggableManager
-except:
+except ImportError:
     pass
 
 from django.db.models import get_app
@@ -23,8 +23,8 @@ def settingsForModel(settng, model):
     mysettings = []
     for amodel in model.__mro__:
         try:
-            mysettings = mysettings + settng.get(amodel._meta.app_label).get(amodel._meta.object_name)
-        except:
+            mysettings = mysettings + settng.get(amodel._meta.app_label).get(amodel._meta.object_name, [])
+        except (AttributeError, KeyError):
             pass
 
     return mysettings
@@ -34,14 +34,14 @@ def modelFields(model):
     """
     Retrieve the fields associated with the given model
     """
-    fields = model._meta.fields + model._meta.many_to_many + model._meta.virtual_fields
+    myfields = model._meta.fields + model._meta.many_to_many + model._meta.virtual_fields
     try:
         for throughFieldName, relName, relVerboseName in settingsForModel(settings.XGDS_DATA_EXPAND_RELATED, model):
-            fields = fields + [ xgds_data.models.VirtualIncludedField(model, throughFieldName, relName, relVerboseName) ]
-    except:
+            myfields = myfields + [xgds_data.models.VirtualIncludedField(model, throughFieldName, relName, relVerboseName)]
+    except AttributeError:
         pass
 
-    return fields
+    return myfields
 
 
 def isAbstract(model):
@@ -99,25 +99,25 @@ def maskField(field):
     try:
         if isinstance(field, TaggableManager):
             return True
-    except:
+    except NameError:
         pass
 
     try:
         if field.name in settingsForModel(settings.XGDS_DATA_UNMASKED_FIELDS, field.model):
             return False
-    except:
+    except AttributeError:
         pass
 
     try:
         if field.name in settingsForModel(settings.XGDS_DATA_MASKED_FIELDS, field.model):
             return True
-    except:
+    except AttributeError:
         pass
 
     try:
         if field is pk(field.model):
             return True
-    except:
+    except AttributeError:
         pass
 
     return False
@@ -129,7 +129,7 @@ def isOrdinalOveridden(model, field):
     """
     try:
         return field.name in settingsForModel(settings.XGDS_DATA_NONORDINAL_FIELDS, model)
-    except:
+    except AttributeError:
         return False
 
 
@@ -147,10 +147,10 @@ def ordinalField(model, field):
                     return False
             return True
     elif isinstance(field, (fields.DateTimeField,
-                          fields.DecimalField,
-                           fields.FloatField,
-                           fields.IntegerField,
-                           fields.PositiveIntegerField)):
+                            fields.DecimalField,
+                            fields.FloatField,
+                            fields.IntegerField,
+                            fields.PositiveIntegerField)):
         return not isOrdinalOveridden(model, field)
     else:
         return False
