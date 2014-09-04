@@ -48,7 +48,7 @@ class VirtualIncludedField(models.Field):
             if f.name == self.throughfield_name:
                 match = f
         if (match is not None):
-            try: 
+            try:
                 throughmodels = [ ContentType.objects.get_for_id(x[0]).model_class() \
                              for x in self.model.objects.values_list(match.ct_field).distinct() ]
             except: ## not a GenericForeignKey
@@ -101,7 +101,7 @@ if logEnabled():
             if uzer.id is None:
                 uzer = None
 
-            # rlog = cls(path=request.path,ipaddress=get_client_ip(request),user=request.user.__str__())
+            # rlog = cls(path=request.path, ipaddress=get_client_ip(request), user=request.user.__str__())
             rlog = cls(timestampSeconds=datetime.utcnow(),
                        path=truncate(request.path, 256),
                        ipaddress=truncate(get_client_ip(request), 256),
@@ -125,10 +125,10 @@ if logEnabled():
         timestampSeconds = models.DateTimeField(blank=False)
         request = models.ForeignKey(RequestLog, null=False, blank=False)
         template = models.CharField(max_length=256, blank=True)
-        
+
         @classmethod
-        def create(cls,request,template=None):
-            return cls(timestampSeconds=datetime.utcnow(),request=request,template=template)
+        def create(cls, request, template=None):
+            return cls(timestampSeconds=datetime.utcnow(), request=request, template=template)
 
 
     class ResponseArgument(models.Model):

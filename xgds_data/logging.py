@@ -37,9 +37,9 @@ def recordRequest(request):
         return None
 
 
-def getListItemProperty(obj,prop):
+def getListItemProperty(obj, prop):
     """
-    Record list might get either instances or dicts with instance contents, so use this 
+    Record list might get either instances or dicts with instance contents, so use this
     """
     try:
         return obj[prop]
@@ -62,7 +62,7 @@ def recordList(reslog, results):
 #                                  fid=results[r - 1][  results[r - 1]['__class__']._meta.pk.name ] )
                                   fclass=str(getListItemProperty(results[r - 1],'__class__')),
                                   fid=getListItemProperty( results[r - 1], \
-                                         getListItemProperty(results[r - 1],'__class__')._meta.pk.name ) )
+                                         getListItemProperty(results[r - 1], '__class__')._meta.pk.name ) )
 
                      for r in ranks]
             try:
@@ -83,7 +83,7 @@ def log_and_render(request, reqlog, template, rendargs,
     if logEnabled():
         reslog = ResponseLog.create(request=reqlog, template=template)
         reslog.save()
-        
+
         args = []
 #        for a in rendargs.keys():
 #            args = args + [ ResponseArgument(response=reslog, name=key, value=rendargs.get(key).__str__()[:1024]) \
@@ -100,7 +100,7 @@ def log_and_render(request, reqlog, template, rendargs,
                     args = args + [ ResponseArgument(response=reslog, name=key, value=str(rendargs.get(key))[:1024]) ]
 #        args = [ ResponseArgument(response=reslog, name=key, value=rendargs.get(key).__str__()[:1024]) \
 #                  if nolog.count(key) == 0 ]
- 
+
         ResponseArgument.objects.bulk_create(args)
         if listing:
             recordList(reslog, listing)

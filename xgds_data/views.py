@@ -184,9 +184,9 @@ def chooseSearchModel(request, moduleName):
     List the models in the module, so they can be selected for search
     """
     app = get_app(moduleName)
-    models = dict([(verbose_name(m),m) for m in get_models(app) if not isAbstract(m)])
+    models = dict([(verbose_name(m), m) for m in get_models(app) if not isAbstract(m)])
     ordered_names = sorted(models.keys())
-    
+
 
     return render(request, 'xgds_data/chooseSearchModel.html',
                   {'title': 'Search ' + moduleName,
@@ -312,13 +312,13 @@ def searchHandoff(request, moduleName, modelName, fn, soft = True):
     else:
         debug = formset.errors
 
-    return fn(request,results)
+    return fn(request, results)
 
 
-def safegetattr(obj,attname,default = None):
+def safegetattr(obj, attname, default = None):
     """ Because sometimes the database itself is inconsistent """
     try:
-        return getattr(obj,attname,default)
+        return getattr(obj, attname, default)
     except:
         return None
 
@@ -416,7 +416,7 @@ def searchChosenModel(request, moduleName, modelName, expert=False):
             ecsv = __import__('.'.join([moduleName, 'exportCsv']))
             output = StringIO.StringIO()
             ##print(ecsv.exportCsv.exportCsv)
-            ecsv.exportCsv.exportCsv(results,output)
+            ecsv.exportCsv.exportCsv(results, output)
             response.write(output.getvalue())
             output.close()
         except Exception as inst:
@@ -427,7 +427,7 @@ def searchChosenModel(request, moduleName, modelName, expert=False):
             writer.writerow([f.name for f in myFields])
             for r in results:
             ##            r.get(f.name,None)
-                writer.writerow([csvEncode(safegetattr(r,f.name,None)) for f in myFields ])
+                writer.writerow([csvEncode(safegetattr(r, f.name, None)) for f in myFields ])
 
         if logEnabled():
             reslog = ResponseLog.create(request=reqlog)
@@ -523,7 +523,7 @@ def plotQueryResults(request, moduleName, modelName, start, end, soft=True):
     soft = soft in (True, 'True')
 
     axesform = AxesForm(myFields, data)
-    fieldDict = dict([ (x.name , x) for x in myFields ])
+    fieldDict = dict([ (x.name, x) for x in myFields ])
     timeFields = [fieldName
                   for fieldName, fieldVal in fieldDict.iteritems()
                   if isinstance(fieldVal, (DateField, TimeField))]
@@ -534,7 +534,7 @@ def plotQueryResults(request, moduleName, modelName, start, end, soft=True):
         ## should figure out a way of centralizing instead of copying
 
         objs, totalCount = getMatches(myModel, formset, soft, start, end)
-        plotdata = [dict([ (fld.name, megahandler(safegetattr(x,fld.name,None)) )
+        plotdata = [dict([ (fld.name, megahandler(safegetattr(x, fld.name, None)) )
                      for fld in myFields])
                     for x in objs]
         pldata = [ str(x) for x in objs]
@@ -587,17 +587,17 @@ def plotQueryResults(request, moduleName, modelName, start, end, soft=True):
 
 
 #if logEnabled():
-def replayRequest(request,rid):
+def replayRequest(request, rid):
     reqlog = RequestLog.objects.get(id=rid)
     reqargs = RequestArgument.objects.filter(request=reqlog)
     view, args, kwargs = resolve(reqlog.path)
     onedict = {}
-    multidict = QueryDict('',mutable=True)
+    multidict = QueryDict('', mutable=True)
     for arg in reqargs:
         onedict[arg.name] = arg.value
-        multidict.appendlist(arg.name,arg.value)
-    redata = MergeDict(multidict,onedict)
-    rerequest = HttpRequestReplay(request,reqlog.path,redata)
+        multidict.appendlist(arg.name, arg.value)
+    redata = MergeDict(multidict, onedict)
+    rerequest = HttpRequestReplay(request, reqlog.path, redata)
     kwargs['request'] = rerequest
 
     return view(*args, **kwargs)

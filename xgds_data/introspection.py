@@ -15,6 +15,7 @@ from xgds_data import settings
 #from xgds_data.models import VirtualIncludedField
 import xgds_data.models
 
+
 def settingsForModel(settng, model):
     """
     Does the setting list this field?
@@ -25,7 +26,7 @@ def settingsForModel(settng, model):
             mysettings = mysettings + settng.get(amodel._meta.app_label).get(amodel._meta.object_name)
         except:
             pass
-        
+
     return mysettings
 
 
@@ -96,11 +97,11 @@ def maskField(field):
     Should we omit this field from search and display?
     """
     try:
-        if isinstance(field,TaggableManager):
+        if isinstance(field, TaggableManager):
             return True
     except:
         pass
-    
+
     try:
         if field.name in settingsForModel(settings.XGDS_DATA_UNMASKED_FIELDS, field.model):
             return False
@@ -138,11 +139,11 @@ def ordinalField(model, field):
     Does this field support ranges?
     """
     if isinstance(field, xgds_data.models.VirtualIncludedField):
-        if isOrdinalOveridden(model,field):
+        if isOrdinalOveridden(model, field):
             return False
         else:
             for tmf in field.targetFields():
-                if not ordinalField(tmf.model,tmf):
+                if not ordinalField(tmf.model, tmf):
                     return False
             return True
     elif isinstance(field, (fields.DateTimeField,
@@ -150,7 +151,7 @@ def ordinalField(model, field):
                            fields.FloatField,
                            fields.IntegerField,
                            fields.PositiveIntegerField)):
-        return not isOrdinalOveridden(model,field)
+        return not isOrdinalOveridden(model, field)
     else:
         return False
 
@@ -183,4 +184,3 @@ def isgeneric(field):
         return field.isgeneric()
     except AttributeError:
         return False
-    

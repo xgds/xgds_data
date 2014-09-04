@@ -16,6 +16,7 @@ from xgds_data.models import VirtualIncludedField
 from xgds_data.introspection import modelFields, maskField, isOrdinalOveridden, isAbstract, pk, ordinalField
 # pylint: disable=R0924
 
+
 class QueryForm(forms.Form):
     query = forms.CharField(max_length=256, required=False,
                             widget=forms.TextInput(attrs={'size': 100}))
@@ -33,7 +34,7 @@ def formFields(mymodel, field, enumerableFields):
                       ('NOT IN', 'NOT IN'))
     categoricalOperators = (('=', '='),
                             ('!=', '!='))
-    stringOperators = (#('=~', '=~'),
+    stringOperators = (  # ('=~', '=~'),
                        ('=', '='),
                        ('!=', '!='))
     formfields = {}
@@ -57,13 +58,13 @@ def formFields(mymodel, field, enumerableFields):
             formfields[field.name + '_hi'] = forms.FloatField(required=False)
         elif isinstance(field, fields.PositiveIntegerField):
             formfields[field.name + '_lo'] = forms.IntegerField(min_value=1,
-                                   required=False)
+                                                                required=False)
             formfields[field.name + '_hi'] = forms.IntegerField(min_value=1,
-                                   required=False)
+                                                                required=False)
         elif isinstance(field, fields.IntegerField):
             formfields[field.name + '_lo'] = forms.IntegerField(required=False)
-            formfields[field.name + '_hi'] = forms.IntegerField(required=False)                
-        
+            formfields[field.name + '_hi'] = forms.IntegerField(required=False)
+
     elif isinstance(field, (fields.AutoField, fields.CharField, fields.TextField)) or isOrdinalOveridden(mymodel, field):
         formfields[field.name + '_operator'] = \
             forms.ChoiceField(choices=stringOperators,
@@ -80,14 +81,14 @@ def formFields(mymodel, field, enumerableFields):
                                        (True, True),
                                        (False, False)),
                               required=False)
-    
+
     elif (isinstance(field, fields.related.ForeignKey) or
           isinstance(field, fields.related.ManyToManyField)):
         widget = None
         relModel = field.rel.to
         if (relModel == 'self'):
             relModel = field.model
-        
+
         if enumerableFields:
             if (field in enumerableFields):
                 widget = 'pulldown'
@@ -104,7 +105,7 @@ def formFields(mymodel, field, enumerableFields):
                 widget = 'pulldown'
             else:
                 widget = 'textbox'
-            
+
         if widget is 'pulldown':
             formfields[field.name + '_operator'] = \
                 forms.ChoiceField(choices=categoricalOperators,
@@ -172,7 +173,7 @@ class SearchForm(forms.Form):
             ## self.model._meta.fields:
             #n = mfield.name
             fieldname = mfield.name
-            ##if (isinstance(mfield,VirtualIncludedField)):
+            ##if (isinstance(mfield, VirtualIncludedField)):
             ##    fieldname = mfield.compound_name()
             if (fieldname in self.fields or
                 ((fieldname + '_lo') in self.fields and
@@ -198,7 +199,7 @@ class SearchForm(forms.Form):
 
                 row = row + u'</tr>'
                 output.append(row)
-      
+
         return mark_safe(u'\n'.join(output))
 
     def as_expert_table(self):
@@ -254,16 +255,16 @@ class SortForm(forms.Form):
             datachoices = (tuple((None, 'None') for x in [1])  +
                            tuple((x.name, x.verbose_name)
                                  for x in sortingfields))
-            for order in range(1,numorder+1):
+            for order in range(1, numorder+1):
                 self.fields['order'+str(order)] = forms.ChoiceField(choices=datachoices,
                                                                     initial=datachoices[0][0],
                                                                     required=True)
-                self.fields['direction'+str(order)] = forms.ChoiceField(choices=(('ASC','Ascending'),
-                                                                                 ('DESC','Descending')),
+                self.fields['direction'+str(order)] = forms.ChoiceField(choices=(('ASC', 'Ascending'),
+                                                                                 ('DESC', 'Descending')),
                                                                         widget=RadioSelect(),
                                                                         initial='ASC',
                                                                         required=True)
-        
+
 
 def SpecializedForm(formModel, myModel):
     """
@@ -310,7 +311,7 @@ class AxesForm(forms.Form):
                     (not maskField(x)) and
                     (not isAbstract(x.model)) and
                     ((seriesCount < maxseriesable) or
-                     ((seriesCount < maxseriesable*1000) and
+                     ((seriesCount < maxseriesable * 1000) and
                      (x.model.objects.values(x.name).order_by().distinct().count() <= maxseriesable)))):
                     seriesablefields.append(x)
         if len(chartablefields) > 1:

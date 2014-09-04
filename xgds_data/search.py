@@ -15,7 +15,7 @@ from operator import itemgetter
 
 from django import forms
 from django.db import connection
-from django.db.models import Q,Field
+from django.db.models import Q, Field
 from django.db.models.fields import PositiveIntegerField, PositiveSmallIntegerField
 from django.contrib.contenttypes.generic import GenericForeignKey
 from django.db.models import Min, Max
@@ -77,7 +77,7 @@ def genericArguments(model, formset, soft=True):
     """
     Gets the portion of a formset that applies to generic pointers
     """
-    mfields = dict([ (f.name,f) for f in modelFields(model)  ])
+    mfields = dict([ (f.name, f) for f in modelFields(model)  ])
     fdict = dict()
     for form in formset:
         for fieldname, fieldval in form.cleaned_data.iteritems():
@@ -98,7 +98,7 @@ def makeFilters(model, formset, soft=True):
     Helper for getMatches; figures out restrictions given a formset
     """
     filters = None
-    mfields = dict([ (f.name,f) for f in modelFields(model)  ])
+    mfields = dict([ (f.name, f) for f in modelFields(model)  ])
     ##if (threshold == 1):
     ##    filters = None
     ##else:
@@ -117,7 +117,7 @@ def makeFilters(model, formset, soft=True):
             if mf is None:
                 pass
             else:
-                if isinstance(mf,VirtualIncludedField):
+                if isinstance(mf, VirtualIncludedField):
                     fieldname = mf.throughfield_name+'__'+fieldname
                 if (fieldval is not None) and (not isgeneric(mf)):
                     clause = None
@@ -128,7 +128,7 @@ def makeFilters(model, formset, soft=True):
                         loval = form.cleaned_data[basename + '_lo']
                         hival = form.cleaned_data[basename + '_hi']
                         fieldoperator = form.cleaned_data[basename + '_operator']
-                        if isinstance(mf,VirtualIncludedField):
+                        if isinstance(mf, VirtualIncludedField):
                             basename = mf.throughfield_name+'__'+basename
                         if soft and (fieldoperator == 'IN~'):
                             ## this isn't a restriction, so ignore
@@ -170,7 +170,7 @@ def makeFilters(model, formset, soft=True):
                             ## False values appear to be represented as 0
                             clause = Q(**{fieldname + '__exact': 0})
                     else:
-                        if fieldval is None or re.match("\s*$",fieldval):
+                        if fieldval is None or re.match("\s*$", fieldval):
                             pass
                         else:
                             if (fieldoperator == '=~'):
@@ -317,12 +317,12 @@ def medianRangeEval(model, field, lorange, hirange, size, fieldRef):
     ##print('NOT Guessed')
     if settings.DATABASES['default']['ENGINE'] == 'django.db.backends.postgresql_psycopg2':
         fname = field.name
-        dataranges = model.objects.aggregate(Min(fname),Max(fname))
+        dataranges = model.objects.aggregate(Min(fname), Max(fname))
         datamin = dataranges[fname+'__min']
         datamax = dataranges[fname+'__max']
-        if (isinstance(datamin,datetime.datetime) and (datamin.tzinfo is None)):
+        if (isinstance(datamin, datetime.datetime) and (datamin.tzinfo is None)):
             datamin = datamin.replace(tzinfo=pytz.utc)
-        if (isinstance(datamax,datetime.datetime) and (datamax.tzinfo is None)):
+        if (isinstance(datamax, datetime.datetime) and (datamax.tzinfo is None)):
             datamax = datamax.replace(tzinfo=pytz.utc)
 
         if (lorange == 'min'):
@@ -353,21 +353,21 @@ def medianRangeEval(model, field, lorange, hirange, size, fieldRef):
             if (curweight <= halfweight):
                 ## half or more are score 0, so that's the median
                 return 0
-            curweight = curweight - 2 * min(belowweight,aboveweight)
+            curweight = curweight - 2 * min(belowweight, aboveweight)
             if (curweight <= halfweight):
                 ## excess is the overshoot... back up to 50%
                 excess = halfweight - curweight
                 if belowweight < aboveweight:
                     retv =  lorange - (datamin + excess/2)
                 else:
-                    retv =(datamax - excess/2) - hirange
+                    retv = (datamax - excess/2) - hirange
             else:
                 if belowweight < aboveweight:
                     retv = datamid - hirange
                 else:
                     retv = lorange - datamid
 
-        if isinstance(retv,datetime.timedelta):
+        if isinstance(retv, datetime.timedelta):
             retv = total_seconds(retv)
 
         return retv
@@ -379,7 +379,7 @@ def dbFieldRef(field):
     """
     return the alias for this field in the database query
     """
-    ##if isinstance(field,VirtualIncludedField):
+    ##if isinstance(field, VirtualIncludedField):
     try:
         return db_table(field.targetFields()[0].model) + '.' + field.name
     except:
@@ -464,7 +464,7 @@ def desiredRanges(frms):
                     if ((loval != 'min') or (hival != 'max')):
                         desiderata[base] = [loval, hival]
                 elif operator == '=~':
-                    print('what is ',operator)
+                    print('what is ', operator)
                 else:
                     pass
     return desiderata
@@ -505,7 +505,7 @@ def sortFormulaRanges(model, desiderata):
     """
     if (len(desiderata) > 0):
         tsize = tableSize(model)
-#        weights = dict([(b,autoweight(model, resolveField(model, b), desiderata[b][0], desiderata[b][1], tsize)) \
+#        weights = dict([(b, autoweight(model, resolveField(model, b), desiderata[b][0], desiderata[b][1], tsize)) \
 #                              for b in desiderata.keys()])
         # totalweight = len(desiderata)
 #        for w in weights.values():
@@ -517,7 +517,7 @@ def sortFormulaRanges(model, desiderata):
                 pass
             else:
                 scores[b] = scoreNumeric(field, desiderata[b][0], desiderata[b][1], tsize)
-#        scores = dict([(b,scoreNumeric(resolveField(model, b), desiderata[b][0], desiderata[b][1], tsize)) \
+#        scores = dict([(b, scoreNumeric(resolveField(model, b), desiderata[b][0], desiderata[b][1], tsize)) \
 #                              for b in desiderata.keys()])
         if len(scores) == 0:
             return None
@@ -569,7 +569,7 @@ def getMatches(myModel, formset, soft, queryStart = 0, queryEnd = None, minCount
             subresults, subcount = getMatches(subm, myfilter, soft, queryStart = 0, queryEnd = queryEnd, minCount = minCount)
             aggcount = aggcount + subcount
             aggresults = aggresults + subresults
-        aggresults = sorted(aggresults,key=itemgetter('score'), reverse=True)
+        aggresults = sorted(aggresults, key=itemgetter('score'), reverse=True)
         aggresults = aggresults[queryStart:]
         return (aggresults, aggcount)
     else:
@@ -578,9 +578,9 @@ def getMatches(myModel, formset, soft, queryStart = 0, queryEnd = None, minCount
         ## This might be too loose (e.g., if the GenericKey is not used
         cantDefer = []
         for x in modelFields(myModel):
-            if isinstance(x,GenericForeignKey):
-                cantDefer.extend([x.ct_field,x.fk_field])
-        deferFields = [x.name for x in modelFields(myModel) if maskField(x) and isinstance(x,Field) and x.name not in cantDefer ]
+            if isinstance(x, GenericForeignKey):
+                cantDefer.extend([x.ct_field, x.fk_field])
+        deferFields = [x.name for x in modelFields(myModel) if maskField(x) and isinstance(x, Field) and x.name not in cantDefer ]
 
         gargs = genericArguments(myModel, formset, soft)
         gmatches = dict()
@@ -627,12 +627,12 @@ def getMatches(myModel, formset, soft, queryStart = 0, queryEnd = None, minCount
             myweight = totalweight(myModel, formset)
             rescore = dict()
             for x in query:
-                myscore = getattr(x,'score')
+                myscore = getattr(x, 'score')
                 mysum = myweight*myscore
                 maxsum = myweight
                 valid = True
                 for gfield, gresults in gmatches.iteritems():
-                    gid = getattr(x,gfield.throughfield_name).pk
+                    gid = getattr(x, gfield.throughfield_name).pk
                     gweight = gweights[gfield]
                     gscore = gresults.get(gid)
                     if gscore is not None:
@@ -646,17 +646,17 @@ def getMatches(myModel, formset, soft, queryStart = 0, queryEnd = None, minCount
                     rescore[x] = 1
                 else:
                     rescore[x] = mysum/maxsum
-            query = [x[0] for x in sorted(rescore.iteritems(), key=itemgetter(1),reverse=True)]
+            query = [x[0] for x in sorted(rescore.iteritems(), key=itemgetter(1), reverse=True)]
             for x in query:
-                setattr(x,'score',rescore[x])
-            query = [x for x in query if getattr(x,'score') >= threshold ]
+                setattr(x, 'score', rescore[x])
+            query = [x for x in query if getattr(x, 'score') >= threshold ]
             totalCount = len(query)
 
         if (countOnly):
             return totalCount
         else:
             if queryEnd:
-                queryEnd = min(totalCount,queryEnd)
+                queryEnd = min(totalCount, queryEnd)
             else:
                 queryEnd = totalCount
             query = query[queryStart:queryEnd]
@@ -728,7 +728,7 @@ def multiScore(model, values, desiderata, medians=None):
             raise Exception("This is bad news!")
             if not tsize:
                 tsize = tableSize(model)
-            median = medianEval(b.model, baseScore(fieldRef,desiderata[d][0], desiderata[d][1]), tsize)
+            median = medianEval(b.model, baseScore(fieldRef, desiderata[d][0], desiderata[d][1]), tsize)
         score = score + unitScore(values[d], desiderata[d][0], desiderata[d][1], median)
         count = count + 1
 

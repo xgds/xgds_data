@@ -24,15 +24,15 @@ def getattribute(value, arg):
         v = value[arg]
     elif integer_test.match(str(arg)) and len(value) > int(arg):
         v = value[int(arg)]
-    elif isinstance(arg,VirtualIncludedField):
+    elif isinstance(arg, VirtualIncludedField):
         try:
             #throughInstance = arg.throughfield.__get__(value);
-            throughInstance = getattr(value,arg.throughfield_name)
+            throughInstance = getattr(value, arg.throughfield_name)
             includedFieldName = arg.name
-            v = getattr(throughInstance,includedFieldName)
+            v = getattr(throughInstance, includedFieldName)
         except:
-            print('Error on ',value,arg)
-    elif isinstance(arg,models.Field):
+            print('Error on ', value, arg)
+    elif isinstance(arg, models.Field):
         v = getattr(value, arg.name)
     else:
         v = settings.TEMPLATE_STRING_IF_INVALID
@@ -50,7 +50,7 @@ def display(field, value):
     elif isinstance(value, basestring):
         return value
     elif isinstance(value, User):
-        return ', '.join([value.last_name,value.first_name])
+        return ', '.join([value.last_name, value.first_name])
     else:
         try:
             return ', '.join(value)
