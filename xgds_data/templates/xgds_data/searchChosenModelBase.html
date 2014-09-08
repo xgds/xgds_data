@@ -18,7 +18,35 @@
 	  src="{{ STATIC_URL }}external/js/DataTables-1.9.4/jquery.dataTables.min.js"></script>
   <script language="javascript" type="text/javascript"
 	  src="{{ STATIC_URL }}external/js/DataTables-1.9.4/FixedColumns.min.js"></script>
+
+
+
+<style>
+.dataTables_paginate a {
+ 	text-decoration: none !important;
+    display: inline-block;
+    padding: 3px;
+    margin-right: 3px !important;
+    margin-left: 3px;
+    padding-right: 5px;
+    padding-left: 5px;
+    display: inline-block;
+    background: #777;
+    border: 2px;
+    color: #fff;
+    cursor: pointer;
+    font-weight: bold;
+    border-radius: 5px;
+    -moz-border-radius: 5px;
+    -webkit-border-radius: 5px;
+    
+}
+</style>
+
+              
   <script type="text/javascript">
+  
+
   
   function zeroPad(integer,width) {
 	  var string = integer.toString();
@@ -84,6 +112,7 @@
 		document.QueryForm.action = "{% url 'xgds_data_searchChosenModel' module model 'expert' %}";
 	}
     document.QueryForm["fnctn"].value = 'change';
+	$("#id_pageno").val(1); 
     document.QueryForm.submit();
   }
 
@@ -174,12 +203,15 @@ $("#nextpage").click(function() {
 	gotoPage(page);
 });
 
-function clearResults() { $('#results').html(""); $("#id_pageno").val(1); }
+function resetResults() { 
+//	$('#results').html(""); 
+	$("#id_pageno").val(1); 
+}
 
-$('input[id$="control"]').change(clearResults);
-$('input[type=text][id$="_lo"]').change(clearResults);
-$('input[type=text][id$="_hi"]').change(clearResults);
-$('select').change(clearResults);
+$('input[id$="control"]').change(resetResults);
+$('input[type=text][id$="_lo"]').change(resetResults);
+$('input[type=text][id$="_hi"]').change(resetResults);
+$('select').change(resetResults);
   </script>
   
   <script language="javascript" type="text/javascript"
@@ -377,20 +409,48 @@ $('select').change(clearResults);
 </div>
 
 {% endblock %}
+		
+	{% with divpage=1|divide:pageSize %}
+	{% with end_index=page|divide:divpage|floatformat:"0"  %}
+	{% with start_index=pageSize|divide:-1|add:end_index|add:1  %}
+	{% with last_page=count|divide:pageSize|addfloat:0.4999|floatformat:"0"|add:0  %}
+	{% with last_page_plus_one=last_page|add:1  %}
+	<div id="pager">
+	<input type="hidden" name="start" id="id_start" >
+	<input type="hidden" name="end"  id="id_end">
+		<span class="counts">Displaying {{start_index}}-
+		{% if end_index < count %}{{end_index}}{% else %}{{count}}{% endif %}
+		 out of {{ count }} records</span>
+		<div class="dataTables_paginate" style="float: right;">
 
-<BR />
+	
+		{% if page > 1 %}<a href="javascript:gotoPage({{ page|add:"-1" }});">Previous</a>{% else %}<a class="ui-state-disabled">Previous</a>{%endif%}
+		{% for num in 1|range:last_page_plus_one %}  
+			{% if num < page|add:"3" and num > page|add:"-3" or num < 3 or num > last_page|add:"-2" %}
+			   {% ifequal num page %}
+		            <a class="ui-state-disabled">{{num}}</a>
+		        {% else %} 
+			   		<a href="javascript:gotoPage({{ num }});">{{ num }}</a>
+			   	{% endifequal %}
+		   {% elif num == page|add:"3" or num == page|add:"-3" %}
+		   		...
+		   {% endif %}  
+		{% endfor %}  
+		{% if more %}<a href="javascript:gotoPage({{ page|add:"1" }});">Next</a>{% else %}<a class="ui-state-disabled">Next</a>{%endif%}
 
-		{% if page > 1 %}
-			<input type="submit" value="Previous" id="prevpage"/>
-		{% else %}
-			<input type="submit" value="Previous" id="prevpage" disabled />
-		{% endif %}
-		<span>Page {{ page }}</span>
-		{% if more %}
-			<input type="submit" value="Next" id="nextpage"/>
-		{% else %}
-			<input type="submit" value="Next" id="nextpage" disabled />
-		{% endif %}
+	    </div>
+
+
+	    
+	    
+	    
+	</div>
+	{% endwith %}
+	{% endwith %}
+	{% endwith %}
+	{% endwith %}
+	{% endwith %}
+
 
 {% elif count == 0 %}
 	<HR>

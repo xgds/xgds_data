@@ -566,10 +566,10 @@ def plotQueryResults(request, moduleName, modelName, start, end, soft=True):
 
     template = resolveSetting('XGDS_DATA_PLOT_TEMPLATES', myModel, 'xgds_data/plotQueryResults.html')
     return log_and_render(request, reqlog, template,
-                          {'plotData': json.dumps(plotdata, default=megahandler2),
+                          {'title': 'Plot ' + verbose_name(myModel),
+                           'plotData': json.dumps(plotdata, default=megahandler2),
                            'labels': pldata,
                            'timeFields': json.dumps(timeFields),
-                           'title': 'Plot ' + modelName,
                            'module': moduleName,
                            'model': modelName,
                            'pk': pk(myModel).name,
