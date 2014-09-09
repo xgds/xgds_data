@@ -293,29 +293,33 @@ class AxesForm(forms.Form):
         seriesablefields = kwargs.pop('seriesablefields', None)
         forms.Form.__init__(self, *args, **kwargs)
         chartablefields = []
-        seriesCount = None
+
+        if (seriesablefields is None):
+            seriesablePreset = False
+            seriesablefields = []
+            try:
+                itemCount = mfields[0].model.objects.count() # an upper bound
+            except IndexError:
+                pass ## no fields, apparently
+            try:
+                maxseriesable = settings.XGDS_DATA_MAX_SERIESABLE
+            except AttributeError:
+                maxseriesable = 100
+        else:
+            seriesablePreset = True
+
         for x in mfields:
-            if (not isinstance(x, VirtualIncludedField)) and ordinalField(x.model, x) and (not maskField(x)):
-                chartablefields.append(x)
-
-            if (seriesablefields is None):
-                try:
-                    maxseriesable = settings.XGDS_DATA_MAX_SERIESABLE
-                except AttributeError:
-                    maxseriesable = 100
-                seriesablefields = []
-            if seriesCount is None:
-                seriesCount = x.model.objects.count()  # an upper bound
-
-        for y in mfields:
-            if ((not isinstance(y, (GenericForeignKey, VirtualIncludedField))) and
-                (not ordinalField(y.model, y)) and
-                (not maskField(y)) and
-                (not isAbstract(y.model)) and
-                ((seriesCount < maxseriesable) or
-                 ((seriesCount < maxseriesable * 1000) and
-                  (y.model.objects.values(y.name).order_by().distinct().count() <= maxseriesable)))):
-                seriesablefields.append(y)
+            if (not isinstance(x, VirtualIncludedField)) and (not maskField(x)):
+                if ordinalField(x.model, x):
+                    chartablefields.append(x)
+                elif ((not seriesablePreset) and 
+                      (not isinstance(x, GenericForeignKey)) and 
+                      (not isAbstract(x.model)) and
+                      (itemCount is not None) and
+                      ((itemCount < maxseriesable) or
+                       ((itemCount < maxseriesable * 1000) and
+                        (x.model.objects.values(x.name).order_by().distinct().count() <= maxseriesable)))):
+                    seriesablefields.append(x)
 
         if len(chartablefields) > 1:
             datachoices = (tuple((x, x)
