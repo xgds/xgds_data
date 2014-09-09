@@ -13,7 +13,7 @@ from django.db.models import get_app
 from django.db.models import fields
 from xgds_data import settings
 #from xgds_data.models import VirtualIncludedField
-#import xgds_data.models
+import xgds_data.models
 
 
 def settingsForModel(settng, model):
@@ -184,6 +184,3 @@ def isgeneric(field):
         return field.isgeneric()
     except AttributeError:
         return False
-
-
-import xgds_data.models
