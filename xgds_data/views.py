@@ -410,7 +410,7 @@ def searchChosenModel(request, moduleName, modelName, expert=False):
     if (mode == 'csv'):
         response = HttpResponse(content_type='text/csv')
         # if you want to download instead of display in browser
-        ## response['Content-Disposition'] = 'attachment; filename='+ verbose_name(myModel) + '.csv'
+        response['Content-Disposition'] = 'attachment; filename='+ verbose_name(myModel) + '.csv'
 
         try:
             ecsv = __import__('.'.join([moduleName, 'exportCsv']))
