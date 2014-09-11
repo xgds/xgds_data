@@ -410,7 +410,7 @@ def searchChosenModel(request, moduleName, modelName, expert=False):
     if (mode == 'csv'):
         response = HttpResponse(content_type='text/csv')
         # if you want to download instead of display in browser
-        # response['Content-Disposition'] = 'attachment; filename='+modelName + '.csv'
+        ## response['Content-Disposition'] = 'attachment; filename='+ verbose_name(myModel) + '.csv'
 
         try:
             ecsv = __import__('.'.join([moduleName, 'exportCsv']))
@@ -424,7 +424,7 @@ def searchChosenModel(request, moduleName, modelName, expert=False):
             print('well, that didnt work')
 
             writer = csv.writer(response)
-            writer.writerow([f.name for f in myFields])
+            writer.writerow([f.verbose_name for f in myFields])
             for r in results:
             ##            r.get(f.name,None)
                 writer.writerow([csvEncode(safegetattr(r, f.name, None)) for f in myFields ])
