@@ -67,8 +67,9 @@
 	  var year = d.getUTCFullYear().toString();
 	  var hours = zeroPad(d.getUTCHours(),2);
 	  var minutes = zeroPad(d.getUTCMinutes(),2);
-	  
-	  return mo+'/'+date+'/'+year+' '+hours+':'+minutes;
+	  var seconds = zeroPad(d.getUTCSeconds(),2);
+
+	  return mo+'/'+date+'/'+year+' '+hours+':'+minutes+':'+seconds;
   }
   
   function submitform(fnctn)
@@ -165,8 +166,8 @@ if ($('#tableresults').length) {
 window.onload = initDataFrame;
   
 {% for f in datetimefields %}
-  $('#id_{{f}}_lo').datetimepicker({addSliderAccess: false, showTimezone: true, timeFormat: 'hh:mm tt z'});
-  $('#id_{{f}}_hi').datetimepicker({addSliderAccess: false, showTimezone: true, timeFormat: 'hh:mm tt z'});
+  $('#id_{{f}}_lo').datetimepicker({addSliderAccess: false, showTimezone: true, timezone: '+0000', timeFormat: 'hh:mm:ss tt z'});
+  $('#id_{{f}}_hi').datetimepicker({addSliderAccess: false, showTimezone: true, timezone: '+0000', timeFormat: 'hh:mm:ss tt z'});
 {% endfor %}
 $("#addform").click(function() {
 	submitform('addform');
