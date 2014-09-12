@@ -69,7 +69,11 @@
 	  var minutes = zeroPad(d.getUTCMinutes(),2);
 	  var seconds = zeroPad(d.getUTCSeconds(),2);
 
-	  return mo+'/'+date+'/'+year+' '+hours+':'+minutes+':'+seconds;
+	  if (seconds == 0) {
+ 	     return mo+'/'+date+'/'+year+' '+hours+':'+minutes;
+          } else {
+ 	     return mo+'/'+date+'/'+year+' '+hours+':'+minutes+':'+seconds;
+          }
   }
   
   function submitform(fnctn)
@@ -166,8 +170,13 @@ if ($('#tableresults').length) {
 window.onload = initDataFrame;
   
 {% for f in datetimefields %}
-  $('#id_{{f}}_lo').datetimepicker({addSliderAccess: false, showTimezone: true, timezone: '+0000', timeFormat: 'hh:mm:ss tt z'});
-  $('#id_{{f}}_hi').datetimepicker({addSliderAccess: false, showTimezone: true, timezone: '+0000', timeFormat: 'hh:mm:ss tt z'});
+var timeFormat = '{{ timeformat }}'
+var seconds = false;
+if (timeFormat.search("ss") > -1) {
+  seconds = true;
+}
+$('#id_{{f}}_lo').datetimepicker({addSliderAccess: false, showTimezone: true, timezone: '+0000', showSecond: seconds, timeFormat: timeFormat });
+$('#id_{{f}}_hi').datetimepicker({addSliderAccess: false, showTimezone: true, timezone: '+0000', showSecond: seconds, timeFormat: timeFormat });
 {% endfor %}
 $("#addform").click(function() {
 	submitform('addform');
@@ -339,7 +348,7 @@ $('select').change(resetResults);
 	    {% elif exactCount > 0 %}
 	    	<input type="submit" value="Records (Exact)" id="plothard"/> 
 	    {% else %}
-	    	<input type="submit" value="Records (Exact)"" id="plothard" disabled />
+	    	<input type="submit" value="Records (Exact)" id="plothard" disabled />
 	    {% endif %}
 	    </span>
     {% endif %}

@@ -32,7 +32,7 @@ except:
     pass
 
 from xgds_data import settings
-from xgds_data.introspection import modelFields, maskField, isAbstract, pk, verbose_name
+from xgds_data.introspection import modelFields, maskField, isAbstract, pk, verbose_name, settingsForModel
 from xgds_data.forms import QueryForm, SearchForm, AxesForm, SpecializedForm
 from xgds_data.logging import recordRequest, recordList, log_and_render
 from xgds_data.logconfig import logEnabled
@@ -281,6 +281,7 @@ def searchSimilar(request, moduleName, modelName, pkid):
                 datetimefields.append(formsetifyFieldName(y, x.name))
     axesform = AxesForm(myFields, data)
     template = resolveSetting('XGDS_DATA_SEARCH_TEMPLATES', myModel, 'xgds_data/searchChosenModel.html')
+    timeformat = resolveSetting('XGDS_DATA_TIME_FORMAT', myModel, 'hh:mm tt z')
     return log_and_render(request, reqlog, template,
                           {'title': 'Search ' + verbose_name(myModel),
                            'module': moduleName,
@@ -288,6 +289,7 @@ def searchSimilar(request, moduleName, modelName, pkid):
                            'debug': debug,
                            'count': resultCount,
                            'datetimefields': datetimefields,
+                           'timeFormat': timeformat,
                            'formset': formset,
                            'axesform': axesform},
                           nolog=['formset', 'axesform'])
@@ -456,6 +458,7 @@ def searchChosenModel(request, moduleName, modelName, expert=False):
             axesform = AxesForm(myFields, qd)
         template = resolveSetting('XGDS_DATA_SEARCH_TEMPLATES', myModel, 'xgds_data/searchChosenModel.html')
         checkable = resolveSetting('XGDS_DATA_CHECKABLE', myModel, False)
+        timeformat = resolveSetting('XGDS_DATA_TIME_FORMAT', myModel, 'hh:mm tt z')
 
         return log_and_render(request, reqlog, template,
                               {'title': 'Search ' + verbose_name(myModel),
@@ -464,6 +467,7 @@ def searchChosenModel(request, moduleName, modelName, expert=False):
                                'expert': expert,
                                'pk':  pk(myModel),
                                'datetimefields': datetimefields,
+                               'timeformat': timeformat,
                                'displayFields': myFields,
                                'formset': formset,
                                'axesform': axesform,
