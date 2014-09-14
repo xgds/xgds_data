@@ -410,20 +410,28 @@ def searchChosenModel(request, moduleName, modelName, expert=False):
         formset = tmpFormSet()
 
     if (mode == 'csv'):
-        response = HttpResponse(content_type='text/csv')
-        # if you want to download instead of display in browser
-        response['Content-Disposition'] = 'attachment; filename='+ verbose_name(myModel) + '.csv'
+
+        content_type = 'text/csv'
+        extension = '.csv'
 
         try:
             ecsv = __import__('.'.join([moduleName, 'exportCsv']))
-            output = StringIO.StringIO()
             ##print(ecsv.exportCsv.exportCsv)
-            ecsv.exportCsv.exportCsv(results, output)
-            response.write(output.getvalue())
-            output.close()
+            meta, content = ecsv.exportCsv.exportCsv(results)
+
+            content_type = meta.get('content_type', content_type)
+            extension = meta.get('extension', extension)
+
+            response = HttpResponse(content, content_type=content_type)
+            response['Content-Disposition'] = 'attachment; filename='+ verbose_name(myModel) + extension
         except Exception as inst:
+            raise  # FIX
             print(inst)
             print('well, that didnt work')
+
+            response = HttpResponse(content_type='text/csv')
+            # if you want to download instead of display in browser
+            response['Content-Disposition'] = 'attachment; filename='+ verbose_name(myModel) + '.csv'
 
             writer = csv.writer(response)
             writer.writerow([f.verbose_name for f in myFields])
