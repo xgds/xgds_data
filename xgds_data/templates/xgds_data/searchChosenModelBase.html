@@ -400,7 +400,13 @@ $('select').change(resetResults);
 		    {% endif %}
 		     </td>
 	     {% endif %}
-	   <td>{{result}}</td>
+	   <td>
+             {% if result.get_absolute_url %}
+               <a href="{{ result.get_absolute_url }}">{{ result }}</a>
+             {% else %}
+               {{ result }}
+             {% endif %}
+           </td>
  	 {% for x in displayFields %}
 	   <TD >
 	  {% with myval=result|getattribute:x %}
