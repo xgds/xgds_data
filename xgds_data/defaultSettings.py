@@ -39,3 +39,11 @@ XGDS_DATA_SEARCH_SKIP_APP_PATTERNS = (
 
 XGDS_DATA_MAX_PULLDOWNABLE = 100
 XGDS_DATA_MAX_SERIESABLE = 100
+
+# possible fields to treat as the 'primary time field' for a model.
+# try in order until the model has one of the fields.
+XGDS_DATA_TIME_FIELDS = (
+    'timestampSeconds',
+    'timeStampSeconds',
+    'timestamp',
+)

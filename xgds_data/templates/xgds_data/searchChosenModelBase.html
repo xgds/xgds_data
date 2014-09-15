@@ -222,6 +222,12 @@ $('input[id$="control"]').change(resetResults);
 $('input[type=text][id$="_lo"]').change(resetResults);
 $('input[type=text][id$="_hi"]').change(resetResults);
 $('select').change(resetResults);
+
+$(function () {
+    if ({{ autoSubmit }}) {
+        $('#query').click();
+    }
+});
   </script>
   
   <script language="javascript" type="text/javascript"

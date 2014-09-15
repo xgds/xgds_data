@@ -14,6 +14,8 @@ import calendar
 import StringIO
 from itertools import chain
 
+import pytz
+
 from django.shortcuts import render_to_response, render
 from django.http import HttpResponseNotAllowed, HttpResponse
 from django.template import RequestContext
@@ -325,6 +327,30 @@ def safegetattr(obj, attname, default = None):
         return None
 
 
+def getPrimaryTimeField(model):
+    fieldDict = dict([(f.name, f)
+                      for f in model._meta.fields])
+    for f in settings.XGDS_DATA_TIME_FIELDS:
+        if f in fieldDict:
+            return f
+    return None
+
+
+def getDtFromQueryParam(param):
+    if param is None:
+        return None
+    else:
+        return datetime.datetime.utcfromtimestamp(float(param))
+
+
+def getTimePickerString(dt):
+    # output time in format expected by jquery-ui timepicker addon
+    result = dt.strftime('%m/%d/%Y %I:%M:%S %p +0000')
+    result = re.sub('AM', 'am', result)
+    result = re.sub('PM', 'pm', result)
+    return result
+
+
 def searchChosenModel(request, moduleName, modelName, expert=False):
     """
     Search over the fields of the selected model
@@ -335,8 +361,24 @@ def searchChosenModel(request, moduleName, modelName, expert=False):
     myModel = getattr(modelmodule, modelName)
     myFields = [x for x in modelFields(myModel) if not maskField(x) ]
 
+    # If 'start' or 'end' query parameters are specified in the initial
+    # GET method URL, use them to set initial values for the 'primary
+    # time field', and auto-submit the search. This allows linking to search
+    # results for a secified time interval from elsewhere in the system.
+    initialData = {}
+    autoSubmit = 0
+    if request.method == 'GET':
+        intvStart = getDtFromQueryParam(request.GET.get('start'))
+        intvEnd = getDtFromQueryParam(request.GET.get('end'))
+        primaryTimeField = getPrimaryTimeField(myModel)
+        if intvStart:
+            initialData[primaryTimeField + '_lo'] = getTimePickerString(intvStart)
+        if intvEnd:
+            initialData[primaryTimeField + '_hi'] = getTimePickerString(intvEnd)
+        autoSubmit = 1 if bool(initialData) else 0
+
     tmpFormClass = SpecializedForm(SearchForm, myModel)
-    tmpFormSet = formset_factory(tmpFormClass)
+    tmpFormSet = formset_factory(tmpFormClass, extra=0)
     debug = []
     data = request.REQUEST
     formCount = 1
@@ -407,7 +449,7 @@ def searchChosenModel(request, moduleName, modelName, expert=False):
         formCount = int(data['form-TOTAL_FORMS'])
         formset = tmpFormSet(data)
     else:
-        formset = tmpFormSet()
+        formset = tmpFormSet(initial=[initialData])
 
     if (mode == 'csv'):
 
@@ -489,6 +531,7 @@ def searchChosenModel(request, moduleName, modelName, expert=False):
                                'picks': picks,
                                'checkable': checkable,
                                'debug': debug,
+                               'autoSubmit': autoSubmit,
                                },
                               nolog=['formset', 'axesform', 'results', 'resultsids', 'scores'],
                               listing=results)
