@@ -30,8 +30,9 @@ def getattribute(value, arg):
             throughInstance = getattr(value, arg.throughfield_name)
             includedFieldName = arg.name
             v = getattr(throughInstance, includedFieldName)
-        except:
+        except AttributeError:
             print('Error on ', value, arg)
+            v = None
     elif isinstance(arg, models.Field):
         v = getattr(value, arg.name)
     else:
