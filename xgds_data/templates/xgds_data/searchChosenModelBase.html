@@ -441,7 +441,7 @@ $(function () {
 	<input type="hidden" name="start" id="id_start" >
 	<input type="hidden" name="end"  id="id_end">
 		<span class="counts">Displaying {{start_index}}-
-		{% if end_index < count %}{{end_index}}{% else %}{{count}}{% endif %}
+		{% if end_index|add:"0" < count|add:"0" %}{{end_index}}{% else %}{{count}}{% endif %}
 		 out of {{ count }} records</span>
 		<div class="dataTables_paginate" style="float: right;">
 
