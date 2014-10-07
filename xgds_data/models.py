@@ -9,7 +9,7 @@ from datetime import datetime
 from django.db import models
 from django.contrib.auth.models import User
 from django.http import HttpRequest
-from django.contrib.contenttypes.generic import ContentType, GenericForeignKey
+from django.contrib.contenttypes.generic import ContentType
 
 from xgds_data import settings
 from xgds_data.logconfig import logEnabled
@@ -49,11 +49,11 @@ class VirtualIncludedField(models.Field):
                 match = f
         if (match is not None):
             try:
-                throughmodels = [ ContentType.objects.get_for_id(x[0]).model_class() \
-                             for x in self.model.objects.values_list(match.ct_field).distinct() ]
-            except: ## not a GenericForeignKey
-                ## this route has never been tested
-                throughmodels = [ match.rel.to ]
+                throughmodels = [ContentType.objects.get_for_id(x[0]).model_class()
+                                 for x in self.model.objects.values_list(match.ct_field).distinct()]
+            except:  # not a GenericForeignKey
+                # this route has never been tested
+                throughmodels = [match.rel.to]
             return throughmodels
         else:
             return []
@@ -68,6 +68,7 @@ class VirtualIncludedField(models.Field):
 
     def isgeneric(self):
         return True
+
 
 ## taken from http://stackoverflow.com/questions/4581789/how-do-i-get-user-ip-address-in-django
 def get_client_ip(request):
@@ -114,12 +115,10 @@ if logEnabled():
         def __unicode__(self):
             return 'Request %s:%s' % (self.id, self.path)
 
-
     class RequestArgument(models.Model):
         request = models.ForeignKey(RequestLog, null=False, blank=False)
         name = models.CharField(max_length=256, blank=False)
         value = models.TextField(blank=True)
-
 
     class ResponseLog(models.Model):
         timestampSeconds = models.DateTimeField(blank=False)
@@ -129,7 +128,6 @@ if logEnabled():
         @classmethod
         def create(cls, request, template=None):
             return cls(timestampSeconds=datetime.utcnow(), request=request, template=template)
-
 
     class ResponseArgument(models.Model):
         response = models.ForeignKey(ResponseLog, null=False, blank=False)
@@ -142,7 +140,6 @@ if logEnabled():
         fclass = models.CharField(max_length=1024, blank=True)
         fid = models.PositiveIntegerField(blank=False)  # might be risky to assume this is always a pos int
 
-
     class HttpRequestReplay(HttpRequest):
         def __init__(self, request, path, data, *args, **kwargs):
             HttpRequest.__init__(self, *args, **kwargs)
@@ -154,8 +151,6 @@ if logEnabled():
             self.path = path
             self.user = request.user
             self.session = request.session
-
-
 
 if cacheStatistics():
     class ModelStatistic(models.Model):

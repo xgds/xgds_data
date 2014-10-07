@@ -18,6 +18,7 @@ if logEnabled():
                                   ResponseArgument,
                                   ResponseList)
 
+
 def recordRequest(request):
     """
     Logs the request in the database
@@ -28,7 +29,7 @@ def recordRequest(request):
         reqlog.save()
         args = []
         for a in data.keys():
-            args = args + [ RequestArgument(request=reqlog, name=a, value=v) for v in data.getlist(a) ]
+            args = args + [RequestArgument(request=reqlog, name=a, value=v) for v in data.getlist(a)]
         # args = [ RequestArgument(request=reqlog, name=key, value=data.get(key)) for key in data ]
         RequestArgument.objects.bulk_create(args)
 
@@ -58,11 +59,11 @@ def recordList(reslog, results):
             ranks.append(len(results))
             items = [ResponseList(response=reslog,
                                   rank=r,
-#                                  fclass=str(results[r - 1]['__class__']),
-#                                  fid=results[r - 1][  results[r - 1]['__class__']._meta.pk.name ] )
-                                  fclass=str(getListItemProperty(results[r - 1],'__class__')),
-                                  fid=getListItemProperty( results[r - 1], \
-                                         getListItemProperty(results[r - 1], '__class__')._meta.pk.name ) )
+                                  # fclass=str(results[r - 1]['__class__']),
+                                  # fid=results[r - 1][  results[r - 1]['__class__']._meta.pk.name ] )
+                                  fclass=str(getListItemProperty(results[r - 1], '__class__')),
+                                  fid=getListItemProperty(results[r - 1],
+                                                          getListItemProperty(results[r - 1], '__class__')._meta.pk.name))
 
                      for r in ranks]
             try:
@@ -94,10 +95,10 @@ def log_and_render(request, reqlog, template, rendargs,
                     # check if an object is a list or tuple (but not string)
                     # http://stackoverflow.com/questions/1835018/python-check-if-an-object-is-a-list-or-tuple-but-not-string
                     assert not isinstance(rendargs.get(key), basestring)
-                    args = args + [ ResponseArgument(response=reslog, name=key, value=str(v)[:1024]) for v in rendargs.get(key) ]
+                    args = args + [ResponseArgument(response=reslog, name=key, value=str(v)[:1024]) for v in rendargs.get(key)]
                 except (TypeError, AssertionError):
                     # not iterable
-                    args = args + [ ResponseArgument(response=reslog, name=key, value=str(rendargs.get(key))[:1024]) ]
+                    args = args + [ResponseArgument(response=reslog, name=key, value=str(rendargs.get(key))[:1024])]
 #        args = [ ResponseArgument(response=reslog, name=key, value=rendargs.get(key).__str__()[:1024]) \
 #                  if nolog.count(key) == 0 ]
 

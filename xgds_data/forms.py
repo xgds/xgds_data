@@ -127,7 +127,7 @@ def formFields(mymodel, field, enumerableFields):
             qset = field.related.parent_model.objects.all()
             try:
                 to_field = [x for x in modelFields(field.rel.to) if x.name == 'name'][0]
-            except:
+            except IndexError:
                 to_field = pk(field.rel.to)
             formfields[field.name] = \
                 forms.ModelChoiceField(queryset=qset,
@@ -298,9 +298,9 @@ class AxesForm(forms.Form):
             seriesablePreset = False
             seriesablefields = []
             try:
-                itemCount = mfields[0].model.objects.count() # an upper bound
+                itemCount = mfields[0].model.objects.count()  # an upper bound
             except IndexError:
-                pass ## no fields, apparently
+                pass  # no fields, apparently
             try:
                 maxseriesable = settings.XGDS_DATA_MAX_SERIESABLE
             except AttributeError:
@@ -312,8 +312,8 @@ class AxesForm(forms.Form):
             if (not isinstance(x, VirtualIncludedField)) and (not maskField(x)):
                 if ordinalField(x.model, x):
                     chartablefields.append(x)
-                elif ((not seriesablePreset) and 
-                      (not isinstance(x, GenericForeignKey)) and 
+                elif ((not seriesablePreset) and
+                      (not isinstance(x, GenericForeignKey)) and
                       (not isAbstract(x.model)) and
                       (itemCount is not None) and
                       ((itemCount < maxseriesable) or

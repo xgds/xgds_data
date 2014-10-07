@@ -5,7 +5,6 @@
 # __END_LICENSE__
 
 import re
-import time
 import datetime
 import calendar
 import pytz
@@ -77,7 +76,7 @@ def genericArguments(model, formset, soft=True):
     """
     Gets the portion of a formset that applies to generic pointers
     """
-    mfields = dict([ (f.name, f) for f in modelFields(model)  ])
+    mfields = dict([(f.name, f) for f in modelFields(model)])
     fdict = dict()
     for form in formset:
         for fieldname, fieldval in form.cleaned_data.iteritems():
@@ -87,7 +86,7 @@ def genericArguments(model, formset, soft=True):
             mf = mfields.get(fieldname)
             if (mf is not None) and isgeneric(mf) and (fieldval is not None):
                 for tm in mf.throughModels():
-                    if not fdict.has_key(mf):
+                    if mf not in fdict:
                         fdict[mf] = set()
                     fdict[mf].add(tm)
     return(fdict)
@@ -98,7 +97,7 @@ def makeFilters(model, formset, soft=True):
     Helper for getMatches; figures out restrictions given a formset
     """
     filters = None
-    mfields = dict([ (f.name, f) for f in modelFields(model)  ])
+    mfields = dict([(f.name, f) for f in modelFields(model)])
     ##if (threshold == 1):
     ##    filters = None
     ##else:
@@ -118,7 +117,7 @@ def makeFilters(model, formset, soft=True):
                 pass
             else:
                 if isinstance(mf, VirtualIncludedField):
-                    fieldname = mf.throughfield_name+'__'+fieldname
+                    fieldname = mf.throughfield_name + '__' + fieldname
                 if (fieldval is not None) and (not isgeneric(mf)):
                     clause = None
                     negate = False
@@ -129,7 +128,7 @@ def makeFilters(model, formset, soft=True):
                         hival = form.cleaned_data[basename + '_hi']
                         fieldoperator = form.cleaned_data[basename + '_operator']
                         if isinstance(mf, VirtualIncludedField):
-                            basename = mf.throughfield_name+'__'+basename
+                            basename = mf.throughfield_name + '__' + basename
                         if soft and (fieldoperator == 'IN~'):
                             ## this isn't a restriction, so ignore
                             pass
@@ -291,7 +290,7 @@ def medianEval(model, expression, size):
         if len(result) == 0:
             return None
         else:
-            return result[int((len(result)-1)/2)][0]
+            return result[int((len(result) - 1) / 2)][0]
 
 
 def medianRangeEval(model, field, lorange, hirange, size, fieldRef):
@@ -318,8 +317,8 @@ def medianRangeEval(model, field, lorange, hirange, size, fieldRef):
     if settings.DATABASES['default']['ENGINE'] == 'django.db.backends.postgresql_psycopg2':
         fname = field.name
         dataranges = model.objects.aggregate(Min(fname), Max(fname))
-        datamin = dataranges[fname+'__min']
-        datamax = dataranges[fname+'__max']
+        datamin = dataranges[fname + '__min']
+        datamax = dataranges[fname + '__max']
         if (isinstance(datamin, datetime.datetime) and (datamin.tzinfo is None)):
             datamin = datamin.replace(tzinfo=pytz.utc)
         if (isinstance(datamax, datetime.datetime) and (datamax.tzinfo is None)):
@@ -331,7 +330,7 @@ def medianRangeEval(model, field, lorange, hirange, size, fieldRef):
             hirange = None
 
         ## odd formulation for an average works with datetimes, too
-        datamid = datamin + (datamax-datamin)/2
+        datamid = datamin + (datamax - datamin) / 2
         if (hirange is not None) and (hirange < datamin):
             retv = datamid - hirange
         elif (lorange is not None) and (lorange > datamax):
@@ -358,9 +357,9 @@ def medianRangeEval(model, field, lorange, hirange, size, fieldRef):
                 ## excess is the overshoot... back up to 50%
                 excess = halfweight - curweight
                 if belowweight < aboveweight:
-                    retv =  lorange - (datamin + excess/2)
+                    retv = lorange - (datamin + excess / 2)
                 else:
-                    retv = (datamax - excess/2) - hirange
+                    retv = (datamax - excess / 2) - hirange
             else:
                 if belowweight < aboveweight:
                     retv = datamid - hirange
@@ -382,12 +381,12 @@ def dbFieldRef(field):
     ##if isinstance(field, VirtualIncludedField):
     try:
         return db_table(field.targetFields()[0].model) + '.' + field.name
-    except:
+    except (IndexError, AttributeError):
     ##else:
         return db_table(field.model) + '.' + field.attname
 
 
-def autoweight(model, field, lorange, hirange, tableSize):
+def autoweight(model, field, lorange, hirange, tblSize):
     """
     Would weight automatically, but isn't that magical yet
     """
@@ -400,7 +399,7 @@ def autoweight(model, field, lorange, hirange, tableSize):
     # fieldRef = dbFieldRef(field)
     # if (unsigned):
     #     fieldRef = "cast({0} as SIGNED)".format(fieldRef)
-    # median = medianRangeEval(field.model, field, lorange, hirange, tableSize, fieldRef)
+    # median = medianRangeEval(field.model, field, lorange, hirange, tblSize, fieldRef)
     # return (1+median)/2
     return 1
 
@@ -422,7 +421,7 @@ def scoreNumeric(field, lorange, hirange, tsize):
     try:
         tf = field.targetFields()[0]
         median = medianRangeEval(tf.model, tf, lorange, hirange, tsize, fieldRef)
-    except:
+    except IndexError:
         median = medianRangeEval(field.model, field, lorange, hirange, tsize, fieldRef)
     if median is None:
         return '1'
@@ -540,18 +539,18 @@ def pageLimits(page, pageSize):
     """
     bla
     """
-    return ((page - 1)* pageSize, page * pageSize)
+    return ((page - 1) * pageSize, page * pageSize)
 
 
 def getCount(myModel, formset, soft):
     """
     Get the query results as dicts, so relevance scores can be included
     """
-    return getMatches(myModel, formset, soft, countOnly = True)
+    return getMatches(myModel, formset, soft, countOnly=True)
 
 
 ## formerly getResults
-def getMatches(myModel, formset, soft, queryStart = 0, queryEnd = None, minCount = None, countOnly = False, threshold = None):
+def getMatches(myModel, formset, soft, queryStart=0, queryEnd=None, minCount=None, countOnly=False, threshold=None):
     """
     Get the query results as dicts, so relevance scores can be included
     """
@@ -566,7 +565,7 @@ def getMatches(myModel, formset, soft, queryStart = 0, queryEnd = None, minCount
         aggresults = []
         aggcount = 0
         for subm in concreteDescendents(myModel):
-            subresults, subcount = getMatches(subm, myfilter, soft, queryStart = 0, queryEnd = queryEnd, minCount = minCount)
+            subresults, subcount = getMatches(subm, myfilter, soft, queryStart=0, queryEnd=queryEnd, minCount=minCount)
             aggcount = aggcount + subcount
             aggresults = aggresults + subresults
         aggresults = sorted(aggresults, key=itemgetter('score'), reverse=True)
@@ -580,7 +579,7 @@ def getMatches(myModel, formset, soft, queryStart = 0, queryEnd = None, minCount
         for x in modelFields(myModel):
             if isinstance(x, GenericForeignKey):
                 cantDefer.extend([x.ct_field, x.fk_field])
-        deferFields = [x.name for x in modelFields(myModel) if maskField(x) and isinstance(x, Field) and x.name not in cantDefer ]
+        deferFields = [x.name for x in modelFields(myModel) if maskField(x) and isinstance(x, Field) and x.name not in cantDefer]
 
         gargs = genericArguments(myModel, formset, soft)
         gmatches = dict()
@@ -588,7 +587,7 @@ def getMatches(myModel, formset, soft, queryStart = 0, queryEnd = None, minCount
         for gfield in gargs.keys():
             for gmodel in gargs[gfield]:
                 gresults = dict()
-                for m in getMatches(gmodel, formset, soft, threshold = 0)[0]:
+                for m in getMatches(gmodel, formset, soft, threshold=0)[0]:
                     gresults[m.pk] = m.score
                 gmatches[gfield] = gresults
                 gweights[gfield] = totalweight(gmodel, formset)
@@ -602,9 +601,9 @@ def getMatches(myModel, formset, soft, queryStart = 0, queryEnd = None, minCount
 
         if scorer:
             if processGeneric:
-                totalCount = None # we need to do the full query to get the count
+                totalCount = None  # we need to do the full query to get the count
             else:
-                countquery = query.extra(where=['%s >= %s' % (scorer, threshold) ])
+                countquery = query.extra(where=['%s >= %s' % (scorer, threshold)])
                 totalCount = countquery.count()
 
             query = query.extra(select={'score': scorer}, order_by=['-score'])
@@ -617,7 +616,7 @@ def getMatches(myModel, formset, soft, queryStart = 0, queryEnd = None, minCount
             # hardCount = query.count()
             if minCount is None:
                 if processGeneric:
-                    totalCount = None # we need to do the full query to get the count
+                    totalCount = None  # we need to do the full query to get the count
                 else:
                     totalCount = query.count()
             else:
@@ -628,7 +627,7 @@ def getMatches(myModel, formset, soft, queryStart = 0, queryEnd = None, minCount
             rescore = dict()
             for x in query:
                 myscore = getattr(x, 'score')
-                mysum = myweight*myscore
+                mysum = myweight * myscore
                 maxsum = myweight
                 valid = True
                 for gfield, gresults in gmatches.iteritems():
@@ -636,7 +635,7 @@ def getMatches(myModel, formset, soft, queryStart = 0, queryEnd = None, minCount
                     gweight = gweights[gfield]
                     gscore = gresults.get(gid)
                     if gscore is not None:
-                        mysum = mysum + gweight*gscore
+                        mysum = mysum + gweight * gscore
                         maxsum = maxsum + gweight
                     else:
                         valid = False
@@ -645,11 +644,11 @@ def getMatches(myModel, formset, soft, queryStart = 0, queryEnd = None, minCount
                 elif mysum == maxsum:
                     rescore[x] = 1
                 else:
-                    rescore[x] = mysum/maxsum
+                    rescore[x] = mysum / maxsum
             query = [x[0] for x in sorted(rescore.iteritems(), key=itemgetter(1), reverse=True)]
             for x in query:
                 setattr(x, 'score', rescore[x])
-            query = [x for x in query if getattr(x, 'score') >= threshold ]
+            query = [x for x in query if getattr(x, 'score') >= threshold]
             totalCount = len(query)
 
         if (countOnly):
@@ -708,7 +707,6 @@ def multiScore(model, values, desiderata, medians=None):
         medians = {}
     score = 0
     count = 0
-    tsize = None
     for d in desiderata.keys():
         b = resolveField(model, d)
         ## Yuk ... need to convert if field is unsigned
@@ -726,9 +724,10 @@ def multiScore(model, values, desiderata, medians=None):
         else:
             print("BAD")
             raise Exception("This is bad news!")
-            if not tsize:
-                tsize = tableSize(model)
-            median = medianEval(b.model, baseScore(fieldRef, desiderata[d][0], desiderata[d][1]), tsize)
+            # tsize = None
+            # if not tsize:
+            #     tsize = tableSize(model)
+            # median = medianEval(b.model, baseScore(fieldRef, desiderata[d][0], desiderata[d][1], tsize)
         score = score + unitScore(values[d], desiderata[d][0], desiderata[d][1], median)
         count = count + 1
 
