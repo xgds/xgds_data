@@ -421,7 +421,7 @@ def scoreNumeric(field, lorange, hirange, tsize):
     try:
         tf = field.targetFields()[0]
         median = medianRangeEval(tf.model, tf, lorange, hirange, tsize, fieldRef)
-    except IndexError:
+    except (IndexError,AttributeError):
         median = medianRangeEval(field.model, field, lorange, hirange, tsize, fieldRef)
     if median is None:
         return '1'
