@@ -466,11 +466,7 @@ def searchChosenModel(request, moduleName, modelName, expert=False):
 
             response = HttpResponse(content, content_type=content_type)
             response['Content-Disposition'] = 'attachment; filename='+ verbose_name(myModel) + extension
-        except Exception as inst:
-            raise  # FIX
-            print(inst)
-            print('well, that didnt work')
-
+        except ImportError:
             response = HttpResponse(content_type='text/csv')
             # if you want to download instead of display in browser
             response['Content-Disposition'] = 'attachment; filename='+ verbose_name(myModel) + '.csv'
