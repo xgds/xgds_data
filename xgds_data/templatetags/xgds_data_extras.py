@@ -6,8 +6,6 @@ from django.db.models.manager import Manager
 from django.db.models.fields.files import ImageField
 from django.utils.safestring import mark_safe
 from string import capwords
-from django.db.models.fields import DateTimeField
-import pytz
 
 integer_test = re.compile(r'^\d+$')
 numeric_test = re.compile(r'^[\.\-Ee\d]+$')
@@ -54,13 +52,6 @@ def display(field, value):
     """Returns html snippet appropriate for value and field"""
     if isinstance(field, ImageField):
         return mark_safe('<A HREF="' + field.storage.url(value) + '"><IMG SRC="' + field.storage.url(value) + '" WIDTH="100"></A>')
-    elif isinstance(field, DateTimeField):
-        if value.tzinfo is None:
-            ## Assume naive datetimes are really in UTC
-            return value.replace(tzinfo=pytz.UTC)
-            # return pytz.timezone("US/Pacific").localize(value)
-        else:
-            return value
     elif isinstance(value, basestring):
         return value
     elif isinstance(value, User):
