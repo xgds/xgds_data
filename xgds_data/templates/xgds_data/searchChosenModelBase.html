@@ -5,11 +5,17 @@
 {% load nav %}
 {% block siteSection %}{{ title }}{% endblock %}
 
+{% block cssExtras %}
+{{ block.super }}
+<style type="text/css" title="currentStyle">
+	@import "{{ STATIC_URL }}external/css/jquery/demo_page.css";
+	@import "{{ STATIC_URL }}external/css/jquery/demo_table.css";
+	@import "{{ STATIC_URL }}external/css/jquery/jquery-ui.css";
+</style>
+{% endblock cssExtras %}
+
 {% block scripts %}
   {{ block.super }}
-  <link rel="stylesheet" type="text/css"
-        href="{{ STATIC_URL }}external/css/jquery/jquery-ui.css" ></link>
-  <link rel="stylesheet" type="text/css" href="{{ STATIC_URL }}xgds_data/css/ResultList.css" ></link>
   <script language="javascript" type="text/javascript"
 	  src="{{ STATIC_URL }}external/js/jquery/jquery-ui.js"></script>
   <script language="javascript" type="text/javascript"
@@ -18,36 +24,7 @@
 	  src="{{ STATIC_URL }}external/js/DataTables-1.9.4/jquery.dataTables.min.js"></script>
   <script language="javascript" type="text/javascript"
 	  src="{{ STATIC_URL }}external/js/DataTables-1.9.4/FixedColumns.min.js"></script>
-
-
-
-<style>
-.dataTables_paginate a {
- 	text-decoration: none !important;
-    display: inline-block;
-    padding: 3px;
-    margin-right: 3px !important;
-    margin-left: 3px;
-    padding-right: 5px;
-    padding-left: 5px;
-    display: inline-block;
-    background: #777;
-    border: 2px;
-    color: #fff;
-    cursor: pointer;
-    font-weight: bold;
-    border-radius: 5px;
-    -moz-border-radius: 5px;
-    -webkit-border-radius: 5px;
-    
-}
-</style>
-
-              
   <script type="text/javascript">
-  
-
-  
   function zeroPad(integer,width) {
 	  var string = integer.toString();
 	  while (string.length < width) {
@@ -140,21 +117,31 @@
 	      //oTable.fnAdjustColumnSizing();
 		}
   
+  var calcDataTableHeight = function() {
+	    var h = Math.floor($(window).height()*65/100);
+	    return h + 'px';
+	};
+
   function initDataFrame() {
-	oTable = $('#tableresults').dataTable( {
-		"sScrollY": "500px",
-		"sScrollX": "100%",
-//		"sScrollXInner": "150%",
-		"sHeightMatch": "none",
-		"bScrollCollapse": true,
-        "bFilter": false,
-        "bInfo": false,
-		"bPaginate": false,
-		"bSort": false,
-		"aoColumnDefs": [
-			{ "bSortable": false, "bFilter": false, "aTargets": [ 0 ] }
-		]
-	} );
+    $('#page-content').height(1500);
+    var options = {
+    		//"sScrollY": "500px",
+    	    "sScrollY": calcDataTableHeight(),
+    		"sScrollX": "100%",
+//    		"sScrollXInner": "150%",
+    		//"sHeightMatch": "none",
+    		//"bScrollCollapse": true,
+            "bFilter": false,
+            "bInfo": false,
+    		"bPaginate": false,
+    		"bAutoWidth": true,
+    		"bJQueryUI": true,
+    		"bSort": false,
+    		"aoColumnDefs": [
+    			{ "bSortable": false, "bFilter": false, "aTargets": [ 0 ] }
+    		]
+    	};
+	oTable = $('#tableresults').dataTable(options);
 	{% if checkable %}
 	new FixedColumns( oTable, { "iLeftColumns": 2, "iLeftWidth": 115 } );
 	{% else %}
@@ -239,11 +226,11 @@ $(function () {
 
 {% block contents  %}
 {% block query %}	
-<div style="text-align:right;">
+<div style="float:right;text-align:right;">
 {% if expert %}
-	<A id="simple">Change to Simple</A>
+	<A id="simple" class="mybutton">Simple Search</A>
 {% else %}
-	<A id="expert">Change to Advanced</A>
+	<A id="expert" class="mybutton">Advanced Search</A>
 {% endif %}
 </div>
 <h2>{{ title }}</h2>  	
@@ -265,18 +252,25 @@ $(function () {
 {% endif %}
 
 {{ formset.management_form }}
+<table>
+    
 {% for form in formset %}
-    <table>
     {% if expert %}
 		{{ form.as_expert_table }}
 	{% else %}
 		{{ form.as_table }}
 	{% endif %}
-    </table>
- 
+    
 {% endfor %}
 
-<input type="submit" value="Search" id="query" />
+	<tr>
+	<td></td>
+	<td></td>
+	<td><input type="submit" class="mybutton"  value="Search" id="query" /></td>
+	</tr>
+
+</table>
+ 
 {% if expert %}
 	{% if 'this code' == 'is no longer broken' %}
 	<input type="submit" value="Add Disjunction" id="addform" /> 
@@ -293,7 +287,7 @@ $(function () {
 	<HR>
 
 {% block count  %}	
-	     {% if count != exactCount %}
+	 {% if count != exactCount %}
      <TABLE  style="float: right;">
      <TR><TH rowspan=2>Key</TH><TD class="ResultListExactOdd">Exact</TD><TD class="ResultListExactEven">Match</TD></TR>
      <TR><TD class="ResultListInexactOdd">Close</TD><TD class="ResultListInexactEven">Match</TD></TR>
@@ -317,66 +311,93 @@ $(function () {
 		{% endif %}
 	{% endif %}
 	in {{ duration }} seconds.
-	<BR />
 {% endblock %}
 
+<span style="float:right;text-align:right;">
 {% block download  %}
-	Download results:
 	{% if count != exactCount %}
 		{% if count > 0 %}
-	    	<input type="submit" value="Records (All)" id="csv" />
+	    	<input type="submit" class="mybutton" value="Download CSV (All)" id="csv" />
 	    {% else %}
-	    	<input type="submit" value="Records (All)" id="csv" disabled />
+	    	<input type="submit" class="mybutton"  value="Download CSV (All)" id="csv" disabled />
 	    {% endif %}
     {% endif %}
     {% if exactCount > 0 %}
-    	<input type="submit" value="Records (Exact)" id="csvhard" />
+    	<input type="submit" class="mybutton"  value="Download CSV (Exact)" id="csvhard" />
     {% else %}
-    	<input type="submit" value="Records (Exact)" id="csvhard" disabled />
+    	<input type="submit" class="mybutton"  value="Download CSV (Exact)" id="csvhard" disabled />
     {% endif %}
 {% endblock %}
 
 {% block plot  %}
     {% if axesform %}
-    	<span>&nbsp;&nbsp;&nbsp;&nbsp;</span>
-    	<span style="white-space:nowrap;">Plot results:
 	    {% if count != exactCount %}
 		    {% if count > 10000 %}
-		    	<input type="submit" value="Records (All)" id="plot" title="Plot limited to 10000 records" /> 
+		    	<input type="submit" class="mybutton" value="Plot (All)" id="plot" title="Plot limited to 10000 records" /> 
 		    {% elif count > 0 %}
-		    	<input type="submit" value="Records (All)" id="plot"/> 
+		    	<input type="submit" class="mybutton" value="Plot (All)" id="plot"/> 
 		    {% else %}
-		    	<input type="submit" value="Records (All)" id="plot" disabled /> 
+		    	<input type="submit" class="mybutton" value="Plot (All)" id="plot" disabled /> 
 		    {% endif %}
 	    {% endif %}
 	    {% if exactCount > 10000 %}
-	    	<input type="submit" value="Records (Exact)" id="plothard" title="Plot limited to 10000 records" /> 
+	    	<input type="submit" class="mybutton" value="Plot (Exact)" id="plothard" title="Plot limited to 10000 records" /> 
 	    {% elif exactCount > 0 %}
-	    	<input type="submit" value="Records (Exact)" id="plothard"/> 
+	    	<input type="submit" class="mybutton" value="Plot (Exact)" id="plothard"/> 
 	    {% else %}
-	    	<input type="submit" value="Records (Exact)" id="plothard" disabled />
+	    	<input type="submit" class="mybutton" value="Plot (Exact)" id="plothard" disabled />
 	    {% endif %}
-	    </span>
     {% endif %}
-    <div style="min-height:5px;max-height:5px;"></div>
 {% endblock %}
+</span>
 
 {% block listing  %}
-<div id="outerresults">
+<div id="outerresults" style="margin-top:15px;">
+{% with divpage=1|divide:pageSize %}
+	{% with end_index=page|divide:divpage|floatformat:"0"  %}
+	{% with start_index=pageSize|divide:-1|add:end_index|add:1  %}
+	{% with last_page=count|divide:pageSize|addfloat:0.4999|floatformat:"0"|add:0  %}
+	{% with last_page_plus_one=last_page|add:1  %}
+	<div id="pager">
+	<input type="hidden" name="start" id="id_start">
+	<input type="hidden" name="end"  id="id_end">
+		<span class="counts">Displaying {{start_index}}-
+		{% if end_index|add:"0" < count|add:"0" %}{{end_index}}{% else %}{{count}}{% endif %}
+		 out of {{ count }} records</span>
+		<div class="dataTables_paginate" style="float: right;">
+		{% if page > 1 %}<a href="javascript:gotoPage({{ page|add:"-1" }});">Previous</a>{% else %}<a class="ui-state-disabled">Previous</a>{%endif%}
+		{% for num in 1|range:last_page_plus_one %}  
+			{% if num < page|add:"3" and num > page|add:"-3" or num < 3 or num > last_page|add:"-2" %}
+			   {% ifequal num page %}
+		            <a class="ui-state-disabled">{{num}}</a>
+		        {% else %} 
+			   		<a href="javascript:gotoPage({{ num }});">{{ num }}</a>
+			   	{% endifequal %}
+		   {% elif num == page|add:"3" or num == page|add:"-3" %}
+		   		...
+		   {% endif %}  
+		{% endfor %}  
+		{% if more %}<a href="javascript:gotoPage({{ page|add:"1" }});">Next</a>{% else %}<a class="ui-state-disabled">Next</a>{%endif%}
+	    </div>
+	</div>
+	{% endwith %}
+	{% endwith %}
+	{% endwith %}
+	{% endwith %}
+	{% endwith %}
 
-    <table class="ResultList" id="tableresults">
-   <thead>
+   <table id="tableresults">
+   <thead class="table_header">
 	<tr>
 	{% if checkable %}
-		<th><input type="checkbox" id="pick_master" /></th>
+	<th><input type="checkbox" id="pick_master" /></th>
 	{% endif %}
 	<th>Record</th>
-	  {% for x in displayFields %}
-	  <th>{{ x|verbose_name }}</th>
-	  {% endfor %}
-	  </tr>
-	  </thead>
-	  
+	{% for x in displayFields %}
+	<th>{{ x|verbose_name }}</th>
+	{% endfor %}
+   </tr>
+   </thead>
 	  <tbody>
 	{% for result in results %}
 
@@ -438,14 +459,12 @@ $(function () {
 	{% with last_page=count|divide:pageSize|addfloat:0.4999|floatformat:"0"|add:0  %}
 	{% with last_page_plus_one=last_page|add:1  %}
 	<div id="pager">
-	<input type="hidden" name="start" id="id_start" >
+	<input type="hidden" name="start" id="id_start">
 	<input type="hidden" name="end"  id="id_end">
 		<span class="counts">Displaying {{start_index}}-
 		{% if end_index|add:"0" < count|add:"0" %}{{end_index}}{% else %}{{count}}{% endif %}
 		 out of {{ count }} records</span>
 		<div class="dataTables_paginate" style="float: right;">
-
-	
 		{% if page > 1 %}<a href="javascript:gotoPage({{ page|add:"-1" }});">Previous</a>{% else %}<a class="ui-state-disabled">Previous</a>{%endif%}
 		{% for num in 1|range:last_page_plus_one %}  
 			{% if num < page|add:"3" and num > page|add:"-3" or num < 3 or num > last_page|add:"-2" %}
@@ -459,13 +478,7 @@ $(function () {
 		   {% endif %}  
 		{% endfor %}  
 		{% if more %}<a href="javascript:gotoPage({{ page|add:"1" }});">Next</a>{% else %}<a class="ui-state-disabled">Next</a>{%endif%}
-
 	    </div>
-
-
-	    
-	    
-	    
 	</div>
 	{% endwith %}
 	{% endwith %}
