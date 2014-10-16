@@ -118,14 +118,16 @@
 		}
   
   var calcDataTableHeight = function() {
-	    var h = Math.floor($(window).height()*65/100);
+      return '500px';
+      //TODO if we know how much room the search takes up we can be smart about how tall to make the results.
+/* 	    var h = Math.floor($(window).height()*65/100);
 	    return h + 'px';
-	};
+ */	};
 
   function initDataFrame() {
-    $('#page-content').height(1500);
+      $('#page').height(1200);
+      $('#page-content').height(1100);
     var options = {
-    		//"sScrollY": "500px",
     	    "sScrollY": calcDataTableHeight(),
     		"sScrollX": "100%",
 //    		"sScrollXInner": "150%",
@@ -364,7 +366,7 @@ $(function () {
 		<span class="counts">Displaying {{start_index}}-
 		{% if end_index|add:"0" < count|add:"0" %}{{end_index}}{% else %}{{count}}{% endif %}
 		 out of {{ count }} records</span>
-		<div class="dataTables_paginate" style="float: right;">
+		<div class="dataTables_paginate" style="float: right;margin-bottom:3px;">
 		{% if page > 1 %}<a href="javascript:gotoPage({{ page|add:"-1" }});">Previous</a>{% else %}<a class="ui-state-disabled">Previous</a>{%endif%}
 		{% for num in 1|range:last_page_plus_one %}  
 			{% if num < page|add:"3" and num > page|add:"-3" or num < 3 or num > last_page|add:"-2" %}
@@ -386,7 +388,7 @@ $(function () {
 	{% endwith %}
 	{% endwith %}
 
-   <table id="tableresults">
+   <table id="tableresults" class="compact">
    <thead class="table_header">
 	<tr>
 	{% if checkable %}
@@ -464,7 +466,7 @@ $(function () {
 		<span class="counts">Displaying {{start_index}}-
 		{% if end_index|add:"0" < count|add:"0" %}{{end_index}}{% else %}{{count}}{% endif %}
 		 out of {{ count }} records</span>
-		<div class="dataTables_paginate" style="float: right;">
+		<div class="dataTables_paginate" style="float: right;margin-top:3px;">
 		{% if page > 1 %}<a href="javascript:gotoPage({{ page|add:"-1" }});">Previous</a>{% else %}<a class="ui-state-disabled">Previous</a>{%endif%}
 		{% for num in 1|range:last_page_plus_one %}  
 			{% if num < page|add:"3" and num > page|add:"-3" or num < 3 or num > last_page|add:"-2" %}
