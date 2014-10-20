@@ -31,8 +31,8 @@ from django.utils.html import escape
 try:
     from geocamUtil.loader import getModelByName
     GEOCAMUTIL_FOUND = True
-except:
-    pass
+except ImportError:
+    GEOCAMUTIL_FOUND = False
 
 from xgds_data import settings
 from xgds_data.introspection import modelFields, maskField, isAbstract, pk, verbose_name, settingsForModel
