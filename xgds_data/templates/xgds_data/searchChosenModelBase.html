@@ -8,10 +8,12 @@
 {% block cssExtras %}
 {{ block.super }}
 <style type="text/css" title="currentStyle">
+{% if not standalone %}
 	@import "{{ STATIC_URL }}external/css/jquery/demo_page.css";
 	@import "{{ STATIC_URL }}external/css/jquery/demo_table.css";
-	@import "{{ STATIC_URL }}xgds_data/css/ResultList.css"; 
+{% endif %}
 	@import "{{ STATIC_URL }}external/css/jquery/jquery-ui.css";
+	@import "{{ STATIC_URL }}xgds_data/css/ResultList.css"; 
 </style>
 {% endblock cssExtras %}
 
@@ -292,8 +294,13 @@ $(function () {
 {% block count  %}	
 	 {% if count != exactCount %}
      <TABLE style="float: right;">
-     <TR><TH rowspan=2>Key</TH><TD class="mimicOddGradeA">Exact</TD><TD class="mimicEvenGradeA">Match</TD></TR>
-     <TR><TD class="mimicOddGradeX">Close</TD><TD class="mimicEvenGradeX ">Match</TD></TR>
+    	{% if standalone %}
+     		<TR><TH rowspan=2>Key</TH><TD class="mimicOddResultListExact">Exact</TD><TD class="mimicEvenResultListExact">Match</TD></TR>
+     		<TR><TD class="mimicOddResultListInexact">Close</TD><TD class="mimicEvenResultListInexact">Match</TD></TR>    	
+    	{% else %}
+     		<TR><TH rowspan=2>Key</TH><TD class="mimicOddGradeA">Exact</TD><TD class="mimicEvenGradeA">Match</TD></TR>
+     		<TR><TD class="mimicOddGradeX">Close</TD><TD class="mimicEvenGradeX ">Match</TD></TR>
+     	{% endif %}
      </TABLE>
      {% endif %}
 	
@@ -367,7 +374,11 @@ $(function () {
 		<span class="counts">Displaying {{start_index}}-
 		{% if end_index|add:"0" < count|add:"0" %}{{end_index}}{% else %}{{count}}{% endif %}
 		 out of {{ count }} records</span>
-		<div class="dataTables_paginate" style="float: right;margin-bottom:3px;">
+    	{% if standalone %}
+			<div class="paginate" style="float:right; margin-bottom:3px;">
+    	{% else %}
+			<div class="dataTables_paginate" style="float:right; margin-bottom:3px;">
+		{% endif %}
 		{% if page > 1 %}<a href="javascript:gotoPage({{ page|add:"-1" }});">Previous</a>{% else %}<a class="ui-state-disabled">Previous</a>{%endif%}
 		{% for num in 1|range:last_page_plus_one %}  
 			{% if num < page|add:"3" and num > page|add:"-3" or num < 3 or num > last_page|add:"-2" %}
@@ -389,8 +400,13 @@ $(function () {
 	{% endwith %}
 	{% endwith %}
 
+{% if standalone %}
+   <table id="tableresults" class="compact cell-border ResultList">
+   <thead>
+{% else %}
    <table id="tableresults" class="compact cell-border">
    <thead class="table_header">
+{% endif %}
 	<tr>
 	{% if checkable %}
 	<th><input type="checkbox" id="pick_master" /></th>
@@ -406,14 +422,14 @@ $(function () {
 
 		    {% with myscore=result|getattribute:'score' %}
 				{% if myscore >= 1 %}
-					{% if forloop.counter|modulo:2 == 1 %}
-						<tr class="gradeA">
+					{% if standalone %}
+						<tr class="ResultListExact">
 					{% else %}
 						<tr class="gradeA">
 					{% endif %}
 				{% else %}
-					{% if forloop.counter|modulo:2 == 1 %}
-						<tr class="gradeX">
+					{% if standalone %}
+						<tr class="ResultListInexact">
 					{% else %}
 						<tr class="gradeX">
 					{% endif %}
@@ -467,7 +483,11 @@ $(function () {
 		<span class="counts">Displaying {{start_index}}-
 		{% if end_index|add:"0" < count|add:"0" %}{{end_index}}{% else %}{{count}}{% endif %}
 		 out of {{ count }} records</span>
-		<div class="dataTables_paginate" style="float: right;margin-top:3px;">
+    	{% if standalone %}
+			<div class="paginate" style="float:right; margin-bottom:3px;">
+    	{% else %}
+			<div class="dataTables_paginate" style="float:right; margin-bottom:3px;">
+		{% endif %}
 		{% if page > 1 %}<a href="javascript:gotoPage({{ page|add:"-1" }});">Previous</a>{% else %}<a class="ui-state-disabled">Previous</a>{%endif%}
 		{% for num in 1|range:last_page_plus_one %}  
 			{% if num < page|add:"3" and num > page|add:"-3" or num < 3 or num > last_page|add:"-2" %}

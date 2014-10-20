@@ -30,6 +30,7 @@ from django.utils.html import escape
 
 try:
     from geocamUtil.loader import getModelByName
+    GEOCAMUTIL_FOUND = True
 except:
     pass
 
@@ -510,6 +511,7 @@ def searchChosenModel(request, moduleName, modelName, expert=False):
                               {'title': 'Search ' + verbose_name(myModel),
                                'module': moduleName,
                                'model': modelName,
+                               'standalone': not GEOCAMUTIL_FOUND,
                                'expert': expert,
                                'pk':  pk(myModel),
                                'datetimefields': datetimefields,

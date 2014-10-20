@@ -167,25 +167,39 @@ border-width:0px 0px 1px 0px;
 border-width:0px 0px 1px 1px;
 }
 
-.ResultListExactEven { background-color:#ffffff; }
-.ResultListExactOdd { background-color:#d3e9ff; }
-.ResultListInexactEven { background-color:#ffefef; }
-.ResultListInexactOdd { background-color:#d3c9ef; }
+.ResultListExact:nth-child(odd) { background-color:#d3e9ff; }
+.ResultListExact:nth-child(even) { background-color:#ffffff; }
+.ResultListInexact:nth-child(odd) { background-color:#d3c9ef; }
+.ResultListInexact:nth-child(even) { background-color:#ffefef; }
 
-.mimicOddGradeA {
-	background-color: #ddffdd;
+.mimicOddResultListExact { background-color:#d3e9ff; }
+.mimicEvenResultListExact { background-color:#ffffff; }
+.mimicOddResultListInexact { background-color:#d3c9ef; }
+.mimicEvenResultListInexact { background-color:#ffefef; }
+
+.paginate a {
+        text-decoration: none !important;
+    display: inline-block;
+    padding: 3px;
+    margin-right: 3px !important;
+    margin-left: 3px;
+    padding-right: 5px;
+    padding-left: 5px;
+    display: inline-block;
+    background: #777;
+    border: 2px;
+    color: #fff;
+    cursor: pointer;
+    font-weight: bold;
+    border-radius: 5px;
+    -moz-border-radius: 5px;
+    -webkit-border-radius: 5px;
+    
 }
 
-.mimicEvenGradeA {
-	background-color: #eeffee;
-}
-
-.mimicOddGradeX {
-	background-color: #ffdddd;
-}
-
-.mimicEvenGradeX {
-	background-color: #ffeeee;
-}
+.mimicOddGradeA { background-color: #ddffdd; }
+.mimicEvenGradeA { background-color: #eeffee; }
+.mimicOddGradeX { background-color: #ffdddd; }
+.mimicEvenGradeX { background-color: #ffeeee; }
 
 
