@@ -171,3 +171,21 @@ border-width:0px 0px 1px 1px;
 .ResultListExactOdd { background-color:#d3e9ff; }
 .ResultListInexactEven { background-color:#ffefef; }
 .ResultListInexactOdd { background-color:#d3c9ef; }
+
+.mimicOddGradeA {
+	background-color: #ddffdd;
+}
+
+.mimicEvenGradeA {
+	background-color: #eeffee;
+}
+
+.mimicOddGradeX {
+	background-color: #ffdddd;
+}
+
+.mimicEvenGradeX {
+	background-color: #ffeeee;
+}
+
+

@@ -10,6 +10,7 @@
 <style type="text/css" title="currentStyle">
 	@import "{{ STATIC_URL }}external/css/jquery/demo_page.css";
 	@import "{{ STATIC_URL }}external/css/jquery/demo_table.css";
+	@import "{{ STATIC_URL }}xgds_data/css/ResultList.css"; 
 	@import "{{ STATIC_URL }}external/css/jquery/jquery-ui.css";
 </style>
 {% endblock cssExtras %}
@@ -290,9 +291,9 @@ $(function () {
 
 {% block count  %}	
 	 {% if count != exactCount %}
-     <TABLE  style="float: right;">
-     <TR><TH rowspan=2>Key</TH><TD class="ResultListExactOdd">Exact</TD><TD class="ResultListExactEven">Match</TD></TR>
-     <TR><TD class="ResultListInexactOdd">Close</TD><TD class="ResultListInexactEven">Match</TD></TR>
+     <TABLE style="float: right;">
+     <TR><TH rowspan=2>Key</TH><TD class="mimicOddGradeA">Exact</TD><TD class="mimicEvenGradeA">Match</TD></TR>
+     <TR><TD class="mimicOddGradeX">Close</TD><TD class="mimicEvenGradeX ">Match</TD></TR>
      </TABLE>
      {% endif %}
 	
@@ -388,7 +389,7 @@ $(function () {
 	{% endwith %}
 	{% endwith %}
 
-   <table id="tableresults" class="compact cell-border">
+   <table id="tableresults" class="compact cell-border display">
    <thead class="table_header">
 	<tr>
 	{% if checkable %}
@@ -406,15 +407,15 @@ $(function () {
 		    {% with myscore=result|getattribute:'score' %}
 				{% if myscore >= 1 %}
 					{% if forloop.counter|modulo:2 == 1 %}
-						<tr class="ResultListExactOdd">
+						<tr class="gradeA">
 					{% else %}
-						<tr class="ResultListExactEven">
+						<tr class="gradeB">
 					{% endif %}
 				{% else %}
 					{% if forloop.counter|modulo:2 == 1 %}
-						<tr class="ResultListInexactOdd">
+						<tr class="gradeX">
 					{% else %}
-						<tr class="ResultListInexactEven">
+						<tr class="gradeX">
 					{% endif %}
 				{% endif %}			
 		    {% endwith %}
