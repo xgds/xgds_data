@@ -390,7 +390,7 @@ $(function () {
 	{% endwith %}
 
    <table id="tableresults" class="compact cell-border display">
-   <thead class="table_header">
+   <thead>
 	<tr>
 	{% if checkable %}
 	<th><input type="checkbox" id="pick_master" /></th>
@@ -409,7 +409,7 @@ $(function () {
 					{% if forloop.counter|modulo:2 == 1 %}
 						<tr class="gradeA">
 					{% else %}
-						<tr class="gradeB">
+						<tr class="gradeA">
 					{% endif %}
 				{% else %}
 					{% if forloop.counter|modulo:2 == 1 %}
