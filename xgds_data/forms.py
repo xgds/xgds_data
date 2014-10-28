@@ -244,6 +244,9 @@ class SearchForm(forms.Form):
                 output.append(row)
         return mark_safe(u'\n'.join(output))
 
+    def modelVerboseName(self):
+        return self.model._meta.verbose_name
+
 
 def editFormFields(mymodel, field, enumerableFields):
     """
