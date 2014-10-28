@@ -329,13 +329,13 @@ $(function () {
 		{% if count > 0 %}
 	    	<input type="submit" class="mybutton" value="Download CSV (All)" id="csv" />
 	    {% else %}
-	    	<input type="submit" class="mybutton"  value="Download CSV (All)" id="csv" disabled />
+	    	<input type="submit"  value="Download CSV (All)" id="csv" disabled />
 	    {% endif %}
     {% endif %}
     {% if exactCount > 0 %}
     	<input type="submit" class="mybutton"  value="Download CSV (Exact)" id="csvhard" />
     {% else %}
-    	<input type="submit" class="mybutton"  value="Download CSV (Exact)" id="csvhard" disabled />
+    	<input type="submit" value="Download CSV (Exact)" id="csvhard" disabled />
     {% endif %}
 {% endblock %}
 
@@ -347,7 +347,7 @@ $(function () {
 		    {% elif count > 0 %}
 		    	<input type="submit" class="mybutton" value="Plot (All)" id="plot"/> 
 		    {% else %}
-		    	<input type="submit" class="mybutton" value="Plot (All)" id="plot" disabled /> 
+		    	<input type="submit" value="Plot (All)" id="plot" disabled /> 
 		    {% endif %}
 	    {% endif %}
 	    {% if exactCount > 10000 %}
@@ -355,7 +355,7 @@ $(function () {
 	    {% elif exactCount > 0 %}
 	    	<input type="submit" class="mybutton" value="Plot (Exact)" id="plothard"/> 
 	    {% else %}
-	    	<input type="submit" class="mybutton" value="Plot (Exact)" id="plothard" disabled />
+	    	<input type="submit" value="Plot (Exact)" id="plothard" disabled />
 	    {% endif %}
     {% endif %}
 {% endblock %}
