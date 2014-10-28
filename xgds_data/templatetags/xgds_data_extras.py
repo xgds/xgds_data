@@ -1,19 +1,18 @@
 import re
 from django import template
 from django.conf import settings
+from django.db import models
 from django.contrib.auth.models import User
-from django.db.models.manager import Manager
-from django.db.models.fields.files import ImageField
 from django.utils.safestring import mark_safe
+from django.core.urlresolvers import reverse
 from string import capwords
+
+from xgds_data.models import VirtualIncludedField
+from xgds_data.introspection import pk
 
 integer_test = re.compile(r'^\d+$')
 numeric_test = re.compile(r'^[\.\-Ee\d]+$')
 register = template.Library()
-
-from django.db import models
-from xgds_data.models import VirtualIncludedField
-
 
 # http://stackoverflow.com/questions/844746/performing-a-getattr-style-lookup-in-a-django-template
 def getattribute(value, arg):
@@ -34,24 +33,44 @@ def getattribute(value, arg):
             else:
                 v = None
         except AttributeError as inst:
-            ## print(inst)
+            print(inst)
             print('Error on ', value, arg)
             v = None
     elif isinstance(arg, models.Field):
         v = getattr(value, arg.name)
     else:
         v = settings.TEMPLATE_STRING_IF_INVALID
-    if (isinstance(v, Manager)):
-        v = ' '.join([str(x) for x in v.all()])
+    if (isinstance(v, models.Manager)):
+        v = v.all()
     return v
 
 register.filter('getattribute', getattribute)
 
 
+def displayLinkedData(field,value):
+    if value is None:
+        return None
+    else:
+        try:
+            url = value.get_absolute_url()
+        except AttributeError:
+            url = reverse('xgds_data_displayRecord', args=[field.rel.to.__module__.split('.')[0],
+                                                 field.rel.to.__name__,
+                                                 getattr(value,pk(value).name)])
+        return mark_safe('<A HREF="' + url + '">'+ unicode(display(field.rel.to,value)) + '</A>')
+
+
 def display(field, value):
     """Returns html snippet appropriate for value and field"""
-    if isinstance(field, ImageField):
+    if isinstance(field, models.ImageField):
         return mark_safe('<A HREF="' + field.storage.url(value) + '"><IMG SRC="' + field.storage.url(value) + '" WIDTH="100"></A>')
+    elif isinstance(field, (models.ForeignKey, models.OneToOneField)):
+        return displayLinkedData(field,value)
+    elif isinstance(field, models.ManyToManyField):
+        results = []
+        for v in value:
+            results.append(displayLinkedData(field,v))
+        return mark_safe(','.join(results))   
     elif isinstance(value, basestring):
         return value
     elif isinstance(value, User):

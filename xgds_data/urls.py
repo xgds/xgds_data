@@ -33,6 +33,8 @@ urlpatterns = patterns(
         name='xgds_data_searchPlotQueryResults'),
     url(r'^search/plot/(?P<moduleName>[^/]+)/(?P<modelName>[^/]+)/(?P<soft>[^/]+)/(?P<start>\d+)/(?P<end>\d+)/$', 'plotQueryResults',
         name='xgds_data_searchPlotQueryResults'),
+    url(r'^display/(?P<moduleName>[^/]+)/(?P<modelName>[^/]+)/(?P<rid>[^/]+)$', 'displayRecord', name='xgds_data_displayRecord'),
+#    url(r'^edit/(?P<moduleName>[^/]+)/(?P<modelName>[^/]+)/(?P<rid>[^/]+)$', 'editRecord', name='xgds_data_editRecord'),
 
     url(r'^similar/(?P<moduleName>[^/]+)/(?P<modelName>[^/]+)/$', 'searchSimilar',
         name='xgds_data_searchSimilar'),

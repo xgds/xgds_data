@@ -1,0 +1,29 @@
+{% extends "base.html" %}
+{% load xgds_data_extras %}
+
+{% load url from future %}
+{% load nav %}
+{% block siteSection %}{{ title }}{% endblock siteSection %}
+
+{% block contents %}
+<TABLE>
+	<TR>
+	<TD><B>Record</B></TD>
+	{% with myval=record %}
+	   <TD><SPAN {% if myval|isNumeric %}style="white-space:nowrap;"{% endif %}>
+		{{ f|display:myval }}
+	  </SPAN></TD>
+	{% endwith %}
+	</TR>
+{% for f in displayFields %}
+	<TR>
+	<TD><B>{{ f|verbose_name }}</B></TD>
+	{% with myval=record|getattribute:f %}
+	   <TD><SPAN {% if myval|isNumeric %}style="white-space:nowrap;"{% endif %}>
+		{{ f|display:myval }}
+	  </SPAN></TD>
+	{% endwith %}
+	</TR>
+{% endfor %}
+</TABLE>
+{% endblock contents %}

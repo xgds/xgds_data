@@ -17,7 +17,8 @@ from itertools import chain
 import pytz
 
 from django.shortcuts import render_to_response, render
-from django.http import HttpResponseNotAllowed, HttpResponse
+from django.http import HttpResponseNotAllowed, HttpResponse, HttpResponseRedirect
+from django.core.urlresolvers import reverse
 from django.template import RequestContext
 from django.db import connection, DatabaseError
 from django.db.models import get_app, get_apps, get_models
@@ -36,7 +37,7 @@ except ImportError:
 
 from xgds_data import settings
 from xgds_data.introspection import modelFields, maskField, isAbstract, pk, verbose_name, settingsForModel
-from xgds_data.forms import QueryForm, SearchForm, AxesForm, SpecializedForm
+from xgds_data.forms import QueryForm, SearchForm, EditForm, AxesForm, SpecializedForm
 from xgds_data.logging import recordRequest, recordList, log_and_render
 from xgds_data.logconfig import logEnabled
 from xgds_data.search import getCount, ishard, getMatches, pageLimits
@@ -331,9 +332,12 @@ def safegetattr(obj, attname, default = None):
 def getPrimaryTimeField(model):
     fieldDict = dict([(f.name, f)
                       for f in model._meta.fields])
-    for f in settings.XGDS_DATA_TIME_FIELDS:
-        if f in fieldDict:
-            return f
+    try:
+        for f in settings.XGDS_DATA_TIME_FIELDS:
+            if f in fieldDict:
+                return f
+    except AttributeError:
+        pass  # no worries
     return None
 
 
@@ -350,6 +354,61 @@ def getTimePickerString(dt):
     result = re.sub('AM', 'am', result)
     result = re.sub('PM', 'pm', result)
     return result
+
+
+def editRecord(request, moduleName, modelName, rid):
+    """
+    Default edit for a record
+    """
+    reqlog = recordRequest(request)
+    modelmodule = get_app(moduleName)
+    myModel = getattr(modelmodule, modelName)
+    tmpFormClass = SpecializedForm(EditForm, myModel)
+    myFields = [x for x in modelFields(myModel) if not maskField(x) ]
+    record = myModel.objects.get(pk=rid)
+    if (request.REQUEST.get('fnctn',None) == 'edit'):
+        form = tmpFormClass(request.POST)
+        assert form.is_valid()
+        changed = False
+        for f in myFields:
+            oldval = getattr(record,f.name)
+            #val = request.REQUEST.get(f.name,oldval)
+            val = form.cleaned_data[f.name]
+            if val != oldval:
+                setattr(record,f.name,val)
+                changed = True
+        if (changed):
+            record.save()
+        return HttpResponseRedirect(reverse('xgds_data_displayRecord', args=[moduleName, modelName, rid]))
+    else:
+        editForm = tmpFormClass(myModel.objects.filter(pk=rid).values(*[x.name for x in myFields])[0])
+        return log_and_render(request, reqlog, 'xgds_data/editRecord.html',
+                          {'title': 'Editing ' + verbose_name(myModel) + ': ' + str(record),
+                           'module': moduleName,
+                           'model': modelName,
+                           'displayFields': myFields,
+                           'pk':  pk(myModel),
+                           'record' : record,
+                           'form' : editForm,
+                           })
+
+
+def displayRecord(request, moduleName, modelName, rid):
+    """
+    Default display for a record
+    """
+    reqlog = recordRequest(request)
+    modelmodule = get_app(moduleName)
+    myModel = getattr(modelmodule, modelName)
+    myFields = [x for x in modelFields(myModel) if not maskField(x) ]
+    record = myModel.objects.get(pk=rid)
+    return log_and_render(request, reqlog, 'xgds_data/displayRecord.html',
+                      {'title': verbose_name(myModel) + ': ' + str(record),
+                       'module': moduleName,
+                       'model': modelName,
+                       'displayFields': myFields,
+                       'record' : record,
+                       })
 
 
 def searchChosenModel(request, moduleName, modelName, expert=False):

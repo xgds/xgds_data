@@ -5,7 +5,7 @@
 # __END_LICENSE__
 
 from django import forms
-from django.db.models import fields
+from django.db import models
 from django.utils.safestring import mark_safe
 from django.db.models.fields.related import RelatedField
 from django.forms.widgets import RadioSelect, TextInput
@@ -25,69 +25,16 @@ class QueryForm(forms.Form):
                                          initial=True)
 
 
-def formFields(mymodel, field, enumerableFields):
+def specialWidget(mymodel, field, enumerableFields):
     """
-    Returns a dict of Form fields to add to the form, based on the model field
+    Determines the appropriate widget display if several could be applicable; otherwise returns None
     """
-    rangeOperators = (('IN~', 'IN~'),
-                      ('IN', 'IN'),
-                      ('NOT IN', 'NOT IN'))
-    categoricalOperators = (('=', '='),
-                            ('!=', '!='))
-    stringOperators = (('=', '='),
-                       ('!=', '!='))
-    formfields = {}
-    if maskField(field):
-        pass  # nothing
-    elif isinstance(field, VirtualIncludedField):
-        tmfs = field.targetFields()
-        if len(tmfs):
-            ## need to assume all are the same, so just use the first one
-            formfields.update(formFields(tmfs[0].model, tmfs[0], enumerableFields))
-    elif ordinalField(mymodel, field):
-        formfields[field.name + '_operator'] = \
-            forms.ChoiceField(choices=rangeOperators,
-                              initial=rangeOperators[0][0],
-                              required=True)
-        if isinstance(field, fields.DateTimeField):
-            formfields[field.name + '_lo'] = forms.DateTimeField(required=False)
-            formfields[field.name + '_hi'] = forms.DateTimeField(required=False)
-        elif isinstance(field, (fields.DecimalField, fields.FloatField)):
-            formfields[field.name + '_lo'] = forms.FloatField(required=False)
-            formfields[field.name + '_hi'] = forms.FloatField(required=False)
-        elif isinstance(field, fields.PositiveIntegerField):
-            formfields[field.name + '_lo'] = forms.IntegerField(min_value=1,
-                                                                required=False)
-            formfields[field.name + '_hi'] = forms.IntegerField(min_value=1,
-                                                                required=False)
-        elif isinstance(field, fields.IntegerField):
-            formfields[field.name + '_lo'] = forms.IntegerField(required=False)
-            formfields[field.name + '_hi'] = forms.IntegerField(required=False)
-
-    elif isinstance(field, (fields.AutoField, fields.CharField, fields.TextField)) or isOrdinalOveridden(mymodel, field):
-        formfields[field.name + '_operator'] = \
-            forms.ChoiceField(choices=stringOperators,
-                              initial=stringOperators[0][0],
-                              required=True)
-        formfields[field.name] = forms.CharField(required=False)
-    elif isinstance(field, (fields.BooleanField, fields.NullBooleanField)):
-        formfields[field.name + '_operator'] = \
-            forms.ChoiceField(choices=categoricalOperators,
-                              initial=categoricalOperators[0][0],
-                              required=True)
-        formfields[field.name] = \
-            forms.ChoiceField(choices=((None, '<Any>'),
-                                       (True, True),
-                                       (False, False)),
-                              required=False)
-
-    elif (isinstance(field, fields.related.ForeignKey) or
-          isinstance(field, fields.related.ManyToManyField)):
-        widget = None
+    widget = None
+    if isinstance(field, (models.ForeignKey,models.ManyToManyField,models.OneToOneField)):
         relModel = field.rel.to
         if (relModel == 'self'):
             relModel = field.model
-
+    
         if enumerableFields:
             if (field in enumerableFields):
                 widget = 'pulldown'
@@ -104,52 +51,118 @@ def formFields(mymodel, field, enumerableFields):
                 widget = 'pulldown'
             else:
                 widget = 'textbox'
+    return widget
 
+
+def operatorFormField(mymodel, field, widget):
+    """
+    Returns form field to choose an search operator for this model field
+    """
+    rangeOperators = (('IN~', 'IN~'),
+                      ('IN', 'IN'),
+                      ('NOT IN', 'NOT IN'))
+    categoricalOperators = (('=', '='),
+                            ('!=', '!='))
+    textOperators = (('=', '='),
+                       ('!=', '!='))
+    if widget is 'pulldown':
+        return forms.ChoiceField(choices=categoricalOperators,
+                                 initial=categoricalOperators[0][0],
+                                 required=True)
+    elif widget is 'textbox':
+        return forms.ChoiceField(choices=textOperators,
+                                 initial=textOperators[0][0],
+                                 required=True)
+    elif isinstance(field, (models.AutoField, models.CharField, models.TextField)) or isOrdinalOveridden(mymodel, field):
+        return forms.ChoiceField(choices=textOperators,
+                                 initial=textOperators[0][0],
+                                 required=True)
+    elif ordinalField(mymodel, field):
+        return forms.ChoiceField(choices=rangeOperators,
+                                 initial=rangeOperators[0][0],
+                                 required=True)
+
+    elif isinstance(field, (models.BooleanField, models.NullBooleanField)):
+        return forms.ChoiceField(choices=categoricalOperators,
+                                 initial=categoricalOperators[0][0],
+                                 required=True)
+    else:
+        return None
+
+
+def valueFormField(mymodel, field, widget):
+    """
+    Returns form field to provide a value appropriate for this model field
+    """
+    if isinstance(field, (models.AutoField, models.CharField, models.TextField)) or isOrdinalOveridden(mymodel, field):
+        return forms.CharField(required=False)
+    elif isinstance(field, models.DateTimeField):
+        return forms.DateTimeField(required=False)
+    elif isinstance(field, (models.DecimalField, models.FloatField)):
+        return forms.FloatField(required=False)
+    elif isinstance(field, models.PositiveIntegerField):
+        return forms.IntegerField(min_value=1, required=False)
+    elif isinstance(field, models.IntegerField):
+        return forms.IntegerField(required=False)
+    elif isinstance(field, (models.BooleanField, models.NullBooleanField)):
+        return forms.ChoiceField(choices=((None, '<Any>'),
+                                       (True, True),
+                                       (False, False)),
+                              required=False)   
+    elif isinstance(field, (models.ForeignKey,models.ManyToManyField,models.OneToOneField)):
         if widget is 'pulldown':
-            formfields[field.name + '_operator'] = \
-                forms.ChoiceField(choices=categoricalOperators,
-                                  initial=categoricalOperators[0][0],
-                                  required=True)
             # can't use as queryset arg because it needs a queryset, not a list
             #foreigners = sorted(field.related.parent_model.objects.all(), key=lambda x: unicode(x))
             qset = field.related.parent_model.objects.all()
-            formfields[field.name] = \
-                forms.ModelChoiceField(queryset=qset,
-                                       initial=qset,
+            return forms.ModelChoiceField(queryset=qset,
+                                       # initial=qset,
                                        # order_by('name'),
                                        empty_label="<Any>",
                                        required=False)
         elif widget is 'textbox':
-            formfields[field.name + '_operator'] = \
-                forms.ChoiceField(choices=stringOperators,
-                                  initial=stringOperators[0][0],
-                                  required=True)
             qset = field.related.parent_model.objects.all()
             try:
                 to_field = [x for x in modelFields(field.rel.to) if x.name == 'name'][0]
             except IndexError:
                 to_field = pk(field.rel.to)
-            formfields[field.name] = \
-                forms.ModelChoiceField(queryset=qset,
+            return forms.ModelChoiceField(queryset=qset,
                                        to_field_name=to_field.name,
                                        initial=None,
                                        widget=TextInput,
                                        required=False)
             # self.fields[field.name] = forms.CharField(required=False)
     else:
-        ##self.fields[field.name + '_operator'] = \
-        ##    forms.ChoiceField(choices=categoricalOperators,
-        ##                      initial=categoricalOperators[0][0],
-        ##                      required=True)
-        ## that can't be the right way to get the name
-        longname = '.'.join([field.__class__.__module__,
-                             field.__class__.__name__])
-        print("Search doesn't deal with %s yet" % longname)
-        ## put the field name in as the default just to tell me, the programmer, that this
-        ## class isn't properly dealt with yet.
-        ##self.fields[field.name] = \
-        ##    forms.CharField(initial=longname,
-        ##                    required=False)
+        return None
+
+
+def searchFormFields(mymodel, field, enumerableFields):
+    """
+    Returns a dict of Form fields to add to a search form, based on the model field
+    """
+    formfields = {}
+    if maskField(field):
+        pass  # nothing
+    elif isinstance(field, VirtualIncludedField):
+        tmfs = field.targetFields()
+        if len(tmfs):
+            ## need to assume all are the same, so just use the first one
+            formfields.update(searchFormFields(tmfs[0].model, tmfs[0], enumerableFields))
+    else:
+        widget = specialWidget(mymodel, field, enumerableFields)
+        opField = operatorFormField(mymodel, field, widget)
+        if opField is None:
+            ## This must be class that we have missed of haven't gotten around to supporting/ignoring
+            longname = '.'.join([field.__class__.__module__,
+                                 field.__class__.__name__])
+            print("SearchForm forms doesn't deal with %s yet" % longname)
+        else:
+            formfields[field.name + '_operator'] = opField
+            if ordinalField(mymodel, field):         
+                formfields[field.name + '_lo'] = valueFormField(mymodel, field, widget)
+                formfields[field.name + '_hi'] = valueFormField(mymodel, field, widget)
+            else:
+                formfields[field.name] = valueFormField(mymodel, field, widget)
+
     return formfields
 
 
@@ -163,7 +176,7 @@ class SearchForm(forms.Form):
         self.model = mymodel
 
         for field in modelFields(mymodel):
-            self.fields.update(formFields(mymodel, field, enumerableFields))
+            self.fields.update(searchFormFields(mymodel, field, enumerableFields))
 
     def as_table(self):
         output = []
@@ -231,8 +244,41 @@ class SearchForm(forms.Form):
                 output.append(row)
         return mark_safe(u'\n'.join(output))
 
-    def modelVerboseName(self):
-        return self.model._meta.verbose_name
+
+def editFormFields(mymodel, field, enumerableFields):
+    """
+    Returns a dict of Form fields to add to an edit form, based on the model field
+    """
+    formfields = {}
+    if maskField(field):
+        pass  # nothing
+    elif isinstance(field, VirtualIncludedField):
+        pass # still need to cross this bridge
+    else:
+        widget = specialWidget(mymodel, field, enumerableFields)
+        valField = valueFormField(mymodel, field, widget)
+        if valField is None:
+            ## This must be class that we have missed of haven't gotten around to supporting/ignoring
+            longname = '.'.join([field.__class__.__module__,
+                                 field.__class__.__name__])
+            print("EditForm doesn't deal with %s yet" % longname)
+        else:
+            formfields[field.name] = valField
+
+    return formfields
+
+
+class EditForm(forms.Form):
+    """
+    Dynamically creates a form to edit the given item
+    """
+    def __init__(self, mymodel, *args, **kwargs):
+        enumerableFields = kwargs.pop('enumerableFields', None)
+        forms.Form.__init__(self, *args, **kwargs)
+        self.model = mymodel
+
+        for field in modelFields(mymodel):
+            self.fields.update(editFormFields(mymodel, field, enumerableFields))
 
 
 class SortForm(forms.Form):
