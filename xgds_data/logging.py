@@ -68,7 +68,7 @@ def recordList(reslog, results):
                      for r in ranks]
             try:
                 ResponseList.objects.bulk_create(items)
-            except Exception as e:
+            except ValueError as e:
                 print(e)
 
 

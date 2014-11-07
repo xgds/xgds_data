@@ -5,6 +5,7 @@ from django.db import models
 from django.contrib.auth.models import User
 from django.utils.safestring import mark_safe
 from django.core.urlresolvers import reverse
+from django.core.exceptions import ObjectDoesNotExist
 from string import capwords
 
 from xgds_data.models import VirtualIncludedField
@@ -30,6 +31,7 @@ def getattribute(value, arg):
             includedFieldName = arg.name
             if throughInstance:
                 v = getattr(throughInstance, includedFieldName)
+                # v = getattribute(throughInstance, arg)
             else:
                 v = None
         except AttributeError as inst:
@@ -37,7 +39,14 @@ def getattribute(value, arg):
             print('Error on ', value, arg)
             v = None
     elif isinstance(arg, models.Field):
-        v = getattr(value, arg.name)
+        try:
+            v = getattr(value, arg.name)
+        except ObjectDoesNotExist as expt:
+            # can happen with an inconsistent database, as in plrp
+            print(value,arg.name)
+            print(expt)
+            # No problem, we love dirty data!
+            v = None
     else:
         v = settings.TEMPLATE_STRING_IF_INVALID
     if (isinstance(v, models.Manager)):
@@ -77,7 +86,8 @@ def display(field, value):
         return ', '.join([value.last_name, value.first_name])
     else:
         try:
-            return ', '.join(value)
+            foo = ', '.join(value)
+            return foo
         except TypeError:
             return value
 

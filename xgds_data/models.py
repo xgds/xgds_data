@@ -128,6 +128,9 @@ if logEnabled():
         @classmethod
         def create(cls, request, template=None):
             return cls(timestampSeconds=datetime.utcnow(), request=request, template=template)
+        
+        def __unicode__(self):
+            return 'Response %s:%s' % (self.id, self.template)
 
     class ResponseArgument(models.Model):
         response = models.ForeignKey(ResponseLog, null=False, blank=False)

@@ -411,6 +411,10 @@ def displayRecord(request, moduleName, modelName, rid):
                        })
 
 
+from xgds_data.templatetags import xgds_data_extras
+from django.db import models
+from django.contrib.auth.models import User
+
 def searchChosenModel(request, moduleName, modelName, expert=False):
     """
     Search over the fields of the selected model
@@ -530,15 +534,41 @@ def searchChosenModel(request, moduleName, modelName, expert=False):
             response = HttpResponse(content_type='text/csv')
             # if you want to download instead of display in browser
             response['Content-Disposition'] = 'attachment; filename='+ verbose_name(myModel) + '.csv'
-
             writer = csv.writer(response)
             writer.writerow([f.verbose_name for f in myFields])
             for r in results:
             ##            r.get(f.name,None)
-                writer.writerow([csvEncode(safegetattr(r, f.name, None)) for f in myFields ])
+                ## writer.writerow([csvEncode(safegetattr(r, f.name, None)) for f in myFields ])
+                row = []
+                for f in myFields:
+                    val = xgds_data_extras.getattribute(r, f)
+                    if isinstance(f, models.ImageField):
+                        val = f.storage.url(val)
+                    elif isinstance(f, models.ManyToManyField):
+                        results = []
+                        for v in val:
+                            results.append(unicode(v))
+                        val = '"{0}"'.format(','.join(results))   
+                    elif isinstance(val, basestring):
+                        pass
+                    elif isinstance(val, User):
+                        val = ', '.join([val.last_name, val.first_name])
+                    else:
+                        try:
+                            val = val()
+                        except TypeError:
+                            pass
+                        try:
+                            val = ', '.join(unicode(x) for x in val)
+                        except TypeError:
+                            pass
+                    row.append(val)
+                writer.writerow([csvEncode(x) for x in row ])
+                
 
         if logEnabled():
             reslog = ResponseLog.create(request=reqlog)
+            reslog.save()
             recordList(reslog, results)
         return response
     else:
