@@ -9,11 +9,12 @@
 {{ block.super }}
 <style type="text/css" title="currentStyle">
 {% if not standalone %}
-	@import "{{ STATIC_URL }}external/css/jquery/demo_page.css";
+	/*@import "{{ STATIC_URL }}external/css/jquery/demo_page.css";
 	@import "{{ STATIC_URL }}external/css/jquery/demo_table.css";
+	*/
 {% endif %}
 	@import "{{ STATIC_URL }}external/css/jquery/jquery-ui.css";
-	@import "{{ STATIC_URL }}xgds_data/css/ResultList.css"; 
+	/*@import "{{ STATIC_URL }}xgds_data/css/ResultList.css"; */ 
 </style>
 {% endblock cssExtras %}
 
@@ -133,14 +134,11 @@
     var options = {
     	    "sScrollY": calcDataTableHeight(),
     		"sScrollX": "100%",
-//    		"sScrollXInner": "150%",
-    		//"sHeightMatch": "none",
-    		//"bScrollCollapse": true,
             "bFilter": false,
             "bInfo": false,
     		"bPaginate": false,
     		"bAutoWidth": true,
-    		"bJQueryUI": true,
+    		"bJQueryUI": false,
     		"bSort": false,
     		"aoColumnDefs": [
     			{ "bSortable": false, "bFilter": false, "aTargets": [ 0 ] }
