@@ -90,7 +90,7 @@ def operatorFormField(mymodel, field, widget):
         return None
 
 
-def valueFormField(mymodel, field, widget):
+def valueFormField(mymodel, field, widget, allowMultiple = True):
     """
     Returns form field to provide a value appropriate for this model field
     """
@@ -114,11 +114,15 @@ def valueFormField(mymodel, field, widget):
             # can't use as queryset arg because it needs a queryset, not a list
             #foreigners = sorted(field.related.parent_model.objects.all(), key=lambda x: unicode(x))
             qset = field.related.parent_model.objects.all()
-            return forms.ModelChoiceField(queryset=qset,
-                                       # initial=qset,
-                                       # order_by('name'),
-                                       empty_label="<Any>",
-                                       required=False)
+            if isinstance(field, models.ManyToManyField) and allowMultiple:
+                return forms.ModelMultipleChoiceField(queryset=qset,
+                                                      required=False) 
+            else:
+                return forms.ModelChoiceField(queryset=qset,
+                                              # initial=qset,
+                                              # order_by('name'),
+                                              empty_label="<Any>",
+                                              required=False)
         elif widget is 'textbox':
             qset = field.related.parent_model.objects.all()
             try:
@@ -161,7 +165,7 @@ def searchFormFields(mymodel, field, enumerableFields):
                 formfields[field.name + '_lo'] = valueFormField(mymodel, field, widget)
                 formfields[field.name + '_hi'] = valueFormField(mymodel, field, widget)
             else:
-                formfields[field.name] = valueFormField(mymodel, field, widget)
+                formfields[field.name] = valueFormField(mymodel, field, widget, allowMultiple=False)
 
     return formfields
 
@@ -260,7 +264,11 @@ def editFormFields(mymodel, field, enumerableFields):
     else:
         widget = specialWidget(mymodel, field, enumerableFields)
         valField = valueFormField(mymodel, field, widget)
-        if valField is None:
+        if widget == 'pulldown':
+            formfields[field.name] = valField
+##            formfields[field.name] = forms.ModelMultipleChoiceField(queryset=field.related.parent_model.objects.all(),
+##                                                                     required = False)
+        elif valField is None:
             ## This must be class that we have missed of haven't gotten around to supporting/ignoring
             longname = '.'.join([field.__class__.__module__,
                                  field.__class__.__name__])

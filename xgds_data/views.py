@@ -21,13 +21,15 @@ from django.http import HttpResponseNotAllowed, HttpResponse, HttpResponseRedire
 from django.core.urlresolvers import reverse
 from django.template import RequestContext
 from django.db import connection, DatabaseError
-from django.db.models import get_app, get_apps, get_models
+from django.db import models
+from django.db.models import get_app, get_apps, get_models, ManyToManyField
 from django.db.models.fields import DateTimeField, DateField, TimeField
 from django.forms.models import ModelMultipleChoiceField, model_to_dict
 from django import forms
 from django.db.models import Model
 from django.forms.formsets import formset_factory
 from django.utils.html import escape
+from django.contrib.auth.models import User
 
 try:
     from geocamUtil.loader import getModelByName
@@ -42,6 +44,8 @@ from xgds_data.logging import recordRequest, recordList, log_and_render
 from xgds_data.logconfig import logEnabled
 from xgds_data.search import getCount, ishard, getMatches, pageLimits
 from xgds_data.utils import total_seconds
+from xgds_data.templatetags import xgds_data_extras
+
 if logEnabled():
     from django.core.urlresolvers import resolve
     from django.utils.datastructures import MergeDict
@@ -372,8 +376,13 @@ def editRecord(request, moduleName, modelName, rid):
         changed = False
         for f in myFields:
             oldval = getattr(record,f.name)
-            #val = request.REQUEST.get(f.name,oldval)
             val = form.cleaned_data[f.name]
+            try:
+                oldval = oldval.all()
+            except AttributeError:
+                pass
+
+
             if val != oldval:
                 setattr(record,f.name,val)
                 changed = True
@@ -381,7 +390,16 @@ def editRecord(request, moduleName, modelName, rid):
             record.save()
         return HttpResponseRedirect(reverse('xgds_data_displayRecord', args=[moduleName, modelName, rid]))
     else:
-        editForm = tmpFormClass(myModel.objects.filter(pk=rid).values(*[x.name for x in myFields])[0])
+        editee = myModel.objects.get(pk=rid)
+        formData = dict()
+        for f in myFields:
+            stuff = getattr(editee,f.name)
+            if isinstance(f, ManyToManyField):
+                ## ModelMultipleChoiceField requires ids, not instances
+                stuff = [ getattr(x,pk(x).name) for x in stuff.all()]
+            formData[f.name] = stuff
+        editForm = tmpFormClass(formData)
+
         return log_and_render(request, reqlog, 'xgds_data/editRecord.html',
                           {'title': 'Editing ' + verbose_name(myModel) + ': ' + str(record),
                            'module': moduleName,
@@ -410,10 +428,6 @@ def displayRecord(request, moduleName, modelName, rid):
                        'record' : record,
                        })
 
-
-from xgds_data.templatetags import xgds_data_extras
-from django.db import models
-from django.contrib.auth.models import User
 
 def searchChosenModel(request, moduleName, modelName, expert=False):
     """
