@@ -9,7 +9,9 @@ from django.core.exceptions import ObjectDoesNotExist
 from string import capwords
 
 from xgds_data.models import VirtualIncludedField
-from xgds_data.introspection import pk
+from xgds_data.introspection import pk, modelName, moduleName
+from xgds_data.introspection import modelName as intmodelName
+from xgds_data.introspection import moduleName as intmoduleName
 
 integer_test = re.compile(r'^\d+$')
 numeric_test = re.compile(r'^[\.\-Ee\d]+$')
@@ -54,6 +56,24 @@ def getattribute(value, arg):
     return v
 
 register.filter('getattribute', getattribute)
+
+
+def pkValue(instance):
+    return getattr(instance,pk(instance).name)
+
+register.filter('pkValue', pkValue)
+
+
+def modelName(instance):
+    return intmodelName(instance)
+
+register.filter('modelName', modelName)
+
+
+def moduleName(instance):
+    return intmoduleName(instance)
+
+register.filter('moduleName', moduleName)
 
 
 def displayLinkedData(field,value):

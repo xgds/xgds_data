@@ -434,7 +434,8 @@ def scoreNumeric(field, lorange, hirange, tsize):
         else:
             return retv
     else:
-        return "1 /(1 + {0}/{1})".format(baseScore(fieldRef, lorange, hirange), median)
+        return "{1}/({1} + {0})".format(baseScore(fieldRef, lorange, hirange), median)
+        #return "1 /(1 + {0}/{1})".format(baseScore(fieldRef, lorange, hirange), median)
     #return "1-(1 + {1}) /(2 + 2 * {0})".format(baseScore(fieldRef, lorange, hirange),
     #                    medianEval(model._meta.db_table, baseScore(fieldRef, lorange, hirange), tsize))
 
@@ -564,11 +565,15 @@ def getMatches(myModel, formset, soft, queryStart=0, queryEnd=None, minCount=Non
     if isAbstract(myModel):
         aggresults = []
         aggcount = 0
+        scores = dict()        
         for subm in concreteDescendents(myModel):
-            subresults, subcount = getMatches(subm, myfilter, soft, queryStart=0, queryEnd=queryEnd, minCount=minCount)
+            subresults, subcount = getMatches(subm, formset, soft, queryStart=0, queryEnd=queryEnd, minCount=minCount)
             aggcount = aggcount + subcount
-            aggresults = aggresults + subresults
-        aggresults = sorted(aggresults, key=itemgetter('score'), reverse=True)
+            for x in subresults:
+                scores[x] = x.score
+            aggresults = aggresults + [x for x in subresults]
+        # aggresults = sorted(aggresults, key=itemgetter('score'), reverse=True)
+        aggresults = sorted(aggresults,key=lambda x: scores[x])
         aggresults = aggresults[queryStart:]
         return (aggresults, aggcount)
     else:

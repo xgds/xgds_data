@@ -356,7 +356,7 @@ class AxesForm(forms.Form):
             seriesablefields = []
             try:
                 itemCount = mfields[0].model.objects.count()  # an upper bound
-            except IndexError:
+            except (IndexError,AttributeError):
                 pass  # no fields, apparently
             try:
                 maxseriesable = settings.XGDS_DATA_MAX_SERIESABLE

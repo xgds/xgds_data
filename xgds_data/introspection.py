@@ -58,6 +58,20 @@ def pk(model):
     return model._meta.pk
 
 
+def modelName(model):
+    """
+    return the short name of the model (or of the instance's model)
+    """
+    return model._meta.object_name
+
+
+def moduleName(model):
+    """
+    return the short name of the module (or of the instance's module)
+    """
+    return model._meta.app_label
+
+
 def verbose_name(model):
     """
     return the verbose name of the model

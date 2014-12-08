@@ -38,7 +38,7 @@ except ImportError:
     GEOCAMUTIL_FOUND = False
 
 from xgds_data import settings
-from xgds_data.introspection import modelFields, maskField, isAbstract, pk, verbose_name, settingsForModel
+from xgds_data.introspection import modelFields, maskField, isAbstract, pk, verbose_name, settingsForModel, modelName, moduleName
 from xgds_data.forms import QueryForm, SearchForm, EditForm, AxesForm, SpecializedForm
 from xgds_data.logging import recordRequest, recordList, log_and_render
 from xgds_data.logconfig import logEnabled
@@ -103,13 +103,13 @@ def searchIndex(request):
                               context_instance=RequestContext(request))
 
 
-def searchModel(request, modelName):
+def searchModel(request, searchModelName):
     if request.method not in ('GET', 'POST'):
         return HttpResponseNotAllowed(['GET', 'POST'])
 
-    model = SEARCH_MODELS[modelName]
+    model = SEARCH_MODELS[searchModelName]
     tableName = model._meta.db_table
-    modelInfo = getModelInfo(modelName, model)
+    modelInfo = getModelInfo(searchModelName, model)
 
     fieldLookup = dict(((field.name, field)
                         for field in model._meta._fields()))
@@ -187,18 +187,18 @@ def chooseSearchApp(request):
                    'apps': apps})
 
 
-def chooseSearchModel(request, moduleName):
+def chooseSearchModel(request, searchModuleName):
     """
     List the models in the module, so they can be selected for search
     """
-    app = get_app(moduleName)
+    app = get_app(searchModuleName)
     models = dict([(verbose_name(m), m) for m in get_models(app) if not isAbstract(m)])
     ordered_names = sorted(models.keys())
 
 
     return render(request, 'xgds_data/chooseSearchModel.html',
-                  {'title': 'Search ' + moduleName,
-                   'module': moduleName,
+                  {'title': 'Search ' + searchModuleName,
+                   'module': searchModuleName,
                    'models': models,
                    'ordered_names': ordered_names
                    }
@@ -223,15 +223,21 @@ def formsetifyFieldName(i, fname):
     return '-'.join(['form', str(i), fname])
 
 
-def resolveSetting(configName, myModel, defaultSetting):
+def resolveSetting(configName, myModel, defaultSetting, override=None):
     """
     Figures out whether a specialized setting exists, or if the default should be used
     """
     setting = None
+    if override:
+        oconfig = override.get(configName,None)
+    else:
+        oconfig = None
     config = getattr(settings, configName, None)
-    if (config):
-        for model in myModel.__mro__:
-            if not setting and issubclass(model, Model) and model != Model:
+    for model in myModel.__mro__:
+        if issubclass(model, Model) and model != Model:
+            if not setting and oconfig:
+                setting = oconfig.get(model._meta.object_name, None)
+            if not setting and config:
                 setting = config.get(model._meta.object_name, None)
     if setting:
         return setting
@@ -239,13 +245,13 @@ def resolveSetting(configName, myModel, defaultSetting):
         return defaultSetting
 
 
-def searchSimilar(request, moduleName, modelName, pkid):
+def searchSimilar(request, searchModuleName, searchModelName, pkid):
     """
     Launch point for finding more items like this one
     """
     reqlog = recordRequest(request)
-    modelmodule = get_app(moduleName)
-    myModel = getattr(modelmodule, modelName)
+    modelmodule = get_app(searchModuleName)
+    myModel = getattr(modelmodule, searchModelName)
     myFields = modelFields(myModel)
     tmpFormClass = SpecializedForm(SearchForm, myModel)
     tmpFormSet = formset_factory(tmpFormClass, extra=0)
@@ -292,8 +298,8 @@ def searchSimilar(request, moduleName, modelName, pkid):
     timeformat = resolveSetting('XGDS_DATA_TIME_FORMAT', myModel, 'hh:mm tt z')
     return log_and_render(request, reqlog, template,
                           {'title': 'Search ' + verbose_name(myModel),
-                           'module': moduleName,
-                           'model': modelName,
+                           'module': searchModuleName,
+                           'model': searchModelName,
                            'debug': debug,
                            'count': resultCount,
                            'datetimefields': datetimefields,
@@ -303,12 +309,12 @@ def searchSimilar(request, moduleName, modelName, pkid):
                           nolog=['formset', 'axesform'])
 
 
-def searchHandoff(request, moduleName, modelName, fn, soft = True):
+def searchHandoff(request, searchModuleName, searchModelName, fn, soft = True):
     """
     Simplified query parse and search, with results handed to given function
     """
-    modelmodule = get_app(moduleName)
-    myModel = getattr(modelmodule, modelName)
+    modelmodule = get_app(searchModuleName)
+    myModel = getattr(modelmodule, searchModelName)
     tmpFormClass = SpecializedForm(SearchForm, myModel)
     tmpFormSet = formset_factory(tmpFormClass)
     debug = []
@@ -360,13 +366,13 @@ def getTimePickerString(dt):
     return result
 
 
-def editRecord(request, moduleName, modelName, rid):
+def editRecord(request, editModuleName, editModelName, rid):
     """
     Default edit for a record
     """
     reqlog = recordRequest(request)
-    modelmodule = get_app(moduleName)
-    myModel = getattr(modelmodule, modelName)
+    modelmodule = get_app(editModuleName)
+    myModel = getattr(modelmodule, editModelName)
     tmpFormClass = SpecializedForm(EditForm, myModel)
     myFields = [x for x in modelFields(myModel) if not maskField(x) ]
     record = myModel.objects.get(pk=rid)
@@ -388,7 +394,7 @@ def editRecord(request, moduleName, modelName, rid):
                 changed = True
         if (changed):
             record.save()
-        return HttpResponseRedirect(reverse('xgds_data_displayRecord', args=[moduleName, modelName, rid]))
+        return HttpResponseRedirect(reverse('xgds_data_displayRecord', args=[editModuleName, editModelName, rid]))
     else:
         editee = myModel.objects.get(pk=rid)
         formData = dict()
@@ -402,8 +408,8 @@ def editRecord(request, moduleName, modelName, rid):
 
         return log_and_render(request, reqlog, 'xgds_data/editRecord.html',
                           {'title': 'Editing ' + verbose_name(myModel) + ': ' + str(record),
-                           'module': moduleName,
-                           'model': modelName,
+                           'module': editModuleName,
+                           'model': editModelName,
                            'displayFields': myFields,
                            'pk':  pk(myModel),
                            'record' : record,
@@ -411,32 +417,32 @@ def editRecord(request, moduleName, modelName, rid):
                            })
 
 
-def displayRecord(request, moduleName, modelName, rid):
+def displayRecord(request, displayModuleName, displayModelName, rid):
     """
     Default display for a record
     """
     reqlog = recordRequest(request)
-    modelmodule = get_app(moduleName)
-    myModel = getattr(modelmodule, modelName)
+    modelmodule = get_app(displayModuleName)
+    myModel = getattr(modelmodule, displayModelName)
     myFields = [x for x in modelFields(myModel) if not maskField(x) ]
     record = myModel.objects.get(pk=rid)
     return log_and_render(request, reqlog, 'xgds_data/displayRecord.html',
                       {'title': verbose_name(myModel) + ': ' + str(record),
-                       'module': moduleName,
-                       'model': modelName,
+                       'module': displayModuleName,
+                       'model': displayModelName,
                        'displayFields': myFields,
                        'record' : record,
                        })
 
 
-def searchChosenModel(request, moduleName, modelName, expert=False):
+def searchChosenModel(request, searchModuleName, searchModelName, expert=False, override=None):
     """
     Search over the fields of the selected model
     """
     starttime = datetime.datetime.now()
     reqlog = recordRequest(request)
-    modelmodule = get_app(moduleName)
-    myModel = getattr(modelmodule, modelName)
+    modelmodule = get_app(searchModuleName)
+    myModel = getattr(modelmodule, searchModelName)
     myFields = [x for x in modelFields(myModel) if not maskField(x) ]
 
     # If 'start' or 'end' query parameters are specified in the initial
@@ -473,7 +479,7 @@ def searchChosenModel(request, moduleName, modelName, expert=False):
         more = False
         if page:
             page = int(page)
-            picks = [int(p) for p in data.getlist('picks')]
+            picks = data.getlist('picks')
         else:
             page = 1
             picks = []
@@ -535,7 +541,7 @@ def searchChosenModel(request, moduleName, modelName, expert=False):
         extension = '.csv'
 
         try:
-            ecsv = __import__('.'.join([moduleName, 'exportCsv']))
+            ecsv = __import__('.'.join([searchModuleName, 'exportCsv']))
             ##print(ecsv.exportCsv.exportCsv)
             meta, content = ecsv.exportCsv.exportCsv(results)
 
@@ -606,17 +612,22 @@ def searchChosenModel(request, moduleName, modelName, expert=False):
                   'series': axesform.fields.get('series').initial}
             qd.update(data)
             axesform = AxesForm(myFields, qd)
-        template = resolveSetting('XGDS_DATA_SEARCH_TEMPLATES', myModel, 'xgds_data/searchChosenModel.html')
-        checkable = resolveSetting('XGDS_DATA_CHECKABLE', myModel, False)
-        timeformat = resolveSetting('XGDS_DATA_TIME_FORMAT', myModel, 'hh:mm tt z')
+        template = resolveSetting('XGDS_DATA_SEARCH_TEMPLATES', myModel, 'xgds_data/searchChosenModel.html', override=override)
+        checkable = resolveSetting('XGDS_DATA_CHECKABLE', myModel, False, override=override)
+        timeformat = resolveSetting('XGDS_DATA_TIME_FORMAT', myModel, 'hh:mm tt z', override=override)
+        if results is None:
+            resultfullids = dict()
+        else:
+            resultfullids = dict([ (r, '%s:%s:%s' % (moduleName(r), modelName(r), getattr(r,pk(r).name)) ) for r in results ])
 
         return log_and_render(request, reqlog, template,
                               {'title': 'Search ' + verbose_name(myModel),
-                               'module': moduleName,
-                               'model': modelName,
+                               'resultfullids' : resultfullids,
+                               'module': searchModuleName,
+                               'model': searchModelName,
                                'standalone': not GEOCAMUTIL_FOUND,
                                'expert': expert,
-                               'pk':  pk(myModel),
+                               # 'pk':  pk(myModel),
                                'datetimefields': datetimefields,
                                'timeformat': timeformat,
                                'displayFields': myFields,
@@ -663,15 +674,15 @@ def megahandler2(obj):
         return None
 
 
-def plotQueryResults(request, moduleName, modelName, start, end, soft=True):
+def plotQueryResults(request, searchModuleName, searchModelName, start, end, soft=True):
     """
     Plot the results of a query
     """
     start = int(start)
     end = int(end)
     reqlog = recordRequest(request)
-    modelmodule = __import__('.'.join([moduleName, 'models'])).models
-    myModel = getattr(modelmodule, modelName)
+    modelmodule = __import__('.'.join([searchModuleName, 'models'])).models
+    myModel = getattr(modelmodule, searchModelName)
     myFields = [ x for x in modelFields(myModel) if not maskField(x) ]
     tmpFormClass = SpecializedForm(SearchForm, myModel)
     tmpFormSet = formset_factory(tmpFormClass)
@@ -726,8 +737,8 @@ def plotQueryResults(request, moduleName, modelName, start, end, soft=True):
                            'plotData': json.dumps(plotdata, default=megahandler2),
                            'labels': pldata,
                            'timeFields': json.dumps(timeFields),
-                           'module': moduleName,
-                           'model': modelName,
+                           'module': searchModuleName,
+                           'model': searchModelName,
                            'pk': pk(myModel).name,
                            'start': start,
                            'end': end,

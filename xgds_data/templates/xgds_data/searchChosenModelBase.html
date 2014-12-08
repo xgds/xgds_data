@@ -58,12 +58,17 @@
           }
   }
   
+{% block submitURL %}
+var submitURL="{% url 'xgds_data_searchChosenModel' module model %}"
+var submitExpertURL="{% url 'xgds_data_searchChosenModel' module model 'expert' %}"
+{% endblock submitURL %}
+
   function submitform(fnctn)
   {
 	if ($('#simple').length == 0) {
-		document.QueryForm.action = "{% url 'xgds_data_searchChosenModel' module model %}";
+		document.QueryForm.action = submitURL;
 	} else {
-		document.QueryForm.action = "{% url 'xgds_data_searchChosenModel' module model 'expert' %}";
+		document.QueryForm.action = submitExpertURL;
 	}
 	try { 
 	{% for f in datetimefields %}
@@ -241,11 +246,7 @@ $(function () {
 {% for d in debug %}
 	<span>{{ d }}</span>
 {% endfor %}
-{% if expert %}
-	<form name='QueryForm' action="{% url 'xgds_data_searchChosenModel' module model 'expert' %}" method="post">
-{% else %}
-	<form name='QueryForm' action="{% url 'xgds_data_searchChosenModel' module model %}" method="post">
-{% endif %}
+  <form name="QueryForm" action="" method="post">
   <input type="hidden" name="fnctn" value="query">
   <input type="hidden" name="pageno" id="id_pageno" value={{ page }}>
   
@@ -437,18 +438,16 @@ $(function () {
 	
 		{% if checkable %}
 		<td>
-			{% if result|getattribute:pk.name in picks %}
-			<input type="checkbox" id="pick_{{result|getattribute:pk.name}}" name="picks" value="{{result|getattribute:pk.name}}" CHECKED />
-			{% else %}
-		    <input type="checkbox" id="pick_{{result|getattribute:pk.name}}" name="picks" value="{{result|getattribute:pk.name}}"/>
-		    {% endif %}
+			{% with pid=resultfullids|getattribute:result %}
+			<input type="checkbox" id="pick_{{pid}}" name="picks" value="{{pid}}" {% if pid in picks %}CHECKED{% endif %} />
+			{% endwith %}
 		     </td>
 	     {% endif %}
 	   <td>
              {% if result.get_absolute_url %}
                <a href="{{ result.get_absolute_url }}">{{ result }}</a>
              {% else %}
-               <a href="{% url 'xgds_data_displayRecord' module model result|getattribute:pk.name %}">{{ result }}</a>
+               <a href="{% url 'xgds_data_displayRecord' result|moduleName result|modelName result|pkValue %}">{{ result }}</a>
              {% endif %}
            </td>
  	 {% for x in displayFields %}
@@ -468,8 +467,14 @@ $(function () {
 	</table>
 </div>
 
-{% endblock %}
-		
+{% endblock listing %}
+
+{% for pid in picks %}
+{% if pid not in resultfullids.values %}
+<input type="hidden" id="pick_{{pid}}" name="picks" value="{{pid}}" >
+{% endif %}
+{% endfor %}
+
 	{% with divpage=1|divide:pageSize %}
 	{% with end_index=page|divide:divpage|floatformat:"0"  %}
 	{% with start_index=pageSize|divide:-1|add:end_index|add:1  %}
