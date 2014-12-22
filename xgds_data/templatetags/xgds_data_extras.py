@@ -6,6 +6,7 @@ from django.contrib.auth.models import User
 from django.utils.safestring import mark_safe
 from django.core.urlresolvers import reverse
 from django.core.exceptions import ObjectDoesNotExist
+from django.contrib.contenttypes import generic
 from string import capwords
 
 from xgds_data.models import VirtualIncludedField
@@ -49,6 +50,8 @@ def getattribute(value, arg):
             print(expt)
             # No problem, we love dirty data!
             v = None
+    elif isinstance(arg, generic.GenericForeignKey):
+        v = getattr(value, arg.name , None)
     else:
         v = settings.TEMPLATE_STRING_IF_INVALID
     if (isinstance(v, models.Manager)):
@@ -76,17 +79,24 @@ def moduleName(instance):
 register.filter('moduleName', moduleName)
 
 
-def displayLinkedData(field,value):
+## TODO: We don't need to pass field
+def displayLinkedData(field, value):
     if value is None:
         return None
     else:
         try:
             url = value.get_absolute_url()
         except AttributeError:
-            url = reverse('xgds_data_displayRecord', args=[field.rel.to.__module__.split('.')[0],
-                                                 field.rel.to.__name__,
-                                                 getattr(value,pk(value).name)])
-        return mark_safe('<A HREF="' + url + '">'+ unicode(display(field.rel.to,value)) + '</A>')
+            # url = reverse('xgds_data_displayRecord',
+            #               args=[field.rel.to.__module__.split('.')[0],
+            #                     field.rel.to.__name__,
+            #                     getattr(value,pk(value).name)])
+            url = reverse('xgds_data_displayRecord',
+                          args=[moduleName(value),
+                                modelName(value),
+                                pkValue(value)])
+        return mark_safe('<A HREF="' + url + '">'+ unicode(value) + '</A>')
+        ##return mark_safe('<A HREF="' + url + '">'+ unicode(display(field.rel.to,value)) + '</A>')
 
 
 def display(field, value):
@@ -95,6 +105,11 @@ def display(field, value):
         return mark_safe('<A HREF="' + field.storage.url(value) + '"><IMG SRC="' + field.storage.url(value) + '" WIDTH="100"></A>')
     elif isinstance(field, (models.ForeignKey, models.OneToOneField)):
         return displayLinkedData(field,value)
+    elif isinstance(field, generic.GenericForeignKey):
+        if value is not None:
+            return displayLinkedData(field,value)
+        else:
+            return value
     elif isinstance(field, models.ManyToManyField):
         results = []
         for v in value:

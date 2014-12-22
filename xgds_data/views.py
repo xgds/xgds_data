@@ -38,7 +38,9 @@ except ImportError:
     GEOCAMUTIL_FOUND = False
 
 from xgds_data import settings
-from xgds_data.introspection import modelFields, maskField, isAbstract, pk, verbose_name, settingsForModel, modelName, moduleName
+from xgds_data.introspection import (modelFields, maskField, isAbstract, 
+                                     pk, verbose_name, settingsForModel, 
+                                     modelName, moduleName, fullid)
 from xgds_data.forms import QueryForm, SearchForm, EditForm, AxesForm, SpecializedForm
 from xgds_data.logging import recordRequest, recordList, log_and_render
 from xgds_data.logconfig import logEnabled
@@ -210,7 +212,11 @@ def csvEncode(something):
     csvlib can't deal with non-ascii unicode, thus, this function
     """
     if isinstance(something, unicode):
-        return something.encode("ascii", errors='xmlcharrefreplace')
+        try:
+            return something.encode("ascii", errors='xmlcharrefreplace')
+        except TypeError:
+            ## probably older python
+            return something.encode("ascii", 'xmlcharrefreplace')
         # return something.encode("utf-8")
     else:
         return something
@@ -366,6 +372,40 @@ def getTimePickerString(dt):
     return result
 
 
+def chooseCreateModel(request, createModuleName):
+    """
+    List the models in the module, so they can be selected for create
+    """
+    app = get_app(createModuleName)
+    models = dict([(verbose_name(m), m) for m in get_models(app) if not isAbstract(m)])
+    ordered_names = sorted(models.keys())
+
+
+    return render(request, 'xgds_data/chooseCreateModel.html',
+                  {'title': 'Create ' + createModuleName,
+                   'module': createModuleName,
+                   'models': models,
+                   'ordered_names': ordered_names
+                   }
+                  )
+
+
+def createChosenModel(request, createModuleName, createModelName):
+    """
+    Create instance of the selected model
+    """
+    starttime = datetime.datetime.now()
+    reqlog = recordRequest(request)
+    modelmodule = get_app(createModuleName)
+    myModel = getattr(modelmodule, createModelName)
+    record = myModel.objects.create()
+    try:
+        ## try any specialized edit first
+        return HttpResponseRedirect(record.get_edit_url())
+    except AttributeError:
+        return HttpResponseRedirect(reverse('xgds_data_editRecord', args=[createModuleName, createModelName, getattr(record,pk(record).name)]))
+
+
 def editRecord(request, editModuleName, editModelName, rid):
     """
     Default edit for a record
@@ -424,18 +464,53 @@ def displayRecord(request, displayModuleName, displayModelName, rid):
     reqlog = recordRequest(request)
     modelmodule = get_app(displayModuleName)
     myModel = getattr(modelmodule, displayModelName)
-    myFields = [x for x in modelFields(myModel) if not maskField(x) ]
     record = myModel.objects.get(pk=rid)
-    return log_and_render(request, reqlog, 'xgds_data/displayRecord.html',
-                      {'title': verbose_name(myModel) + ': ' + str(record),
-                       'module': displayModuleName,
-                       'model': displayModelName,
-                       'displayFields': myFields,
-                       'record' : record,
-                       })
+    try:
+        editable = settings.XGDS_DATA_EDITING
+    except AttributeError:
+        editable = False
+
+    try:
+        ## try any specialized display first
+        return HttpResponseRedirect(record.get_absolute_url())
+    except AttributeError:
+        myFields = [x for x in modelFields(myModel) if not maskField(x) ]
+        return log_and_render(request, reqlog, 'xgds_data/displayRecord.html',
+                              {'title': verbose_name(myModel) + ': ' + str(record),
+                               'module': displayModuleName,
+                               'model': displayModelName,
+                               'verbose_model': verbose_name(myModel),
+                               'editable': editable,
+                               'displayFields': myFields,
+                               'record' : record,
+                               })
 
 
-def searchChosenModel(request, searchModuleName, searchModelName, expert=False, override=None):
+def deleteRecord(request, deleteModuleName, deleteModelName, rid):
+    """
+    Default delete for a record
+    """
+    reqlog = recordRequest(request)
+    modelmodule = get_app(deleteModuleName)
+    myModel = getattr(modelmodule, deleteModelName)
+    record = myModel.objects.get(pk=rid)
+    action = request.REQUEST.get('action',None)
+    if (action == 'Cancel'):
+        return HttpResponseRedirect(reverse('xgds_data_displayRecord', args=[deleteModuleName, deleteModelName, rid]))
+    elif (action == 'Delete'):
+        record.delete()
+        return HttpResponseRedirect(reverse('xgds_data_searchChosenModel', args=[deleteModuleName, deleteModelName]))
+    else:
+        return log_and_render(request, reqlog, 'xgds_data/deleteRecord.html',
+                              {'title': 'Delete ' + verbose_name(myModel) + ': ' + str(record),
+                               'module': deleteModuleName,
+                               'model': deleteModelName,
+                               'verbose_model': verbose_name(myModel),
+                               'record' : record,
+                               })
+
+
+def searchChosenModel(request, searchModuleName, searchModelName, expert=False, override=None, passthroughs=dict()):
     """
     Search over the fields of the selected model
     """
@@ -618,10 +693,9 @@ def searchChosenModel(request, searchModuleName, searchModelName, expert=False, 
         if results is None:
             resultfullids = dict()
         else:
-            resultfullids = dict([ (r, '%s:%s:%s' % (moduleName(r), modelName(r), getattr(r,pk(r).name)) ) for r in results ])
+            resultfullids = dict([ (r, fullid(r)) for r in results ])
 
-        return log_and_render(request, reqlog, template,
-                              {'title': 'Search ' + verbose_name(myModel),
+        templateargs = {'title': 'Search ' + verbose_name(myModel),
                                'resultfullids' : resultfullids,
                                'module': searchModuleName,
                                'model': searchModelName,
@@ -644,7 +718,10 @@ def searchChosenModel(request, searchModuleName, searchModelName, expert=False, 
                                'checkable': checkable,
                                'debug': debug,
                                'autoSubmit': autoSubmit,
-                               },
+                               }
+        templateargs.update(passthroughs)
+        return log_and_render(request, reqlog, template,
+                              templateargs,
                               nolog=['formset', 'axesform', 'results', 'resultsids', 'scores'],
                               listing=results)
 

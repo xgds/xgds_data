@@ -1,0 +1,17 @@
+{% extends "base.html" %}
+{% load xgds_data_extras %}
+
+{% load url from future %}
+{% load nav %}
+{% block siteSection %}{{ title }}{% endblock siteSection %}
+
+{% block contents %}
+<form name='DeleteForm' action="{% url 'xgds_data_deleteRecord' module model record|pkValue %}" method="post">
+
+Really delete <B>{{ verbose_model }} {{ record }}</B>?
+<BR />
+<input type="submit" class="mybutton" value="Delete" name="action" />
+<input type="submit" class="mybutton" value="Cancel" name="action" />
+</form>
+
+{% endblock contents %}

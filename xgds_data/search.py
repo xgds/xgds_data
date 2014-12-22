@@ -20,8 +20,9 @@ from django.contrib.contenttypes.generic import GenericForeignKey
 from django.db.models import Min, Max
 from django.conf import settings
 
-from xgds_data.introspection import modelFields, resolveField, maskField, isAbstract, concreteDescendents, \
-    pk, db_table, isgeneric
+from xgds_data.introspection import (modelFields, resolveField, maskField,
+                                     isAbstract, concreteDescendents, 
+                                     pk, db_table, isgeneric, fullid)
 from xgds_data.models import cacheStatistics, VirtualIncludedField
 if cacheStatistics():
     from xgds_data.models import ModelStatistic
@@ -667,6 +668,25 @@ def getMatches(myModel, formset, soft, queryStart=0, queryEnd=None, minCount=Non
             # qvalues = qvalues[queryStart:queryEnd]
 
             return (query, totalCount)
+
+
+def retrieve(fullids):
+    """
+    Return a bunch of records specifid by fullid
+    """
+    groupedIds  = dict()
+    for fid in fullids:
+        moduleName, modelName, rid = fid.split(':')
+        myModel = resolveModel(moduleName, modelName)
+        if myModel not in groupedIds:
+            groupedIds[myModel] = []
+        groupedIds[myModel].append(rid)
+    groupedRecords = dict()
+    for myModel,ids in groupedIds:
+        for rec in myModel.objects.filter(pk__in=ids):
+            groupedRecords[fullid(rec)] = rec
+    ## return in original order
+    return [groupedRecords[fid] for fid in fullids]
 
 
 ## The following is experimental and not currently in use

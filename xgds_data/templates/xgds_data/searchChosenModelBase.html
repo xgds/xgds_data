@@ -63,7 +63,7 @@ var submitURL="{% url 'xgds_data_searchChosenModel' module model %}"
 var submitExpertURL="{% url 'xgds_data_searchChosenModel' module model 'expert' %}"
 {% endblock submitURL %}
 
-  function submitform(fnctn)
+  function submitform(fnctn,pageno)
   {
 	if ($('#simple').length == 0) {
 		document.QueryForm.action = submitURL;
@@ -88,6 +88,7 @@ var submitExpertURL="{% url 'xgds_data_searchChosenModel' module model 'expert' 
 		alert(err)
 	}
 	document.QueryForm["fnctn"].value = fnctn;
+    $("#id_pageno").val(pageno); 
     document.QueryForm.submit();
     return false;
   }
@@ -104,14 +105,14 @@ var submitExpertURL="{% url 'xgds_data_searchChosenModel' module model 'expert' 
 		document.QueryForm.action = "{% url 'xgds_data_searchChosenModel' module model 'expert' %}";
 	}
     document.QueryForm["fnctn"].value = 'change';
-	$("#id_pageno").val(1); 
+    $("#id_pageno").val(1); 
     document.QueryForm.submit();
   }
 
   function gotoPage(page) {
-		$("#id_pageno").val(page);
-		document.QueryForm["fnctn"].value = 'query';
-		submitform('query');
+		//$("#id_pageno").val(page);
+		//document.QueryForm["fnctn"].value = 'query';
+		submitform('query',page);
 	}
   
   var oTable;
@@ -175,16 +176,16 @@ $('#id_{{f}}_lo').datetimepicker({addSliderAccess: false, showTimezone: true, ti
 $('#id_{{f}}_hi').datetimepicker({addSliderAccess: false, showTimezone: true, timezone: '+0000', showSecond: seconds, timeFormat: timeFormat });
 {% endfor %}
 $("#addform").click(function() {
-	submitform('addform');
+	submitform('addform',1);
 });
 $("#query").click(function() {
-	submitform('query');
+	submitform('query',1);
 });
 $("#csv").click(function() {
-	submitform('csv');
+	submitform('csv',1);
 });
 $("#csvhard").click(function() {
-	submitform('csvhard');
+	submitform('csvhard',1);
 });
 $("#simple").click(function() {
 	changemode(false);

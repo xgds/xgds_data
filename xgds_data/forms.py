@@ -90,25 +90,26 @@ def operatorFormField(mymodel, field, widget):
         return None
 
 
-def valueFormField(mymodel, field, widget, allowMultiple = True):
+def valueFormField(mymodel, field, widget, allowMultiple=True, label=None):
     """
     Returns form field to provide a value appropriate for this model field
     """
     if isinstance(field, (models.AutoField, models.CharField, models.TextField)) or isOrdinalOveridden(mymodel, field):
-        return forms.CharField(required=False)
+        return forms.CharField(required=False,label=label)
     elif isinstance(field, models.DateTimeField):
-        return forms.DateTimeField(required=False)
+        return forms.DateTimeField(required=False,label=label)
     elif isinstance(field, (models.DecimalField, models.FloatField)):
-        return forms.FloatField(required=False)
+        return forms.FloatField(required=False,label=label)
     elif isinstance(field, models.PositiveIntegerField):
-        return forms.IntegerField(min_value=1, required=False)
+        return forms.IntegerField(min_value=1, required=False,label=label)
     elif isinstance(field, models.IntegerField):
-        return forms.IntegerField(required=False)
+        return forms.IntegerField(required=False,label=label)
     elif isinstance(field, (models.BooleanField, models.NullBooleanField)):
         return forms.ChoiceField(choices=((None, '<Any>'),
                                        (True, True),
                                        (False, False)),
-                              required=False)   
+                                 required=False,
+                                 label=label)   
     elif isinstance(field, (models.ForeignKey,models.ManyToManyField,models.OneToOneField)):
         if widget is 'pulldown':
             # can't use as queryset arg because it needs a queryset, not a list
@@ -116,13 +117,15 @@ def valueFormField(mymodel, field, widget, allowMultiple = True):
             qset = field.related.parent_model.objects.all()
             if isinstance(field, models.ManyToManyField) and allowMultiple:
                 return forms.ModelMultipleChoiceField(queryset=qset,
-                                                      required=False) 
+                                                      required=False,
+                                                      label=label) 
             else:
                 return forms.ModelChoiceField(queryset=qset,
                                               # initial=qset,
                                               # order_by('name'),
                                               empty_label="<Any>",
-                                              required=False)
+                                              required=False,
+                                              label=label)
         elif widget is 'textbox':
             qset = field.related.parent_model.objects.all()
             try:
@@ -130,10 +133,11 @@ def valueFormField(mymodel, field, widget, allowMultiple = True):
             except IndexError:
                 to_field = pk(field.rel.to)
             return forms.ModelChoiceField(queryset=qset,
-                                       to_field_name=to_field.name,
-                                       initial=None,
-                                       widget=TextInput,
-                                       required=False)
+                                          to_field_name=to_field.name,
+                                          initial=None,
+                                          widget=TextInput,
+                                          required=False,
+                                          label=label)
             # self.fields[field.name] = forms.CharField(required=False)
     else:
         return None
@@ -263,7 +267,11 @@ def editFormFields(mymodel, field, enumerableFields):
         pass # still need to cross this bridge
     else:
         widget = specialWidget(mymodel, field, enumerableFields)
-        valField = valueFormField(mymodel, field, widget)
+        try:
+            name = field.verbose_name
+        except AttributeError:
+            name = field.name
+        valField = valueFormField(mymodel, field, widget, label=name)
         if widget == 'pulldown':
             formfields[field.name] = valField
 ##            formfields[field.name] = forms.ModelMultipleChoiceField(queryset=field.related.parent_model.objects.all(),

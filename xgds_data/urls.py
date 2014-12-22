@@ -5,6 +5,7 @@
 # __END_LICENSE__
 
 from django.conf.urls import url, patterns
+from xgds_data import settings
 from xgds_data import views
 
 urlpatterns = patterns(
@@ -34,7 +35,6 @@ urlpatterns = patterns(
     url(r'^search/plot/(?P<searchModuleName>[^/]+)/(?P<searchModelName>[^/]+)/(?P<soft>[^/]+)/(?P<start>\d+)/(?P<end>\d+)/$', 'plotQueryResults',
         name='xgds_data_searchPlotQueryResults'),
     url(r'^display/(?P<displayModuleName>[^/]+)/(?P<displayModelName>[^/]+)/(?P<rid>[^/]+)$', 'displayRecord', name='xgds_data_displayRecord'),
-#    url(r'^edit/(?P<editModuleName>[^/]+)/(?P<editModelName>[^/]+)/(?P<rid>[^/]+)$', 'editRecord', name='xgds_data_editRecord'),
 
     url(r'^similar/(?P<searchModuleName>[^/]+)/(?P<searchModelName>[^/]+)/$', 'searchSimilar',
         name='xgds_data_searchSimilar'),
@@ -49,3 +49,16 @@ urlpatterns = patterns(
     #url(r'^searchChosenModel/(?P<searchModuleName>[^/]+)/(?P<searchModelName>[^/]+)/$', 'searchChosenModel',
     #    name='xgds_data_searchChosenModel_orig'),
 )
+
+try:
+    if settings.XGDS_DATA_EDITING:
+        urlpatterns += patterns('',
+                                url(r'^edit/(?P<editModuleName>[^/]+)/(?P<editModelName>[^/]+)/(?P<rid>[^/]+)$', views.editRecord, name='xgds_data_editRecord'),
+                                url(r'^delete/(?P<deleteModuleName>[^/]+)/(?P<deleteModelName>[^/]+)/(?P<rid>[^/]+)$', views.deleteRecord, name='xgds_data_deleteRecord'),
+                                url(r'^create/(?P<createModuleName>[^/]+)/$', views.chooseCreateModel,
+                                    name='xgds_data_createChooseModel'),
+                                url(r'^create/(?P<createModuleName>[^/]+)/(?P<createModelName>[^/]+)/$', views.createChosenModel,
+                                    name='xgds_data_createCreateModel'),
+                                )
+except AttributeError:
+    pass

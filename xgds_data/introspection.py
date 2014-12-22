@@ -198,3 +198,10 @@ def isgeneric(field):
         return field.isgeneric()
     except AttributeError:
         return False
+
+
+def fullid(record):
+    """An id that includes class info"""
+    return '%s:%s:%s' % (moduleName(record),
+                         modelName(record),
+                         getattr(record,pk(record).name))
