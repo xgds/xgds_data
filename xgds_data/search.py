@@ -22,7 +22,8 @@ from django.conf import settings
 
 from xgds_data.introspection import (modelFields, resolveField, maskField,
                                      isAbstract, concreteDescendents, 
-                                     pk, db_table, isgeneric, fullid)
+                                     pk, db_table, isgeneric, fullid,
+                                     resolveModel)
 from xgds_data.models import cacheStatistics, VirtualIncludedField
 if cacheStatistics():
     from xgds_data.models import ModelStatistic
@@ -682,7 +683,7 @@ def retrieve(fullids):
             groupedIds[myModel] = []
         groupedIds[myModel].append(rid)
     groupedRecords = dict()
-    for myModel,ids in groupedIds:
+    for myModel,ids in groupedIds.iteritems():
         for rec in myModel.objects.filter(pk__in=ids):
             groupedRecords[fullid(rec)] = rec
     ## return in original order
