@@ -9,7 +9,7 @@ from datetime import datetime
 from django.db import models
 from django.contrib.auth.models import User
 from django.http import HttpRequest
-from django.contrib.contenttypes.generic import ContentType
+from django.contrib.contenttypes.models import ContentType
 
 from xgds_data import settings
 from xgds_data.logconfig import logEnabled
