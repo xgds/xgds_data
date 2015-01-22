@@ -544,6 +544,17 @@ def searchChosenModel(request, searchModuleName, searchModelName, expert=False, 
     soft = True
     mode = data.get('fnctn', False)
     page = data.get('pageno', None)
+    allselected = data.get('allselected', False)
+    picks = data.getlist('picks')
+    notpicks = data.getlist('notpicks')
+    if (mode == 'selectall'):
+        mode = 'query'
+        allselected = True
+        notpicks = []
+    elif (mode == 'unselectall'):
+        mode = 'query'
+        allselected = False
+        picks = []
     if (mode == 'csvhard'):
         soft = False
         mode = 'csv'
@@ -554,10 +565,23 @@ def searchChosenModel(request, searchModuleName, searchModelName, expert=False, 
         more = False
         if page:
             page = int(page)
-            picks = data.getlist('picks')
         else:
+            ## this is the first time through
             page = 1
-            picks = []
+    if allselected:
+        for p in picks:
+            try:
+                notpicks.remove(p)
+            except ValueError:
+                pass
+        picks = []
+    else:
+        for p in notpicks:
+            try:
+                picks.remove(p)
+            except ValueError:
+                pass
+        notpicks = []
     results = None
 
     totalCount = None
@@ -696,29 +720,31 @@ def searchChosenModel(request, searchModuleName, searchModelName, expert=False, 
             resultfullids = dict([ (r, fullid(r)) for r in results ])
 
         templateargs = {'title': 'Search ' + verbose_name(myModel),
-                               'resultfullids' : resultfullids,
-                               'module': searchModuleName,
-                               'model': searchModelName,
-                               'standalone': not GEOCAMUTIL_FOUND,
-                               'expert': expert,
-                               # 'pk':  pk(myModel),
-                               'datetimefields': datetimefields,
-                               'timeformat': timeformat,
-                               'displayFields': myFields,
-                               'formset': formset,
-                               'axesform': axesform,
-                               'results': results,
-                               'count': totalCount,
-                               'exactCount': hardCount,
-                               'duration': total_seconds(datetime.datetime.now() - starttime),
-                               'page': page,
-                               'pageSize': pageSize,
-                               'more': more,
-                               'picks': picks,
-                               'checkable': checkable,
-                               'debug': debug,
-                               'autoSubmit': autoSubmit,
-                               }
+                        'resultfullids' : resultfullids,
+                        'module': searchModuleName,
+                        'model': searchModelName,
+                        'standalone': not GEOCAMUTIL_FOUND,
+                        'expert': expert,
+                        # 'pk':  pk(myModel),
+                        'datetimefields': datetimefields,
+                        'timeformat': timeformat,
+                        'displayFields': myFields,
+                        'formset': formset,
+                        'axesform': axesform,
+                        'results': results,
+                        'count': totalCount,
+                        'exactCount': hardCount,
+                        'duration': total_seconds(datetime.datetime.now() - starttime),
+                        'page': page,
+                        'pageSize': pageSize,
+                        'more': more,
+                        'checkable': checkable,
+                        'picks': picks,
+                        'notpicks': notpicks,
+                        'allselected': allselected,
+                        'debug': debug,
+                        'autoSubmit': autoSubmit,
+                        }
         templateargs.update(passthroughs)
         return log_and_render(request, reqlog, template,
                               templateargs,

@@ -115,6 +115,7 @@ var submitExpertURL="{% url 'xgds_data_searchChosenModel' module model 'expert' 
 		submitform('query',page);
 	}
   
+
   var oTable;
   
   function syncFramesize() {
@@ -209,6 +210,15 @@ $("#nextpage").click(function() {
 	var page = parseInt($("#id_pageno").val()) + 1;
 	gotoPage(page);
 });
+
+{% if checkable %}
+$('#pick_master').change(function() {                                           
+        var val = $('#pick_master')[0].checked;                                 
+        $('input[id^=pick]').each(function() {                                  
+            $(this).prop('checked',val);                                        
+            /*$(this).attr('checked',val);*/ });                                
+});
+{% endif %}
 
 function resetResults() { 
 //	$('#results').html(""); 
@@ -375,6 +385,14 @@ $(function () {
 		<span class="counts">Displaying {{start_index}}-
 		{% if end_index|add:"0" < count|add:"0" %}{{end_index}}{% else %}{{count}}{% endif %}
 		 out of {{ count }} records</span>
+	{% if checkable %}
+		({% if not allselected %}{{ picks|length }}{% else %}{{ notpicks|length|divide:-1|add:count }}{% endif %}
+selected - Select
+<a href="javascript:submitform('selectall',{{page}});"><span style="text-decoration: underline;">All</span></a>
+/
+<a href="javascript:submitform('unselectall',{{page}});"><span style="text-decoration: underline;">None</span></a>
+)
+	{% endif %}
     	{% if standalone %}
 			<div class="paginate" style="float:right; margin-bottom:3px;">
     	{% else %}
@@ -440,7 +458,16 @@ $(function () {
 		{% if checkable %}
 		<td>
 			{% with pid=resultfullids|getattribute:result %}
-			<input type="checkbox" id="pick_{{pid}}" name="picks" value="{{pid}}" {% if pid in picks %}CHECKED{% endif %} />
+			<input type="checkbox" id="pick_{{pid}}" name="picks" value="{{pid}}"
+{% if not allselected %}
+{% if pid in picks %}CHECKED{% endif %}
+{% else %}
+{% if pid not in notpicks %}CHECKED{% endif %}
+{% endif %}
+ />
+{% if allselected %}
+<input type="hidden" id="notpick_{{pid}}" name="notpicks" value="{{pid}}" >
+{% endif %}
 			{% endwith %}
 		     </td>
 	     {% endif %}
@@ -470,11 +497,25 @@ $(function () {
 
 {% endblock listing %}
 
+{% if checkable %}
+{% if allselected %}
+<input type="hidden" name="allselected" id="id_allselected" value=1>
+{% else %}
+<input type="hidden" name="allselected" id="id_allselected">
+{% endif %}
+
 {% for pid in picks %}
 {% if pid not in resultfullids.values %}
 <input type="hidden" id="pick_{{pid}}" name="picks" value="{{pid}}" >
 {% endif %}
 {% endfor %}
+
+{% for pid in notpicks %}
+{% if pid not in resultfullids.values %}
+<input type="hidden" id="notpick_{{pid}}" name="notpicks" value="{{pid}}" >
+{% endif %}
+{% endfor %}
+{% endif %}
 
 	{% with divpage=1|divide:pageSize %}
 	{% with end_index=page|divide:divpage|floatformat:"0"  %}
