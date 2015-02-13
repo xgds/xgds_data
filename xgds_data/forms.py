@@ -190,28 +190,35 @@ class SearchForm(forms.Form):
         output = []
 
         for mfield in modelFields(self.model):
-            ## self.model._meta.fields:
-            #n = mfield.name
+            # self.model._meta.fields:
+            # n = mfield.name
             fieldname = mfield.name
-            ##if (isinstance(mfield, VirtualIncludedField)):
-            ##    fieldname = mfield.compound_name()
+            # if (isinstance(mfield, VirtualIncludedField)):
+            #    fieldname = mfield.compound_name()
             if (fieldname in self.fields or
                 ((fieldname + '_lo') in self.fields and
                  (fieldname + '_hi') in self.fields)):
                 ofieldname = fieldname + '_operator'
                 ofield = forms.forms.BoundField(self, self.fields[ofieldname], ofieldname)
-                row = (u'<tr><td style="text-align:right; font-weight:bold;">%(label)s</td><td>%(ofield)s</td>' %
-                       {'label': unicode(mfield.verbose_name),
-                        'ofield': unicode(ofield.as_hidden())
-                        })
                 if ordinalField(self.model, mfield):
                     loname, hiname = fieldname + '_lo', fieldname + '_hi'
                     fieldlo = forms.forms.BoundField(self, self.fields[loname], loname)
                     fieldhi = forms.forms.BoundField(self, self.fields[hiname], hiname)
-                    row = (row + u'<td>%(fieldlo)s</td><td>up to</td><td>%(fieldhi)s</td>' %
+                    row = (u'<tr><td style="text-align:right;"><label for="%(fieldid)s">%(label)s</label></td><td>%(ofield)s</td>' %
+                           {'label': unicode(mfield.verbose_name),
+                            'ofield': unicode(ofield.as_hidden()),
+                            'fieldid': unicode(fieldlo.auto_id)
+                            })
+                    row = (row + u'<td>%(fieldlo)s</td><td><label for="%(fieldhi_id)s">up to</label></td><td>%(fieldhi)s</td>' %
                            {'fieldlo': unicode(fieldlo),
-                            'fieldhi': unicode(fieldhi)})
+                            'fieldhi': unicode(fieldhi),
+                            'fieldhi_id': unicode(fieldhi.auto_id)})
                 else:
+                    row = (u'<tr><td style="text-align:right;"><label for="%(fieldid)s">%(label)s</label></td><td>%(ofield)s</td>' %
+                           {'label': unicode(mfield.verbose_name),
+                            'ofield': unicode(ofield.as_hidden()),
+                            'fieldid': unicode(ofield.auto_id[:-9])
+                            })
                     bfield = forms.forms.BoundField(self, self.fields[fieldname],
                                                     fieldname)
                     row = (row + u'<td colspan=3>%(field)s</td>' %
@@ -232,19 +239,25 @@ class SearchForm(forms.Form):
                  (n + '_hi') in self.fields)):
                 ofieldname = n + '_operator'
                 ofield = forms.forms.BoundField(self, self.fields[ofieldname], ofieldname)
-                row = (u'<tr><td style="text-align:right; font-weight:bold;">%(label)s</td><td>%(ofield)s</td>' %
-                       {'label': unicode(mfield.verbose_name),
-                        'ofield': unicode(ofield)})
+
                 if ordinalField(self.model, mfield):
                     loname, hiname = mfield.name + '_lo', mfield.name + '_hi'
                     fieldlo = forms.forms.BoundField(self, self.fields[loname], loname)
                     fieldhi = forms.forms.BoundField(self, self.fields[hiname], hiname)
-                    row = (row + u'<td>%(fieldlo)s</td><td>up to</td><td>%(fieldhi)s</td>' %
+                    row = (u'<tr><td style="text-align:right;"><label for="%(fieldid)s">%(label)s</label></td><td>%(ofield)s</td>' %
+                           {'label': unicode(mfield.verbose_name),
+                            'ofield': unicode(ofield),
+                            'fieldid': unicode(fieldlo.auto_id)})
+                    row = (row + u'<td>%(fieldlo)s</td><td><label for="%(fieldhi_id)s">up to</label></td><td>%(fieldhi)s</td>' %
                            {'fieldlo': unicode(fieldlo),
-                            'fieldhi': unicode(fieldhi)})
+                            'fieldhi': unicode(fieldhi),
+                            'fieldhi_id': unicode(fieldhi.auto_id)})
                 else:
-                    bfield = forms.forms.BoundField(self, self.fields[mfield.name],
-                                                    mfield.name)
+                    row = (u'<tr><td style="text-align:right;"><label for="%(fieldid)s">%(label)s</label></td><td>%(ofield)s</td>' %
+                           {'label': unicode(mfield.verbose_name),
+                            'ofield': unicode(ofield),
+                            'fieldid': unicode(ofield.auto_id[:-9])})
+                    bfield = forms.forms.BoundField(self, self.fields[mfield.name], mfield.name)
                     row = (row + u'<td colspan=3>%(field)s</td>' %
                            {'field': unicode(bfield)})
 
