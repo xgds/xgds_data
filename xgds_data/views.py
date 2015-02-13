@@ -140,7 +140,7 @@ def searchModel(request, searchModelName):
         # escape % signs, interpreted by Django raw() as template format
 
         styledSql = (prefix
-                     + '<span style="color: blue; font-weight: bold">%s</span>' % userQuery
+                     + '<span style="color: blue;">%s</span>' % userQuery
                      + order
                      + limit)
 
