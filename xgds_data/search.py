@@ -665,7 +665,10 @@ def getMatches(myModel, formset, soft, queryStart=0, queryEnd=None, minCount=Non
                 queryEnd = min(totalCount, queryEnd)
             else:
                 queryEnd = totalCount
-            query = query[queryStart:queryEnd]
+            if (queryStart == 0) and (queryEnd == totalCount):
+                pass
+            else:
+                query = query[queryStart:queryEnd]
             # qvalues = qvalues[queryStart:queryEnd]
 
             return (query, totalCount)
