@@ -47,3 +47,8 @@ XGDS_DATA_TIME_FIELDS = (
     'timeStampSeconds',
     'timestamp',
 )
+
+# include this in your siteSettings.py BOWER_INSTALLED_APPS
+XGDS_DATA_BOWER_INSTALLED_APPS = ('flot',
+                                  'datatables-fixedcolumns'
+                                  )
