@@ -150,9 +150,14 @@ var submitExpertURL="{% url 'xgds_data_searchChosenModel' module model 'expert' 
     	};
 	oTable = $('#tableresults').dataTable(options);
 	{% if checkable %}
-	new FixedColumns( oTable, { "iLeftColumns": 2, "iLeftWidth": 115 } );
+	new $.fn.dataTable.FixedColumns( oTable, {
+        leftColumns: 2,
+        leftWidth: 115
+    } );
 	{% else %}
-	new FixedColumns( oTable, { "iLeftColumns": 1 } );
+	new $.fn.dataTable.FixedColumns( oTable, {
+        leftColumns: 1
+    } );
 	{% endif %}
 }
 
