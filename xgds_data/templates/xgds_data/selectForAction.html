@@ -1,0 +1,19 @@
+{% extends "xgds_data/searchChosenModelBase.html" %}
+{% load url from future %}
+
+{% block formtarget %}
+{% if expert %}
+	<form name='QueryForm' action="{% url urlName module model 'expert' %}" method="post">
+{% else %}
+	<form name='QueryForm' action="{% url urlName module model %}" method="post">
+{% endif %}
+{% endblock formtarget %}
+
+{% block submitURL %}
+var submitURL="{% url urlName module model %}"
+var submitExpertURL="{% url urlName module model 'expert' %}"
+{% endblock submitURL %}
+
+{% block download  %}
+<input type="submit" class="mybutton" value="{{ finalAction }}" name="userAction" />
+{% endblock download  %}
