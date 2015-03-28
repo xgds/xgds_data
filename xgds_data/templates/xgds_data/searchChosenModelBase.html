@@ -8,23 +8,34 @@
 {% block cssExtras %}
 {{ block.super }}
 <style type="text/css" title="currentStyle">
-{% if not standalone %}
+{% if standalone %}
+	@import "{{ STATIC_URL }}external/css/jquery/jquery-ui.css";
+{% else %}
 	/*
 	@import "{{ EXTERNAL_URL }}datatables-editable/media/css/demo_page.css";
 	@import "{{ EXTERNAL_URL }}datatables-editable/media/css/demo_table.css";
 	*/
-{% endif %}
 	@import "{{ EXTERNAL_URL }}jquery-ui/themes/base/jquery-ui.min.css";
+{% endif %}
 	@import "{{ STATIC_URL }}xgds_data/css/ResultList.css";
 </style>
 {% endblock cssExtras %}
 
 {% block scripts %}
   {{ block.super }}
+{% if standalone %}
+  <script language="javascript" type="text/javascript" src="{{ STATIC_URL }}/external/js/jquery/jquery-ui.js"></script>
+  <script language="javascript" type="text/javascript" src="{{ STATIC_URL }}external/js/jquery/jquery-ui-timepicker-addon.js"></script>
+  <script language="javascript" type="text/javascript"
+	  src="{{ STATIC_URL }}external/js/DataTables-1.9.4/jquery.dataTables.min.js"></script>
+  <script language="javascript" type="text/javascript"
+	  src="{{ STATIC_URL }}external/js/DataTables-1.9.4/FixedColumns.min.js"></script>
+{% else %}
   <script language="javascript" type="text/javascript" src="{{ EXTERNAL_URL }}jquery-ui/jquery-ui.min.js"></script>
   <script language="javascript" type="text/javascript" src="{{ EXTERNAL_URL }}jQuery-Timepicker-Addon/dist/jquery-ui-timepicker-addon.min.js"></script>
   <script language="javascript" type="text/javascript" src="{{ EXTERNAL_URL }}datatables/media/js/jquery.dataTables.min.js"></script>
   <script language="javascript" type="text/javascript" src="{{ EXTERNAL_URL }}datatables-fixedcolumns/js/dataTables.fixedColumns.js"></script>
+{% endif %}
   <script type="text/javascript">
   function zeroPad(integer,width) {
 	  var string = integer.toString();
@@ -150,14 +161,16 @@ var submitExpertURL="{% url 'xgds_data_searchChosenModel' module model 'expert' 
     	};
 	oTable = $('#tableresults').dataTable(options);
 	{% if checkable %}
-	new $.fn.dataTable.FixedColumns( oTable, {
-        leftColumns: 2,
-        leftWidth: 115
-    } );
+	{% if standalone %}
 	{% else %}
-	new $.fn.dataTable.FixedColumns( oTable, {
-        leftColumns: 1
-    } );
+	new $.fn.dataTable.FixedColumns( oTable, { leftColumns: 2, leftWidth: 115 } );
+	{% endif %}
+	{% else %}
+	{% if standalone %}
+	new FixedColumns( oTable, { "iLeftColumns": 1 } );
+	{% else %}
+	new $.fn.dataTable.FixedColumns( oTable, { leftColumns: 1 } );
+	{% endif %}
 	{% endif %}
 }
 
@@ -238,10 +251,17 @@ $(function () {
 });
   </script>
   
+{% if standalone %}
+  <script language="javascript" type="text/javascript"
+	  src="{{ STATIC_URL }}external/js/jquery/jquery.flot.min.js"></script>
+  <script language="javascript" type="text/javascript"
+	  src="{{ STATIC_URL }}external/js/jquery/jquery.flot.threshold.min.js"></script>
+{% else %}
   <script language="javascript" type="text/javascript"
 	  src="{{ EXTERNAL_URL }}flot/jquery.flot.js"></script>
   <script language="javascript" type="text/javascript"
 	  src="{{ EXTERNAL_URL }}flot/jquery.flot.threshold.js"></script>
+{% endif %}
 
 {% endblock %}
 
