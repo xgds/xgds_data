@@ -132,8 +132,10 @@ def display(field, value):
             results.append(displayLinkedData(field,v))
         return mark_safe(','.join(results))   
     elif isinstance(field, models.fields.files.FileField):
-        print(field.storage.url(value))
-        return mark_safe('<A HREF="' + field.storage.url(value) + '">file</A>')
+        if value.name:
+            return mark_safe('<A HREF="' + field.storage.url(value) + '">') + value.name + mark_safe('</A>')
+        else:
+            return ""
     elif isinstance(value, basestring):
         return value
     elif isinstance(value, User):

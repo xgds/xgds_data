@@ -214,4 +214,5 @@ def fullid(record):
     """An id that includes class info"""
     return '%s:%s:%s' % (moduleName(record),
                          modelName(record),
-                         getattr(record,pk(record).name))
+                         record.pk)
+## getattr(record,pk(record).name))
