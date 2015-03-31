@@ -96,9 +96,9 @@ var submitExpertURL="{% url 'xgds_data_searchChosenModel' module model 'expert' 
 		for (var i=0; i < allOperators.length; i++) {
 			allOperators[i].value = allOperators[i].options[0].value;
 		}
-		document.QueryForm.action = "{% url 'xgds_data_searchChosenModel' module model %}";
+		document.QueryForm.action = submitURL;
 	} else {
-		document.QueryForm.action = "{% url 'xgds_data_searchChosenModel' module model 'expert' %}";
+		document.QueryForm.action = submitExpertURL;
 	}
     document.QueryForm["fnctn"].value = 'change';
     $("#id_pageno").val(1); 
@@ -473,11 +473,13 @@ selected - Select
 		     </td>
 	     {% endif %}
 	   <td>
+	     {% with rname=result|stringformat:"s"|default:"&nbsp;" %}
              {% if result.get_absolute_url %}
-               <a href="{{ result.get_absolute_url }}">{{ result }}</a>
+               <a href="{{ result.get_absolute_url }}">{{ rname }}</a>
              {% else %}
-               <a href="{% url 'xgds_data_displayRecord' result|moduleName result|modelName result|pkValue %}">{{ result }}</a>
+               <a href="{% url 'xgds_data_displayRecord' result|moduleName result|modelName result|pkValue %}">{{ rname }}</a>
              {% endif %}
+	     {% endwith %}
            </td>
  	 {% for x in displayFields %}
 	   <TD >

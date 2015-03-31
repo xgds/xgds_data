@@ -84,6 +84,13 @@ def walkQ(qstmt):
         return '1 != 1'
 
 
+def isPostgres():
+    """
+    Check to see if the backend is postgres, not mysql
+    """
+    return settings.DATABASES['default']['ENGINE'] == 'django.db.backends.postgresql_psycopg2'
+
+
 def genericArguments(model, formset, soft=True):
     """
     Gets the portion of a formset that applies to generic pointers
@@ -216,7 +223,7 @@ def baseScore(fieldRef, lorange, hirange):
         ##hirange = time.mktime(hirange.timetuple())
     ## perhaps could swap lo, hi if lo > hi
     if (timeConversion):
-        if settings.DATABASES['default']['ENGINE'] == 'django.db.backends.postgresql_psycopg2':
+        if isPostgres():
             fieldRef = "EXTRACT(EPOCH FROM ({0} AT TIME ZONE 'UTC'))".format(fieldRef)
         else:
             ## UGH: mysql's UNIX_TIMESTAMP always assumes system timezone, but we are storing UTC
@@ -326,7 +333,7 @@ def medianRangeEval(model, field, lorange, hirange, size, fieldRef):
             return(vals[int(round(len(vals) * 0.5)) - 1])
     ## if we haven't returned a value already
     ##print('NOT Guessed')
-    if settings.DATABASES['default']['ENGINE'] == 'django.db.backends.postgresql_psycopg2':
+    if isPostgres():
         fname = field.name
         dataranges = model.objects.aggregate(Min(fname), Max(fname))
         datamin = dataranges[fname + '__min']
@@ -392,10 +399,17 @@ def dbFieldRef(field):
     """
     ##if isinstance(field, VirtualIncludedField):
     try:
-        return db_table(field.targetFields()[0].model) + '.' + field.name
+        tableName = db_table(field.targetFields()[0].model)
+        fieldName = field.name
     except (IndexError, AttributeError):
     ##else:
-        return db_table(field.model) + '.' + field.attname
+        tableName = db_table(field.model)
+        fieldName = field.attname
+    if isPostgres():
+        ## not so sure about this... perhaps only sometimes?
+        tableName = '"' + tableName + '"'
+        fieldName = '"' + fieldName + '"'
+    return tableName + '.' + fieldName
 
 
 def autoweight(model, field, lorange, hirange, tblSize):
@@ -441,7 +455,7 @@ def scoreNumeric(field, lorange, hirange, tsize):
         ## would get divide by zero with standard formula below
         ## defining 0/x == 0 always, limit of standard formula leads to special case for 0, below.
         retv = "({0} = {1})".format(baseScore(fieldRef, lorange, hirange), median)
-        if settings.DATABASES['default']['ENGINE'] == 'django.db.backends.postgresql_psycopg2':
+        if isPostgres():
             return "CAST({0} AS INT)".format(retv)
         else:
             return retv

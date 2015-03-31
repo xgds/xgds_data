@@ -131,6 +131,9 @@ def display(field, value):
         for v in value:
             results.append(displayLinkedData(field,v))
         return mark_safe(','.join(results))   
+    elif isinstance(field, models.fields.files.FileField):
+        print(field.storage.url(value))
+        return mark_safe('<A HREF="' + field.storage.url(value) + '">file</A>')
     elif isinstance(value, basestring):
         return value
     elif isinstance(value, User):
@@ -141,6 +144,8 @@ def display(field, value):
             return foo
         except TypeError:
             return value
+        except ValueError:
+            return None
 
 register.filter('display', display)
 

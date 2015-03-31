@@ -67,8 +67,15 @@ try:
                                 url(r'^delete/(?P<deleteModuleName>[^/]+)/(?P<deleteModelName>[^/]+)/(?P<rid>[^/]+)$', views.deleteRecord, name='xgds_data_deleteRecord'),
                                 url(r'^create/(?P<createModuleName>[^/]+)/$', views.chooseCreateModel,
                                     name='xgds_data_createChooseModel'),
+
                                 url(r'^create/(?P<createModuleName>[^/]+)/(?P<createModelName>[^/]+)/$', views.createChosenModel,
-                                    name='xgds_data_createCreateModel'),
-                                )
+                                    name='xgds_data_createChosenModel'),
+
+                                url(r'^delete/(?P<deleteModuleName>[^/]+)/$', views.chooseDeleteModel,
+                                    name='xgds_data_deleteChooseModel'),
+
+                                url(r'^deleteMultiple/(?P<moduleName>[^/]+)/(?P<modelName>[^/]+)$', views.deleteMultiple, name='xgds_data_deleteMultiple'),
+                                url(r'^deleteMultiple/(?P<moduleName>[^/]+)/(?P<modelName>[^/]+)/(?P<expert>[^/]+)$', views.deleteMultiple, name='xgds_data_deleteMultiple'),
+        )
 except AttributeError:
     pass

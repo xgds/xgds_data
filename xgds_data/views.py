@@ -49,19 +49,21 @@ except ImportError:
 
 from xgds_data import settings
 from xgds_data.introspection import (modelFields, maskField, isAbstract, 
+                                     resolveModel,
                                      pk, verbose_name, settingsForModel, 
                                      modelName, moduleName, fullid)
 from xgds_data.forms import QueryForm, SearchForm, EditForm, AxesForm, SpecializedForm
 from xgds_data.logging import recordRequest, recordList, log_and_render
 from xgds_data.logconfig import logEnabled
-from xgds_data.search import getCount, ishard, getMatches, pageLimits
+from xgds_data.search import getCount, ishard, getMatches, pageLimits, retrieve
 from xgds_data.utils import total_seconds
 from xgds_data.templatetags import xgds_data_extras
 
+from django.core.urlresolvers import resolve
+from django.utils.datastructures import MergeDict
+from django.http import QueryDict
+
 if logEnabled():
-    from django.core.urlresolvers import resolve
-    from django.utils.datastructures import MergeDict
-    from django.http import QueryDict
     from xgds_data.models import RequestLog, RequestArgument, ResponseLog, HttpRequestReplay
 
 
@@ -199,22 +201,31 @@ def chooseSearchApp(request):
                    'apps': apps})
 
 
+def chooseModel(request, moduleName, title, action, urlName):
+    """
+    List the models in the module, so they can be selected
+    """
+    app = get_app(moduleName)
+    models = dict([(verbose_name(m), m) for m in get_models(app) if not isAbstract(m)])
+    ordered_names = sorted(models.keys())
+
+    return render(request, 'xgds_data/chooseModel.html',
+                  {'title': title,
+                   'module': moduleName,
+                   'models': models,
+                   'ordered_names': ordered_names,
+                   'action': action,
+                   'urlName': urlName,
+                   }
+                  )
+
+
 def chooseSearchModel(request, searchModuleName):
     """
     List the models in the module, so they can be selected for search
     """
-    app = get_app(searchModuleName)
-    models = dict([(verbose_name(m), m) for m in get_models(app) if not isAbstract(m)])
-    ordered_names = sorted(models.keys())
-
-
-    return render(request, 'xgds_data/chooseSearchModel.html',
-                  {'title': 'Search ' + searchModuleName,
-                   'module': searchModuleName,
-                   'models': models,
-                   'ordered_names': ordered_names
-                   }
-                  )
+    return chooseModel(request, searchModuleName, 'Search ' + searchModuleName,
+                       'search', 'xgds_data_searchChosenModel')
 
 
 def csvEncode(something):
@@ -280,6 +291,7 @@ def searchSimilar(request, searchModuleName, searchModelName, pkid):
     aForm = tmpFormClass()
     medict = model_to_dict(me)
 
+    multidict = QueryDict('fnctn=similar', mutable=True)
     for fld in medict.keys():
         op = fld + '_operator'
         f = aForm.fields.get(op, None)
@@ -287,42 +299,30 @@ def searchSimilar(request, searchModuleName, searchModelName, pkid):
             continue
 
         if f.choices.count(('IN~', 'IN~')):
-            defaults[op] = 'IN~'
+            opval  = 'IN~'
         else:
-            defaults[op] = '='
+            opval  = '='
+        defaults[op] = opval
+        multidict.appendlist(op, opval)
 
         if fld in aForm.fields:
-            defaults[fld] = str(medict[fld])
+            if medict[fld] is not None:
+                fldVal = str(medict[fld])
+                defaults[fld] = fldVal
+                multidict.appendlist(fld, fldVal)
 
-        lo = fld + '_lo'
-        if lo in aForm.fields:
-            defaults[lo] = medict[fld]
+        for bfld in [fld + '_lo', fld + '_hi']:
+            if bfld in aForm.fields:
+                try:
+                    val = getTimePickerString(medict[fld])
+                except AttributeError:
+                    val = medict[fld]
+                defaults[bfld] = val
+                multidict.appendlist(bfld, val)
 
-        hi = fld + '_hi'
-        if hi in aForm.fields:
-            defaults[hi] = medict[fld]
+    simdata = MergeDict(multidict, defaults)
 
-    formset = tmpFormSet(initial=[defaults])
-    resultCount = None
-    datetimefields = []
-    for x in myFields:
-        if isinstance(x, DateTimeField):
-            for y in [0, 1]:
-                datetimefields.append(formsetifyFieldName(y, x.name))
-    axesform = AxesForm(myFields, data)
-    template = resolveSetting('XGDS_DATA_SEARCH_TEMPLATES', myModel, 'xgds_data/searchChosenModel.html')
-    timeformat = resolveSetting('XGDS_DATA_TIME_FORMAT', myModel, 'hh:mm tt z')
-    return log_and_render(request, reqlog, template,
-                          {'title': 'Search ' + verbose_name(myModel),
-                           'module': searchModuleName,
-                           'model': searchModelName,
-                           'debug': debug,
-                           'count': resultCount,
-                           'datetimefields': datetimefields,
-                           'timeFormat': timeformat,
-                           'formset': formset,
-                           'axesform': axesform},
-                          nolog=['formset', 'axesform'])
+    return searchChosenModelCore(request, simdata, searchModuleName, searchModelName)
 
 
 def searchHandoff(request, searchModuleName, searchModelName, fn, soft = True):
@@ -375,8 +375,12 @@ def getDtFromQueryParam(param):
 
 
 def getTimePickerString(dt):
-    # output time in format expected by jquery-ui timepicker addon
-    result = dt.strftime('%m/%d/%Y %I:%M:%S %p +0000')
+    """
+    output time in format expected by jquery-ui timepicker addon
+    """
+    ## result = dt.strftime('%m/%d/%Y %I:%M:%S %p +0000')
+    ## timeformat = resolveSetting('XGDS_DATA_TIME_FORMAT', myModel, 'hh:mm tt z')
+    result = dt.strftime('%m/%d/%Y %H:%M +0000')
     result = re.sub('AM', 'am', result)
     result = re.sub('PM', 'pm', result)
     return result
@@ -386,18 +390,8 @@ def chooseCreateModel(request, createModuleName):
     """
     List the models in the module, so they can be selected for create
     """
-    app = get_app(createModuleName)
-    models = dict([(verbose_name(m), m) for m in get_models(app) if not isAbstract(m)])
-    ordered_names = sorted(models.keys())
-
-
-    return render(request, 'xgds_data/chooseCreateModel.html',
-                  {'title': 'Create ' + createModuleName,
-                   'module': createModuleName,
-                   'models': models,
-                   'ordered_names': ordered_names
-                   }
-                  )
+    return chooseModel(request, createModuleName, 'Create ' + createModuleName,
+                       'create', 'xgds_data_createChosenModel')
 
 
 def createChosenModel(request, createModuleName, createModelName):
@@ -496,6 +490,83 @@ def displayRecord(request, displayModuleName, displayModelName, rid):
                                })
 
 
+def resultsIdentity(request, results):
+    """
+    Annoying function to get around searchHandoff not having quite the right
+    API for our use. Just returns the results.
+    """
+    return(results)
+
+
+def selectForAction(request, moduleName, modelName, targetURLName,
+                    finalAction, actionRenderFn, 
+                    expert=False,passthroughs=dict()):
+    """
+    Search for and select objects for a subsequent action
+    """
+    override = {'XGDS_DATA_SEARCH_TEMPLATES': { modelName : 'xgds_data/selectForAction.html', },
+                'XGDS_DATA_CHECKABLE': { modelName : True, },
+                }
+
+    if (request.REQUEST.get('userAction',None) == finalAction):
+        ## should do something
+        picks = request.REQUEST.getlist('picks')
+        notpicks = request.REQUEST.getlist('notpicks')
+        if request.REQUEST.get('allselected', False):
+            for p in picks:
+                try:
+                    notpicks.remove(p)
+                except ValueError:
+                    pass
+            objs = searchHandoff(request, moduleName, modelName, resultsIdentity)
+            if (len(notpicks) > 0):
+                objs = objs.exclude(pk__in=[x.pk for x in retrieve(notpicks)])
+            ## print(retrieve(notpicks))
+        else:
+            for p in notpicks:
+                try:
+                    picks.remove(p)
+                except ValueError:
+                    pass
+            if (len(picks) > 0):
+                myModel = resolveModel(moduleName, modelName)
+                objs = myModel.objects.filter(pk__in=[x.pk for x in retrieve(picks)])
+            else:
+                objs = None
+        return actionRenderFn(request, moduleName, modelName, objs)
+    else:
+        passes = { 'urlName' : targetURLName,
+                   'finalAction' : finalAction }
+        passes.update(passthroughs)
+        return searchChosenModel(request, moduleName, modelName, expert, override=override, passthroughs=passes)
+
+
+def chooseDeleteModel(request, deleteModuleName):
+    """
+    List the models in the module, so they can be selected for record deletion
+    """
+    return chooseModel(request, deleteModuleName, 'Search ' + deleteModuleName,
+                       'delete', 'xgds_data_deleteMultiple')
+
+
+def deleteMultiple(request, moduleName, modelName, expert=False):
+    """
+    Delete multiple objects
+    """
+
+    def actionRenderFn(request, moduleName, modelName, objs):
+        if (objs):
+            objs.delete()
+
+        return HttpResponseRedirect(reverse('xgds_data_searchChosenModel', args=[moduleName, modelName]))
+
+    return selectForAction(request, moduleName, modelName, 
+                           'xgds_data_deleteMultiple',
+                           'Delete Selected',
+                           actionRenderFn,
+                           expert=expert)
+
+
 def deleteRecord(request, deleteModuleName, deleteModelName, rid):
     """
     Default delete for a record
@@ -524,6 +595,15 @@ def searchChosenModel(request, searchModuleName, searchModelName, expert=False, 
     """
     Search over the fields of the selected model
     """
+    data = request.REQUEST
+    
+    return searchChosenModelCore(request, data, searchModuleName, searchModelName, expert, override, passthroughs)
+
+
+def searchChosenModelCore(request, data, searchModuleName, searchModelName, expert=False, override=None, passthroughs=dict()):
+    """
+    Search over the fields of the selected model
+    """
     starttime = datetime.datetime.now()
     reqlog = recordRequest(request)
     modelmodule = get_app(searchModuleName)
@@ -537,8 +617,8 @@ def searchChosenModel(request, searchModuleName, searchModelName, expert=False, 
     initialData = {}
     autoSubmit = 0
     if request.method == 'GET':
-        intvStart = getDtFromQueryParam(request.GET.get('start'))
-        intvEnd = getDtFromQueryParam(request.GET.get('end'))
+        intvStart = getDtFromQueryParam(data.get('start'))
+        intvEnd = getDtFromQueryParam(data.get('end'))
         primaryTimeField = getPrimaryTimeField(myModel)
         if intvStart:
             initialData[primaryTimeField + '_lo'] = getTimePickerString(intvStart)
@@ -549,7 +629,6 @@ def searchChosenModel(request, searchModuleName, searchModelName, expert=False, 
     tmpFormClass = SpecializedForm(SearchForm, myModel)
     tmpFormSet = formset_factory(tmpFormClass, extra=0)
     debug = []
-    data = request.REQUEST
     formCount = 1
     soft = True
     mode = data.get('fnctn', False)
@@ -641,6 +720,8 @@ def searchChosenModel(request, searchModuleName, searchModelName, expert=False, 
     elif (mode == 'change'):
         formCount = int(data['form-TOTAL_FORMS'])
         formset = tmpFormSet(data)
+    elif (mode == 'similar'):
+        formset = tmpFormSet(initial=[data])
     else:
         formset = tmpFormSet(initial=[initialData])
 
@@ -814,9 +895,13 @@ def plotQueryResults(request, searchModuleName, searchModelName, start, end, sof
         ## should figure out a way of centralizing instead of copying
 
         objs, totalCount = getMatches(myModel, formset, soft, start, end)
-        plotdata = [dict([ (fld.name, megahandler(safegetattr(x, fld.name, None)) )
-                     for fld in myFields])
-                    for x in objs]
+        plotdata = []
+        pkName = pk(myModel).name
+        for x in objs:
+            pdict = { pkName: megahandler(safegetattr(x, pkName, None)) }
+            for fld in myFields:
+                pdict[fld.name] = megahandler(safegetattr(x, fld.name, None))
+            plotdata.append(pdict)
         pldata = [ str(x) for x in objs]
 
         ## the following code determines if there are any foreign keys that can be selected, and if so,
