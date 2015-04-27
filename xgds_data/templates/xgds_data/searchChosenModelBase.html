@@ -225,13 +225,33 @@ $("#nextpage").click(function() {
 	gotoPage(page);
 });
 
-{% if checkable %}
-$('#pick_master').change(function() {                                           
-        var val = $('#pick_master')[0].checked;                                 
-        $('input[id^=pick]').each(function() {                                  
-            $(this).prop('checked',val);                                        
-            /*$(this).attr('checked',val);*/ });                                
+{% if checkable  %}
+$('#pmaster').change(function() {                                           
+	var checked = $( "input:checked[id=pmaster]").length;
+	    // alert('you clicked me!');
+	if (checked) {
+	    //alert('check!');
+	     $( "input:not(:checked)[id^=pick]").prop('checked',true)
+	} else {
+	    //alert('uncheck!');
+	     $( "input:checked[id^=pick]").prop('checked',false)
+	}
 });
+
+$('input[id^=pick]').change(function(event) {
+	var pickcount = $( "input[id^=pick]").length;
+	var checkpickcount = $( "input:checked[id^=pick]").length
+	if (pickcount == checkpickcount) {
+
+	    //$('#pmaster').prop('checked',true);
+	     $('input:not(:checked)[id=pmaster]').prop('checked',true)
+	} else {
+
+	     $('input:checked[id=pmaster]').prop('checked',false)
+	    // $('#pmaster').prop('checked',false);
+	}
+});
+
 {% endif %}
 
 function resetResults() { 
@@ -323,19 +343,8 @@ $(function () {
 
 	<HR>
 
-{% block count  %}	
-	 {% if count != exactCount %}
-     <TABLE style="float: right;">
-    	{% if standalone %}
-     		<TR><TH rowspan=2>Key</TH><TD class="mimicOddResultListExact">Exact</TD><TD class="mimicEvenResultListExact">Match</TD></TR>
-     		<TR><TD class="mimicOddResultListInexact">Close</TD><TD class="mimicEvenResultListInexact">Match</TD></TR>    	
-    	{% else %}
-     		<TR><TH rowspan=2>Key</TH><TD class="mimicOddGradeA">Exact</TD><TD class="mimicEvenGradeA">Match</TD></TR>
-     		<TR><TD class="mimicOddGradeX">Close</TD><TD class="mimicEvenGradeX ">Match</TD></TR>
-     	{% endif %}
-     </TABLE>
-     {% endif %}
-	
+{% block count  %}
+
 	{% if count == exactCount %}
 		{{ count }} matching records
 	{% else %}
@@ -345,15 +354,27 @@ $(function () {
 		{% else %}
 			({{ exactCount }}
 		{% endif %}
-		exact
+		exact)
 		{% if exactCount == 1 %}
 			match)
 		{% else %}
 			matches)
 		{% endif %}
 	{% endif %}
-	in {{ duration }} seconds.
-{% endblock %}
+	in {{ duration|floatformat }} seconds.
+{% endblock count %}
+
+    {% if count != exactCount %}
+     <TABLE style="float: right; display: inline-block;">
+    	{% if standalone %}
+     		<TR><TH rowspan=2>Key</TH><TD class="mimicOddResultListExact">Exact</TD><TD class="mimicEvenResultListExact">Match</TD></TR>
+     		<TR><TD class="mimicOddResultListInexact">Close</TD><TD class="mimicEvenResultListInexact">Match</TD></TR>    	
+    	{% else %}
+     		<TR><TH rowspan=2>Key</TH><TD class="mimicOddGradeA">Exact</TD><TD class="mimicEvenGradeA">Match</TD></TR>
+     		<TR><TD class="mimicOddGradeX">Close</TD><TD class="mimicEvenGradeX ">Match</TD></TR>
+     	{% endif %}
+     </TABLE>
+     {% endif %}
 
 <span style="float:right;text-align:right;">
 {% block download  %}
@@ -369,7 +390,7 @@ $(function () {
     {% else %}
     	<input type="submit" value="Download CSV (Exact)" id="csvhard" disabled />
     {% endif %}
-{% endblock %}
+{% endblock download %}
 
 {% block plot  %}
     {% if axesform %}
@@ -390,7 +411,7 @@ $(function () {
 	    	<input type="submit" value="Plot (Exact)" id="plothard" disabled />
 	    {% endif %}
     {% endif %}
-{% endblock %}
+{% endblock plot %}
 </span>
 
 {% block listing  %}
@@ -414,6 +435,20 @@ selected - Select
 <a href="javascript:submitform('unselectall',{{page}});"><span style="text-decoration: underline;">None</span></a>
 )
 	{% endif %}
+
+	 {% if count != exactCount and 1 == 0 %}
+     <TABLE style="float: right;">
+    	{% if standalone %}
+     		<TR><TH rowspan=2>Key</TH><TD class="mimicOddResultListExact">Exact</TD><TD class="mimicEvenResultListExact">Match</TD></TR>
+     		<TR><TD class="mimicOddResultListInexact">Close</TD><TD class="mimicEvenResultListInexact">Match</TD></TR>    	
+    	{% else %}
+     		<TR><TH rowspan=2>Key</TH><TD class="mimicOddGradeA">Exact</TD><TD class="mimicEvenGradeA">Match</TD></TR>
+     		<TR><TD class="mimicOddGradeX">Close</TD><TD class="mimicEvenGradeX ">Match</TD></TR>
+     	{% endif %}
+     </TABLE>
+     {% endif %}
+
+
     	{% if standalone %}
 			<div class="paginate" style="float:right; margin-bottom:3px;">
     	{% else %}
@@ -448,13 +483,15 @@ selected - Select
    <thead class="table_header">
 {% endif %}
 	<tr>
+	  {% block headerrow %}
 	{% if checkable %}
-	<th><input type="checkbox" id="pick_master" /></th>
+	<th><input type="checkbox" id="pmaster" /></th>
 	{% endif %}
 	<th>Record</th>
 	{% for x in displayFields %}
 	<th>{{ x|verbose_name }}</th>
 	{% endfor %}
+	  {% endblock headerrow %}
    </tr>
    </thead>
 	  <tbody>
@@ -475,7 +512,8 @@ selected - Select
 				{% endif %}			
 		    {% endwith %}
 
-	
+	   {% block datarow %}
+
 		{% if checkable %}
 		<td>
 			{% with pid=resultfullids|getattribute:result %}
@@ -510,6 +548,7 @@ selected - Select
 	  {% endwith %}
 	  </TD>
 	  {% endfor %}
+	   {% endblock datarow %}
 	</tr>
 
 	
@@ -520,7 +559,10 @@ selected - Select
 
 {% endblock listing %}
 
+{% block postamble %}
+
 {% if checkable %}
+
 {% if allselected %}
 <input type="hidden" name="allselected" id="id_allselected" value=1>
 {% else %}
@@ -538,6 +580,7 @@ selected - Select
 <input type="hidden" id="notpick_{{pid}}" name="notpicks" value="{{pid}}" >
 {% endif %}
 {% endfor %}
+
 {% endif %}
 
 	{% with divpage=1|divide:pageSize %}
@@ -577,15 +620,17 @@ selected - Select
 	{% endwith %}
 	{% endwith %}
 
+{% endblock postamble %}
 
 {% elif count == 0 %}
 	<HR>
 	No records match 
 {% endif %}
+
 </div>
 </form>
 
-{% endblock %}
+{% endblock results %}
 
-{% endblock %}
+{% endblock contents %}
 
