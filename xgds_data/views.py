@@ -291,7 +291,7 @@ def searchSimilar(request, searchModuleName, searchModelName, pkid):
     aForm = tmpFormClass()
     medict = model_to_dict(me)
 
-    multidict = QueryDict('fnctn=similar', mutable=True)
+    multidict = QueryDict('fnctn=similar&form-TOTAL_FORMS=1', mutable=True)
     for fld in medict.keys():
         op = fld + '_operator'
         f = aForm.fields.get(op, None)
@@ -305,20 +305,23 @@ def searchSimilar(request, searchModuleName, searchModelName, pkid):
         defaults[op] = opval
         multidict.appendlist(op, opval)
 
-        if fld in aForm.fields:
-            if medict[fld] is not None:
-                fldVal = str(medict[fld])
-                defaults[fld] = fldVal
-                multidict.appendlist(fld, fldVal)
+        # text or link fields- probably not what we want
+        # if fld in aForm.fields:
+        #     if medict[fld] is not None:
+        #         fldVal = str(medict[fld])
+        #         defaults[fld] = fldVal
+        #         multidict.appendlist(fld, fldVal)
 
         for bfld in [fld + '_lo', fld + '_hi']:
             if bfld in aForm.fields:
                 try:
-                    val = getTimePickerString(medict[fld])
+                    ## probably not the smartest way to determine if
+                    ## it's a time-based field
+                    getTimePickerString(medict[fld])
                 except AttributeError:
                     val = medict[fld]
-                defaults[bfld] = val
-                multidict.appendlist(bfld, val)
+                    defaults[bfld] = val
+                    multidict.appendlist(bfld, val)
 
     simdata = MergeDict(multidict, defaults)
 
@@ -694,9 +697,16 @@ def searchChosenModelCore(request, data, searchModuleName, searchModelName, expe
                 newdata[formsetifyFieldName(formCount, fname)] = unicode(field.initial)
         newdata['form-TOTAL_FORMS'] = unicode(formCount + 1)
         formset = tmpFormSet(newdata)  # but passing data nullifies extra
-    elif ((mode == 'query') or (mode == 'csv')):
-        formCount = int(data['form-TOTAL_FORMS'])
-        formset = tmpFormSet(data)
+    elif ((mode == 'query') or (mode == 'csv') or (mode == 'similar')):
+        if (mode == 'similar'):
+            formCount = 1
+            formset = tmpFormSet(initial=[data])
+            ## unfortunately, initial form is not deemed valid
+            ## so search won't happen first time
+            ## can't spend more time on this now
+        else:
+            formCount = int(data['form-TOTAL_FORMS'])
+            formset = tmpFormSet(data)
         if formset.is_valid():
             if page is not None:
                 queryStart, queryEnd = pageLimits(page, pageSize)
@@ -720,8 +730,8 @@ def searchChosenModelCore(request, data, searchModuleName, searchModelName, expe
     elif (mode == 'change'):
         formCount = int(data['form-TOTAL_FORMS'])
         formset = tmpFormSet(data)
-    elif (mode == 'similar'):
-        formset = tmpFormSet(initial=[data])
+##    elif (mode == 'similar'):
+##        formset = tmpFormSet(initial=[data])
     else:
         formset = tmpFormSet(initial=[initialData])
 

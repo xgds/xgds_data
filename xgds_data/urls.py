@@ -44,7 +44,7 @@ urlpatterns = patterns(
         name='xgds_data_searchPlotQueryResults'),
     url(r'^search/plot/(?P<searchModuleName>[^/]+)/(?P<searchModelName>[^/]+)/(?P<soft>[^/]+)/(?P<start>\d+)/(?P<end>\d+)/$', 'plotQueryResults',
         name='xgds_data_searchPlotQueryResults'),
-    url(r'^display/(?P<displayModuleName>[^/]+)/(?P<displayModelName>[^/]+)/(?P<rid>[^/]+)$', 'displayRecord', name='xgds_data_displayRecord'),
+    url(r'^display/(?P<displayModuleName>[^/]+)/(?P<displayModelName>[^/]+)/(?P<rid>[^/]*)$', 'displayRecord', name='xgds_data_displayRecord'),
 
     url(r'^similar/(?P<searchModuleName>[^/]+)/(?P<searchModelName>[^/]+)/$', 'searchSimilar',
         name='xgds_data_searchSimilar'),

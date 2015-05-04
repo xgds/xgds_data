@@ -78,7 +78,14 @@ register.filter('getattribute', getattribute)
 
 
 def pkValue(instance):
-    return getattr(instance,pk(instance).name)
+    try:
+        return instance.pk
+    except AttributeError:
+        pkval = getattr(instance,pk(instance).name)
+        try:
+            return pkval.pk
+        except AttributeError:
+            return pkval
 
 register.filter('pkValue', pkValue)
 

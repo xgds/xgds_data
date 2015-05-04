@@ -150,8 +150,9 @@ function cgiArgs(alist) {
   $("#results_plot").bind("plothover", plothoverHandler);
   $("#results_plot").bind("plotclick", function (event, pos, item) {
 	    if (item) {
-	        var args = data[parseInt(seriesToIndex[item.series.label][item.dataIndex])]; 
-	        self.location = "{% url 'xgds_data_searchSimilar' module model %}"+args["{{ pk }}"];
+	        var args = data[parseInt(seriesToIndex[item.series.label][item.dataIndex])];
+            self.location = "{% url 'xgds_data_displayRecord' module model '' %}"+args["{{ pk }}"];
+	      // self.location = "{% url 'xgds_data_searchSimilar' module model %}"+args["{{ pk }}"];
 	    }
 	});
 

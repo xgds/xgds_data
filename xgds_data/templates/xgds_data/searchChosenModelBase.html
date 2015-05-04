@@ -172,6 +172,7 @@ var submitExpertURL="{% url 'xgds_data_searchChosenModel' module model 'expert' 
 	new $.fn.dataTable.FixedColumns( oTable, { leftColumns: 1 } );
 	{% endif %}
 	{% endif %}
+	// positionFooter();
 }
 
 if ($('#tableresults').length) {
@@ -180,7 +181,7 @@ if ($('#tableresults').length) {
 }
 
 window.onload = initDataFrame;
-  
+
 {% for f in datetimefields %}
 var timeFormat = '{{ timeformat }}'
 var seconds = false;

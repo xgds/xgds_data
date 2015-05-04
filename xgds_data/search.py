@@ -265,6 +265,25 @@ def randomSample(model, expression, size, offset=None, limit=None):
     return cursor.fetchall()
 
 
+def sdRandomSample(model, expression, size):
+    """
+    Selects a random set of records, assuming even distibution of ids; not very Django-y
+    """
+    table = db_table(model)
+    ##pkname = dbFieldRef(pk(model)) # blows up the USING clause, apparently
+    pkname = pk(model).attname
+    randselect = 'SELECT {1} from {0} WHERE {2} IS NOT NULL ORDER BY RAND() limit {3}'.format(table, pkname, expression, size)
+    ## turns out mysql has a direct way of selecting random rows; below is a more complicated way that requires
+    ## consecutive ids, etc
+    sql = ('select SDDEV({2}) from {0} JOIN ({3}) AS r2 USING ({1}) order by score;'
+               .format(table, pkname, expression, randselect))
+    cursor = connection.cursor()
+##    runtime = datetime.datetime.now()
+    cursor.execute(sql)
+##    runtime = timer(runtime, "<<< inner random sample >>>")
+    return cursor.fetchall()
+
+
 def countApproxMatches(model, scorer, maxSize, threshold):
     """
     Take a guess as to how many records match by examining a random sample
@@ -312,7 +331,129 @@ def medianEval(model, expression, size):
             return result[int((len(result) - 1) / 2)][0]
 
 
-def medianRangeEval(model, field, lorange, hirange, size, fieldRef):
+# def medianRangeEval(model, field, lorange, hirange, size, fieldRef):
+#     """
+#     Quick mysql-y way of estimating the median from a range sample
+#     """
+#     if cacheStatistics():
+#         ## I'm sure there's a great reason why \d is not working like [0-9] for me, but I don't understand it
+#         ## So, clunky looking regex
+#         percentiles = ModelStatistic.objects.filter(model=model.__name__).filter(field=field.name).filter(statistic__regex=r'p[0-9]+$')
+#         if (percentiles.count() > 0):
+#             if lorange == hirange:
+#                 vals = sorted([abs(x.value - lorange) for x in percentiles])
+#             elif lorange is None or lorange == 'min':
+#                 vals = sorted([max(0, x.value - hirange) for x in percentiles])
+#             elif hirange is None or hirange == 'max':
+#                 vals = sorted([max(0, lorange - x.value) for x in percentiles])
+#             else:
+#                 vals = sorted([max(0, lorange - x.value, x.value - hirange) for x in percentiles])
+#             ##print('Guessed')
+#             return(vals[int(round(len(vals) * 0.5)) - 1])
+#     ## if we haven't returned a value already
+#     ##print('NOT Guessed')
+#     if isPostgres():
+#         fname = field.name
+#         dataranges = model.objects.aggregate(Min(fname), Max(fname))
+#         datamin = dataranges[fname + '__min']
+#         datamax = dataranges[fname + '__max']
+#         if (isinstance(datamin, datetime.datetime) and (datamin.tzinfo is None)):
+#             datamin = datamin.replace(tzinfo=pytz.utc)
+#         if (isinstance(datamax, datetime.datetime) and (datamax.tzinfo is None)):
+#             datamax = datamax.replace(tzinfo=pytz.utc)
+
+#         if (lorange == 'min'):
+#             lorange = None
+#         if (hirange == 'max'):
+#             hirange = None
+
+#         ## odd formulation for an average works with datetimes, too
+#         datamid = datamin + (datamax - datamin) / 2
+#         if (hirange is not None) and (hirange < datamin):
+#             retv = datamid - hirange
+#         elif (lorange is not None) and (lorange > datamax):
+#             retv = lorange - datamid
+#         else:
+#             if (lorange is None) or (lorange < datamin):
+#                 lorange = datamin
+#             if (hirange is None) or (hirange > datamax):
+#                 hirange = datamax
+
+#             belowweight = lorange - datamin
+#             inweight = hirange - lorange
+#             aboveweight = datamax - hirange
+
+#             curweight = belowweight + inweight + aboveweight
+#             halfweight = curweight / 2
+
+#             curweight = curweight - inweight
+#             if (curweight <= halfweight):
+#                 ## half or more are score 0, so that's the median
+#                 return 0
+#             curweight = curweight - 2 * min(belowweight, aboveweight)
+#             if (curweight <= halfweight):
+#                 ## excess is the overshoot... back up to 50%
+#                 excess = halfweight - curweight
+#                 if belowweight < aboveweight:
+#                     retv = lorange - (datamin + excess / 2)
+#                 else:
+#                     retv = (datamax - excess / 2) - hirange
+#             else:
+#                 if belowweight < aboveweight:
+#                     retv = datamid - hirange
+#                 else:
+#                     retv = lorange - datamid
+
+#         if isinstance(retv, datetime.timedelta):
+#             retv = total_seconds(retv)
+
+#         return retv
+#     else:
+#         return medianEval(model, baseScore(fieldRef, lorange, hirange), size)
+
+
+def shifted_data_variance(data):
+    """
+    Stable variance calculation lifted from http://en.wikipedia.org/wiki/Algorithms_for_calculating_variance#Computing_shifted_data
+    """
+    if len(data) == 0:
+        return 0
+    K = data[0]
+    n = 0
+    Sum = 0
+    Sum_sqr = 0
+    for x in data:
+        n = n + 1
+        Sum += x - K
+        Sum_sqr += (x - K) * (x - K)
+    variance = (Sum_sqr - (Sum * Sum)/n)/(n - 1)
+    # use n instead of (n-1) if want to compute the exact variance of the given data
+    # use (n-1) if data are samples of a larger population
+    return variance
+
+
+def sdEval(model, expression, size):
+    """
+    Quick mysql-y way of estimating the median from a sample
+    """
+    count = model.objects.count()
+    if count == 0:
+        return None
+    else:
+        sampleSize = min(size, 1000)
+        result = ()
+        triesLeft = 100
+        ## not sure why, but sometimes nothing is returned
+        while (len(result) == 0) and (triesLeft > 0):
+            result = sdRandomSample(model, expression, sampleSize)
+            triesLeft = triesLeft - 1
+        if len(result) == 0:
+            return None
+        else:
+            return result[0]
+
+
+def scaleEval(model, field, lorange, hirange, size, fieldRef):
     """
     Quick mysql-y way of estimating the median from a range sample
     """
@@ -321,19 +462,12 @@ def medianRangeEval(model, field, lorange, hirange, size, fieldRef):
         ## So, clunky looking regex
         percentiles = ModelStatistic.objects.filter(model=model.__name__).filter(field=field.name).filter(statistic__regex=r'p[0-9]+$')
         if (percentiles.count() > 0):
-            if lorange == hirange:
-                vals = sorted([abs(x.value - lorange) for x in percentiles])
-            elif lorange is None or lorange == 'min':
-                vals = sorted([max(0, x.value - hirange) for x in percentiles])
-            elif hirange is None or hirange == 'max':
-                vals = sorted([max(0, lorange - x.value) for x in percentiles])
-            else:
-                vals = sorted([max(0, lorange - x.value, x.value - hirange) for x in percentiles])
-            ##print('Guessed')
-            return(vals[int(round(len(vals) * 0.5)) - 1])
+            return shifted_data_variance([x.value for x in percentiles])
+
     ## if we haven't returned a value already
     ##print('NOT Guessed')
     if isPostgres():
+        ## postgres doesn't do random samples
         fname = field.name
         dataranges = model.objects.aggregate(Min(fname), Max(fname))
         datamin = dataranges[fname + '__min']
@@ -343,54 +477,16 @@ def medianRangeEval(model, field, lorange, hirange, size, fieldRef):
         if (isinstance(datamax, datetime.datetime) and (datamax.tzinfo is None)):
             datamax = datamax.replace(tzinfo=pytz.utc)
 
-        if (lorange == 'min'):
-            lorange = None
-        if (hirange == 'max'):
-            hirange = None
-
-        ## odd formulation for an average works with datetimes, too
-        datamid = datamin + (datamax - datamin) / 2
-        if (hirange is not None) and (hirange < datamin):
-            retv = datamid - hirange
-        elif (lorange is not None) and (lorange > datamax):
-            retv = lorange - datamid
-        else:
-            if (lorange is None) or (lorange < datamin):
-                lorange = datamin
-            if (hirange is None) or (hirange > datamax):
-                hirange = datamax
-
-            belowweight = lorange - datamin
-            inweight = hirange - lorange
-            aboveweight = datamax - hirange
-
-            curweight = belowweight + inweight + aboveweight
-            halfweight = curweight / 2
-
-            curweight = curweight - inweight
-            if (curweight <= halfweight):
-                ## half or more are score 0, so that's the median
-                return 0
-            curweight = curweight - 2 * min(belowweight, aboveweight)
-            if (curweight <= halfweight):
-                ## excess is the overshoot... back up to 50%
-                excess = halfweight - curweight
-                if belowweight < aboveweight:
-                    retv = lorange - (datamin + excess / 2)
-                else:
-                    retv = (datamax - excess / 2) - hirange
-            else:
-                if belowweight < aboveweight:
-                    retv = datamid - hirange
-                else:
-                    retv = lorange - datamid
+        ## assume its uniformly distributed, i.e., sd of uniform distribution
+        retv = (1/(12**(0.5)))*(datamax-datamin)
 
         if isinstance(retv, datetime.timedelta):
             retv = total_seconds(retv)
 
+        #print(datamin, datamax, datamax - datamin, retv)
         return retv
     else:
-        return medianEval(model, baseScore(fieldRef, lorange, hirange), size)
+        return sdEval(model, baseScore(fieldRef, lorange, hirange), size)
 
 
 def dbFieldRef(field):
@@ -437,7 +533,7 @@ def autoweight(model, field, lorange, hirange, tblSize):
     return 1
 
 
-def scoreNumeric(field, lorange, hirange, tsize):
+def scoreNumeric(model, field, lorange, hirange, tsize):
     """
     provide a score for a numeric clause that ranges from 1 (best) to 0 (worst)
     """
@@ -453,24 +549,21 @@ def scoreNumeric(field, lorange, hirange, tsize):
     # median = medianEval(field.model, baseScore(fieldRef, lorange, hirange), tsize)
     try:
         tf = field.targetFields()[0]
-        median = medianRangeEval(tf.model, tf, lorange, hirange, tsize, fieldRef)
+        scale = scaleEval(tf.model, tf, lorange, hirange, tsize, fieldRef)
     except (IndexError,AttributeError):
-        median = medianRangeEval(field.model, field, lorange, hirange, tsize, fieldRef)
-    if median is None:
+        scale = scaleEval(model, field, lorange, hirange, tsize, fieldRef)
+    if scale is None:
         return '1'
-    elif median == 0:
+    elif scale == 0:
         ## would get divide by zero with standard formula below
         ## defining 0/x == 0 always, limit of standard formula leads to special case for 0, below.
-        retv = "({0} = {1})".format(baseScore(fieldRef, lorange, hirange), median)
+        retv = "({0} = {1})".format(baseScore(fieldRef, lorange, hirange), scale)
         if isPostgres():
             return "CAST({0} AS INT)".format(retv)
         else:
             return retv
     else:
-        return "{1}/({1} + {0})".format(baseScore(fieldRef, lorange, hirange), median)
-        #return "1 /(1 + {0}/{1})".format(baseScore(fieldRef, lorange, hirange), median)
-    #return "1-(1 + {1}) /(2 + 2 * {0})".format(baseScore(fieldRef, lorange, hirange),
-    #                    medianEval(model._meta.db_table, baseScore(fieldRef, lorange, hirange), tsize))
+        return "{1}/({1} + {0})".format(baseScore(fieldRef, lorange, hirange), scale)
 
 
 def desiredRanges(frms):
@@ -549,9 +642,7 @@ def sortFormulaRanges(model, desiderata):
             if (field is None) or isgeneric(field):
                 pass
             else:
-                scores[b] = scoreNumeric(field, desiderata[b][0], desiderata[b][1], tsize)
-#        scores = dict([(b, scoreNumeric(resolveField(model, b), desiderata[b][0], desiderata[b][1], tsize)) \
-#                              for b in desiderata.keys()])
+                scores[b] = scoreNumeric(model, field, desiderata[b][0], desiderata[b][1], tsize)
         if len(scores) == 0:
             return None
         else:
@@ -713,7 +804,7 @@ def getMatches(myModel, formset, soft, queryStart=0, queryEnd=None, minCount=Non
             else:
                 queryEnd = totalCount
             ## note totalCount does not necessarily equal len(query)
-            if (queryStart == 0) and (queryEnd == totalCount):
+            if (queryStart == 0) and (queryEnd == totalCount) and (totalCount == len(query)):
                 ## don't truncate unnecessarily, as it would mess up a delete
                 ## if we have such
                 pass
@@ -777,12 +868,12 @@ def unitScore(value, lorange, hirange, median):
         return median / (median + absdiff)
 
 
-def multiScore(model, values, desiderata, medians=None):
+def multiScore(model, values, desiderata, scales=None):
     """
     Scores an instance in python, not mysql
     """
-    if medians is None:
-        medians = {}
+    if scales is None:
+        scales = {}
     score = 0
     count = 0
     for d in desiderata.keys():
@@ -797,16 +888,16 @@ def multiScore(model, values, desiderata, medians=None):
         if (unsigned):
             fieldRef = "cast({0} as SIGNED)".format(fieldRef)
 
-        if (d in medians):
-            median = medians[d]
+        if (d in scales):
+            scale = scales[d]
         else:
             print("BAD")
             raise Exception("This is bad news!")
             # tsize = None
             # if not tsize:
             #     tsize = tableSize(model)
-            # median = medianEval(b.model, baseScore(fieldRef, desiderata[d][0], desiderata[d][1], tsize)
-        score = score + unitScore(values[d], desiderata[d][0], desiderata[d][1], median)
+            # scale = medianEval(b.model, baseScore(fieldRef, desiderata[d][0], desiderata[d][1], tsize)
+        score = score + unitScore(values[d], desiderata[d][0], desiderata[d][1], scale)
         count = count + 1
 
     if (count == 0):
@@ -815,16 +906,16 @@ def multiScore(model, values, desiderata, medians=None):
         return score / count
 
 
-def instanceScore(instance, desiderata, medians=None):
+def instanceScore(instance, desiderata, scales=None):
     """
     Scores an instance in python, not mysql
     """
-    if medians is None:
-        medians = {}
+    if scales is None:
+        scales = {}
     values = {}
     for d in desiderata.keys():
         values[d] = getattr(instance, d)
-    return multiScore(instance.__class__, values, desiderata, medians=medians)
+    return multiScore(instance.__class__, values, desiderata, scales=scales)
 
 
 def sortedTopK(model, formset, query, k):
@@ -860,7 +951,7 @@ def sortedTopKRanges(model, desiderata, query, k):
 
     if (tsize <= k):
         ## format is a little awkward in this case, but consistent with the tsize > k case
-        keep = sorted(query, key=lambda x: instanceScore(x, desiderata, medians=medians), reverse=True)
+        keep = sorted(query, key=lambda x: instanceScore(x, desiderata, scales=scales), reverse=True)
         results = keep[0:k]
 #        results = {}
 #        for x in keep[0:k]:
@@ -872,7 +963,7 @@ def sortedTopKRanges(model, desiderata, query, k):
 #        qscorer = {}  # function to score individual elements; will need more work to be general beyond current fn
         threshold = {}  # how deep into each criteria we are
 
-        medians = {}
+        scales = {}
         #vfields = desiderata.keys()
         #vfields.append(model._meta.pk.attname)
         #vfields.append('score')
@@ -888,9 +979,9 @@ def sortedTopKRanges(model, desiderata, query, k):
                 hiend = None
 
             newtime = datetime.datetime.now()
-##            medians[fld] = medianEval(model, baseScore(dbFieldRef( resolveField(model, fld) ),loend, hiend), tsize)
-            medians[fld] = medianRangeEval(model, resolveField(model, fld), loend, hiend, tsize, dbFieldRef(resolveField(model, fld)))
-            newtime = timer(newtime, " << inner median >>")
+##            scales[fld] = medianEval(model, baseScore(dbFieldRef( resolveField(model, fld) ),loend, hiend), tsize)
+            scales[fld] = scaleEval(model, resolveField(model, fld), loend, hiend, tsize, dbFieldRef(resolveField(model, fld)))
+            newtime = timer(newtime, " << inner scale >>")
             window = segmentBounds(model, fld, loend, hiend)
             print(loend, hiend, window)
             if window[0] is None:
@@ -915,7 +1006,7 @@ def sortedTopKRanges(model, desiderata, query, k):
                         # runtime = timer(runtime, q.count())
                     minlist = q[0:k]
                     if len(minlist) > 0:
-                        minScore = str(instanceScore(list(q[0:k])[-1], desiderata, medians=medians))
+                        minScore = str(instanceScore(list(q[0:k])[-1], desiderata, scales=scales))
                     else:
                         minScore = '0'  # doesn't matter, there are no matches
                     runtime = timer(runtime, 'minScore = ' + minScore)
@@ -969,8 +1060,8 @@ def sortedTopKRanges(model, desiderata, query, k):
                 runtime = timer(runtime, fld + " D")
 
             ## sort and set to top k; not efficient as could be
-            # keep = sorted(results.values(), key=lambda x: multiScore(model, x, desiderata, medians = medians), reverse=True)[0:k]
-            keep = sorted(results.values(), key=lambda x: instanceScore(x, desiderata, medians=medians), reverse=True)[0:k]
+            # keep = sorted(results.values(), key=lambda x: multiScore(model, x, desiderata, scales = scales), reverse=True)[0:k]
+            keep = sorted(results.values(), key=lambda x: instanceScore(x, desiderata, scales=scales), reverse=True)[0:k]
             results = {}
             for x in keep:
                 # results[x[model._meta.pk.attname]] = x
@@ -988,9 +1079,9 @@ def sortedTopKRanges(model, desiderata, query, k):
                 wanting = False
                 print("\n\n\n\nI am bailing!!!\n\n\n\n")
             if wanting and len(keep) > 0:
-                scoreA = multiScore(model, threshold, desiderata, medians=medians)
-                # scoreB = multiScore(model, keep[-1], desiderata, medians = medians)
-                scoreB = instanceScore(keep[-1], desiderata, medians=medians)
+                scoreA = multiScore(model, threshold, desiderata, scales=scales)
+                # scoreB = multiScore(model, keep[-1], desiderata, scales = scales)
+                scoreB = instanceScore(keep[-1], desiderata, scales=scales)
                 print(scoreA, scoreB)
                 print 'Thresh', threshold, scoreA
                 print 'Last', keep[-1], scoreB
@@ -1002,6 +1093,6 @@ def sortedTopKRanges(model, desiderata, query, k):
         # results = model.objects.filter(pk__in=results.keys())
         results = results.values()
         runtime = timer(runtime, results)
-        results = sorted(results, key=lambda x: instanceScore(x, desiderata, medians=medians), reverse=True)
+        results = sorted(results, key=lambda x: instanceScore(x, desiderata, scales=scales), reverse=True)
     print("Aaah")
     return results
