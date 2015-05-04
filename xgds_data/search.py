@@ -27,13 +27,13 @@ from django.db import connection
 from django.db.models import Q, Field
 from django.db.models.fields import PositiveIntegerField, PositiveSmallIntegerField
 from django.contrib.contenttypes.generic import GenericForeignKey
-from django.db.models import Min, Max
+from django.db.models import Min, Max, Count
 from django.conf import settings
 
 from xgds_data.introspection import (modelFields, resolveField, maskField,
                                      isAbstract, concreteDescendents, 
                                      pk, db_table, isgeneric, fullid,
-                                     resolveModel)
+                                     resolveModel, fieldModel, parentField)
 from xgds_data.models import cacheStatistics, VirtualIncludedField
 if cacheStatistics():
     from xgds_data.models import ModelStatistic
@@ -412,6 +412,13 @@ def dbFieldRef(field):
     return tableName + '.' + fieldName
 
 
+def dbFieldTable(field):
+    """
+    return the alias for this field in the database query
+    """
+    return db_table(fieldModel(field))
+
+
 def autoweight(model, field, lorange, hirange, tblSize):
     """
     Would weight automatically, but isn't that magical yet
@@ -634,7 +641,23 @@ def getMatches(myModel, formset, soft, queryStart=0, queryEnd=None, minCount=Non
             if processGeneric:
                 totalCount = None  # we need to do the full query to get the count
             else:
-                countquery = query.extra(where=['%s >= %s' % (scorer, threshold)])
+                ## this code may not be needed in some version of Django
+                ## apparently count() gets confused when extra refers
+                ## to fields inherited from a non-abstract class
+                ## it doesn't include those (parent) table
+                ## same problem doesn't seem to occur on selection queries
+                ## we need to make the connection ourselves
+                ## WARNING: This probably will fail on grandparents, etc.
+                extramodels = [ ]
+                for b in desiredRanges(formset).keys():
+                    fmodel = fieldModel(resolveField(myModel, b))
+                    if ((fmodel != myModel) and (fmodel not in extramodels)):
+                        extramodels.append(fmodel)
+
+                extratables = [ db_table(m) for m in extramodels ]
+                extrawhere = [ dbFieldRef(parentField(myModel,p))+" = "+dbFieldRef(pk(p)) for p in extramodels ]
+                extrawhere.append('%s >= %s' % (scorer, threshold))
+                countquery = query.extra(tables=extratables, where=extrawhere)
                 totalCount = countquery.count()
 
             query = query.extra(select={'score': scorer}, order_by=['-score'])
@@ -689,11 +712,13 @@ def getMatches(myModel, formset, soft, queryStart=0, queryEnd=None, minCount=Non
                 queryEnd = min(totalCount, queryEnd)
             else:
                 queryEnd = totalCount
+            ## note totalCount does not necessarily equal len(query)
             if (queryStart == 0) and (queryEnd == totalCount):
+                ## don't truncate unnecessarily, as it would mess up a delete
+                ## if we have such
                 pass
             else:
                 query = query[queryStart:queryEnd]
-            # qvalues = qvalues[queryStart:queryEnd]
 
             return (query, totalCount)
 

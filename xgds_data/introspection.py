@@ -157,6 +157,23 @@ def isOrdinalOveridden(model, field):
         return False
 
 
+def fieldModel(field):
+    """
+    Return the model that stores this field data
+    """
+    try:
+        return field.targetFields()[0];
+    except (IndexError, AttributeError):
+        return field.model
+
+
+def parentField(model,parent):
+    """
+    return the field that points to this parent
+    """
+    return model._meta.parents[parent]
+
+
 ## need to make this handle virtual field properly- probably pull out code from form and put in virtual field
 def ordinalField(model, field):
     """

@@ -898,7 +898,7 @@ def plotQueryResults(request, searchModuleName, searchModelName, start, end, sof
         plotdata = []
         pkName = pk(myModel).name
         for x in objs:
-            pdict = { pkName: megahandler(safegetattr(x, pkName, None)) }
+            pdict = { pkName: x.pk }
             for fld in myFields:
                 pdict[fld.name] = megahandler(safegetattr(x, fld.name, None))
             plotdata.append(pdict)
@@ -932,6 +932,7 @@ def plotQueryResults(request, searchModuleName, searchModelName, start, end, sof
     template = resolveSetting('XGDS_DATA_PLOT_TEMPLATES', myModel, 'xgds_data/plotQueryResults.html')
     return log_and_render(request, reqlog, template,
                           {'title': 'Plot ' + verbose_name(myModel),
+                           'standalone': not GEOCAMUTIL_FOUND,
                            'plotData': json.dumps(plotdata, default=megahandler2),
                            'labels': pldata,
                            'timeFields': json.dumps(timeFields),
