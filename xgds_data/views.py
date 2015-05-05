@@ -49,7 +49,7 @@ except ImportError:
 
 from xgds_data import settings
 from xgds_data.introspection import (modelFields, maskField, isAbstract, 
-                                     resolveModel,
+                                     resolveModel, ordinalField,
                                      pk, verbose_name, settingsForModel, 
                                      modelName, moduleName, fullid)
 from xgds_data.forms import QueryForm, SearchForm, EditForm, AxesForm, SpecializedForm
@@ -476,6 +476,10 @@ def displayRecord(request, displayModuleName, displayModelName, rid):
         editable = settings.XGDS_DATA_EDITING
     except AttributeError:
         editable = False
+    numeric = False
+    for f in modelFields(myModel):
+        if ordinalField(myModel, f) and not isinstance(f, DateTimeField):
+            numeric = True
 
     try:
         ## try any specialized display first
@@ -488,6 +492,7 @@ def displayRecord(request, displayModuleName, displayModelName, rid):
                                'model': displayModelName,
                                'verbose_model': verbose_name(myModel),
                                'editable': editable,
+                               'allowSimiliar': numeric,
                                'displayFields': myFields,
                                'record' : record,
                                })
@@ -820,7 +825,8 @@ def searchChosenModelCore(request, data, searchModuleName, searchModelName, expe
         else:
             resultfullids = dict([ (r, fullid(r)) for r in results ])
 
-        templateargs = {'title': 'Search ' + verbose_name(myModel),
+        vname =  verbose_name(myModel)
+        templateargs = {'title': 'Search ' + vname,
                         'resultfullids' : resultfullids,
                         'module': searchModuleName,
                         'model': searchModelName,

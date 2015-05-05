@@ -11,10 +11,12 @@
   <TR>
     <TD><a href="{% url 'xgds_data_editRecord' module model record.id %}">Edit</a></TD>
     <TD><a href="{% url 'xgds_data_deleteRecord' module model record.id %}">Delete</a>
+{% if allowSimiliar %}
     <a href="{% url 'xgds_data_searchSimilar' module model record.id %}" style="float:right;text-align:right;">Similar Records</A>
+{% endif %}
 </TD>
   </TR>
-{% else %}
+{% elif allowSimiliar %}
   <TR>
 <TD COLSPAN=2>
     <a href="{% url 'xgds_data_searchSimilar' module model record.id %}">Similar Records</A>

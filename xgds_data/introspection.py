@@ -86,7 +86,8 @@ def verbose_name(model):
     """
     return the verbose name of the model
     """
-    return model._meta.verbose_name
+    return model._meta.verbose_name_raw
+    ## return model._meta.verbose_name
 
 
 def db_table(model):

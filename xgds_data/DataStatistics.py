@@ -1,3 +1,4 @@
+#!/usr/bin/env python
 # __BEGIN_LICENSE__
 #Copyright (c) 2015, United States Government, as represented by the 
 #Administrator of the National Aeronautics and Space Administration. 
@@ -13,6 +14,12 @@
 #CONDITIONS OF ANY KIND, either express or implied. See the License for the 
 #specific language governing permissions and limitations under the License.
 # __END_LICENSE__
+
+
+import os
+import sys
+import django
+# django.setup()
 
 from xgds_data.models import cacheStatistics
 if cacheStatistics():
@@ -76,3 +83,6 @@ def segmentBounds(model, fld, loend, hiend):
         hibound = nextPercentile(model, fld, loend, 'gt')
 
     return [lobound, hibound]
+
+if __name__ == "__main__":
+    print('Hello world')
