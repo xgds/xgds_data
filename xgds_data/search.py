@@ -272,16 +272,17 @@ def sdRandomSample(model, expression, size):
     table = db_table(model)
     ##pkname = dbFieldRef(pk(model)) # blows up the USING clause, apparently
     pkname = pk(model).attname
-    randselect = 'SELECT {1} from {0} WHERE {2} IS NOT NULL ORDER BY RAND() limit {3}'.format(table, pkname, expression, size)
+    randselect = 'SELECT {1} FROM {0} WHERE {2} IS NOT NULL ORDER BY RAND() LIMIT {3}'.format(table, pkname, expression, size)
     ## turns out mysql has a direct way of selecting random rows; below is a more complicated way that requires
     ## consecutive ids, etc
-    sql = ('select SDDEV({2}) from {0} JOIN ({3}) AS r2 USING ({1}) order by score;'
+    sql = ('SELECT STDDEV({2}) AS sd FROM {0} JOIN ({3}) AS r2 USING ({1}) ORDER BY sd;'
                .format(table, pkname, expression, randselect))
     cursor = connection.cursor()
 ##    runtime = datetime.datetime.now()
     cursor.execute(sql)
+    print(sql)
 ##    runtime = timer(runtime, "<<< inner random sample >>>")
-    return cursor.fetchall()
+    return cursor.fetchall()[0]
 
 
 def countApproxMatches(model, scorer, maxSize, threshold):

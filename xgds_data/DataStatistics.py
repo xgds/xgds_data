@@ -19,25 +19,39 @@
 import os
 import sys
 import django
+import datetime
 # django.setup()
 
 from xgds_data.models import cacheStatistics
 if cacheStatistics():
     from xgds_data.models import ModelStatistic
 
+counts = dict()
+countsAge = dict()
 
 def tableSize(model):
     """
     Get table size either from cache or live
     """
     tsize = None
-    if cacheStatistics():
-        countEst = ModelStatistic.objects.filter(model=model.__name__).filter(field=None).filter(statistic="count")
-        if (countEst.count() > 0):
-            print("Guessed")
-            tsize = int(countEst[0].value)
+    try:
+        maxage = datetime.timedelta(seconds = 60)
+        aged = datetime.datetime.now() - countsAge[model]
+        if (aged < maxage):
+            tsize = counts[model]
+    except KeyError:
+        pass
+
     if tsize is None:
-        tsize = model.objects.count()
+        if cacheStatistics():
+            countEst = ModelStatistic.objects.filter(model=model.__name__).filter(field=None).filter(statistic="count")
+            if (countEst.count() > 0):
+                print("Guessed")
+                tsize = int(countEst[0].value)
+        if tsize is None:
+            tsize = model.objects.count()
+        countsAge[model] = datetime.datetime.now()
+        counts[model] = tsize
     return tsize
 
 

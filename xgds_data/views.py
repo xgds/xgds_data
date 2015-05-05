@@ -723,6 +723,8 @@ def searchChosenModelCore(request, data, searchModuleName, searchModelName, expe
                 hardCount = None
             else:
                 hardCount = getCount(myModel, formset, False)
+                if hardCount > 100:
+                    soft = False
 
             results, totalCount = getMatches(myModel, formset, soft, \
                                              queryStart, queryEnd, minCount = hardCount)
@@ -860,14 +862,17 @@ def searchChosenModelCore(request, data, searchModuleName, searchModelName, expe
 
 
 def megahandler(obj):
-    if isinstance(obj, datetime.datetime):
-        return calendar.timegm(obj.timetuple()) * 1000
-    elif isinstance(obj, Model):
-        return escape(str(obj))
-    elif isinstance(obj, (int, long, float, complex)):
-        return obj
-    else:
-        return escape(obj)
+    try:
+        return ', '.join([ str(x) for x in obj.all() ])
+    except AttributeError:
+        if isinstance(obj, datetime.datetime):
+            return calendar.timegm(obj.timetuple()) * 1000
+        elif isinstance(obj, Model):
+            return escape(str(obj))
+        elif isinstance(obj, (int, long, float, complex)):
+            return obj
+        else:
+            return escape(obj)
 
 
 def getRelated(modelField):
@@ -916,7 +921,11 @@ def plotQueryResults(request, searchModuleName, searchModelName, start, end, sof
         for x in objs:
             pdict = { pkName: x.pk }
             for fld in myFields:
-                pdict[fld.name] = megahandler(safegetattr(x, fld.name, None))
+                val =  megahandler(safegetattr(x, fld.name, None))
+                try:
+                    pdict[fld.name] = val.name
+                except AttributeError:
+                    pdict[fld.name] = val
             plotdata.append(pdict)
         pldata = [ str(x) for x in objs]
 

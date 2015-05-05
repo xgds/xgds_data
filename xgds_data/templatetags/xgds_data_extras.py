@@ -125,7 +125,10 @@ def displayLinkedData(field, value):
 def display(field, value):
     """Returns html snippet appropriate for value and field"""
     if isinstance(field, models.ImageField):
-        return mark_safe('<A HREF="' + field.storage.url(value) + '"><IMG SRC="' + field.storage.url(value) + '" WIDTH="100"></A>')
+        if value == '':
+            return ''
+        else:
+            return mark_safe('<A HREF="' + field.storage.url(value) + '"><IMG SRC="' + field.storage.url(value) + '" WIDTH="100"></A>')
     elif isinstance(field, (models.ForeignKey, models.OneToOneField)):
         return displayLinkedData(field,value)
     elif isinstance(field, generic.GenericForeignKey):

@@ -17,13 +17,14 @@
 from django import forms
 from django.db import models
 from django.utils.safestring import mark_safe
-from django.db.models.fields.related import RelatedField
+from django.db.models import fields
 from django.forms.widgets import RadioSelect, TextInput
 from django.contrib.contenttypes.generic import GenericForeignKey
 
 from xgds_data import settings
 from xgds_data.models import VirtualIncludedField
 from xgds_data.introspection import modelFields, maskField, isOrdinalOveridden, isAbstract, pk, ordinalField
+from xgds_data.DataStatistics import tableSize
 # pylint: disable=R0924
 
 
@@ -34,30 +35,38 @@ class QueryForm(forms.Form):
                                          required=False,
                                          initial=True)
 
+def estimateFieldCount(field, itemCount, maxItemCount, maxFieldCount):
+    """
+    How many values occur for this field?
+    """
+    estCount = None
+    try:
+        estCount = tableSize(field.rel.to)
+    except AttributeError:
+        if (itemCount < maxItemCount):
+            estCount = itemCount
+        elif (itemCount < maxFieldCount):
+            estCount = field.model.objects.values(field.name).order_by().distinct().count()
+    
+    return estCount
 
+                            
 def specialWidget(mymodel, field, enumerableFields):
     """
     Determines the appropriate widget display if several could be applicable; otherwise returns None
     """
     widget = None
     if isinstance(field, (models.ForeignKey,models.ManyToManyField,models.OneToOneField)):
-        relModel = field.rel.to
-        if (relModel == 'self'):
-            relModel = field.model
-    
         if enumerableFields:
             if (field in enumerableFields):
                 widget = 'pulldown'
-        elif (not isAbstract(relModel)):
+        elif (not isAbstract(mymodel)) and (not isinstance(field, models.FileField)):
             try:
                 maxpulldown = settings.XGDS_DATA_MAX_PULLDOWNABLE
             except AttributeError:
                 maxpulldown = 100
-            relatedCount = relModel.objects.count()
-            if (relModel.objects.count() <= maxpulldown) or \
-                    (relatedCount <= (10 * maxpulldown) and
-                     (not isAbstract(mymodel) and
-                      (field.model.objects.values(field.name).order_by().distinct().count() <= maxpulldown))):
+            relatedCount = estimateFieldCount(field, tableSize(mymodel), maxpulldown, 10 * maxpulldown)
+            if (relatedCount is not None) and (relatedCount <= maxpulldown):
                 widget = 'pulldown'
             else:
                 widget = 'textbox'
@@ -229,13 +238,16 @@ class SearchForm(forms.Form):
                             'ofield': unicode(ofield.as_hidden()),
                             'fieldid': unicode(ofield.auto_id[:-9])
                             })
-                    bfield = forms.forms.BoundField(self, self.fields[fieldname],
-                                                    fieldname)
-                    row = (row + u'<td colspan=3>%(field)s</td>' %
-                           {'field': unicode(bfield)})
-
-                row = row + u'</tr>'
-                output.append(row)
+                    try:
+                        bfield = forms.forms.BoundField(self, self.fields[fieldname],
+                                                        fieldname)
+                        row = (row + u'<td colspan=3>%(field)s</td>' %
+                               {'field': unicode(bfield)})
+                    except AttributeError:
+                        row = None ### HERE
+                if row is not None:
+                    row = row + u'</tr>'
+                    output.append(row)
 
         return mark_safe(u'\n'.join(output))
 
@@ -386,7 +398,7 @@ class AxesForm(forms.Form):
             seriesablePreset = False
             seriesablefields = []
             try:
-                itemCount = mfields[0].model.objects.count()  # an upper bound
+                itemCount = tableSize(mfields[0].model)  # an upper bound
             except (IndexError,AttributeError):
                 pass  # no fields, apparently
             try:
@@ -400,14 +412,18 @@ class AxesForm(forms.Form):
             if (not isinstance(x, VirtualIncludedField)) and (not maskField(x)):
                 if ordinalField(x.model, x):
                     chartablefields.append(x)
-                elif ((not seriesablePreset) and
-                      (not isinstance(x, GenericForeignKey)) and
-                      (not isAbstract(x.model)) and
-                      (itemCount is not None) and
-                      ((itemCount < maxseriesable) or
-                       ((itemCount < maxseriesable * 1000) and
-                        (x.model.objects.values(x.name).order_by().distinct().count() <= maxseriesable)))):
-                    seriesablefields.append(x)
+                elif ((seriesablePreset) or
+                      (isinstance(x, GenericForeignKey)) or
+                      (isAbstract(x.model)) or
+                      (itemCount is None)):
+                    pass
+                else:
+                    estCount = estimateFieldCount(x,
+                                                  tableSize(x.model),
+                                                  maxseriesable,
+                                                  maxseriesable * 1000)
+                    if (estCount is not None) and (estCount <= maxseriesable):
+                        seriesablefields.append(x)
 
         if len(chartablefields) > 1:
             datachoices = (tuple((x, x)
@@ -416,7 +432,7 @@ class AxesForm(forms.Form):
                                  for x in chartablefields))
             serieschoices = [(None, 'None')]
             for x in seriesablefields:
-                if isinstance(x, RelatedField):
+                if isinstance(x, fields.related.RelatedField):
                     serieschoices.append((x.name, x.verbose_name))
                 else:
                     serieschoices.append((x.name, x.verbose_name))
