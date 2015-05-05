@@ -1212,8 +1212,16 @@ def replayRequest(request, rid):
     for arg in reqargs:
         onedict[arg.name] = arg.value
         multidict.appendlist(arg.name, arg.value)
+    if ('format' in request.REQUEST):
+        argname = unicode('format')
+        argvalue = request.REQUEST.get('format')
+        onedict[argname] = argvalue
+        multidict.appendlist(argname, argvalue)
     redata = MergeDict(multidict, onedict)
     rerequest = HttpRequestReplay(request, reqlog.path, redata)
     kwargs['request'] = rerequest
+
+    print(request.REQUEST)
+    print(redata)
 
     return view(*args, **kwargs)
