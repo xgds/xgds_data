@@ -53,7 +53,7 @@ from xgds_data.introspection import (modelFields, maskField, isAbstract,
                                      pk, verbose_name, settingsForModel, 
                                      modelName, moduleName, fullid)
 from xgds_data.forms import QueryForm, SearchForm, EditForm, AxesForm, SpecializedForm
-from xgds_data.logging import recordRequest, recordList, log_and_render
+from xgds_data.dlogging import recordRequest, recordList, log_and_render
 from xgds_data.logconfig import logEnabled
 from xgds_data.search import getCount, ishard, getMatches, pageLimits, retrieve
 from xgds_data.utils import total_seconds
