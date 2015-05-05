@@ -182,11 +182,17 @@ if logEnabled():
         name = models.CharField(max_length=256, blank=False)
         value = models.CharField(max_length=1024, blank=True)
 
+        def __unicode__(self):
+            return '%s=%s' % (self.name, self.value)
+
     class ResponseList(models.Model):
         response = models.ForeignKey(ResponseLog, null=False, blank=False)
         rank = models.PositiveIntegerField(blank=False)
         fclass = models.CharField(max_length=1024, blank=True)
         fid = models.PositiveIntegerField(blank=False)  # might be risky to assume this is always a pos int
+
+        def __unicode__(self):
+            return '%s #%s' % (self.fclass, self.fid)
 
     class HttpRequestReplay(HttpRequest):
         def __init__(self, request, path, data, *args, **kwargs):
