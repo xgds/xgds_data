@@ -42,10 +42,10 @@
 	
 		{% if checkable %}
 		<td>
-			{% if result|getattribute:pk.name in picks %}
-			<input type="checkbox" id="pick_{{result|getattribute:pk.name}}" name="picks" value="{{result|getattribute:pk.name}}" CHECKED />
+			{% if result|pkValue in picks %}
+			<input type="checkbox" id="pick_{{result|pkValue}}" name="picks" value="{{result|pkValue}}" CHECKED />
 			{% else %}
-		    <input type="checkbox" id="pick_{{result|getattribute:pk.name}}" name="picks" value="{{result|getattribute:pk.name}}"/>
+		    <input type="checkbox" id="pick_{{result|pkValue}}" name="picks" value="{{result|pkValue}}"/>
 		    {% endif %}
 		     </td>
 	     {% endif %}
@@ -61,7 +61,7 @@
 	  {% endfor %}
 	   <TD >
 	     <SPAN {% if myval|isNumeric %}style="white-space:nowrap;"{% endif %}>
-	  	<A HREF="{% url 'xgds_data_replayRequest' result|getattribute:pk.name %}">Replay</A>
+	  	<A HREF="{% url 'xgds_data_replayRequest' result|pkValue %}">Replay</A>
 	    </SPAN>
 	  </TD>
 	</tr>
