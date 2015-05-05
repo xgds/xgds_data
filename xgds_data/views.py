@@ -63,6 +63,10 @@ from xgds_data.templatetags import xgds_data_extras
 from django.core.urlresolvers import resolve
 from django.utils.datastructures import MergeDict
 from django.http import QueryDict
+try:
+    from django.forms.utils import ErrorList, ErrorDict
+except ImportError:
+    pass   
 
 if logEnabled():
     from xgds_data.models import RequestLog, RequestArgument, ResponseLog, HttpRequestReplay
@@ -476,7 +480,7 @@ def editRecord(request, editModuleName, editModelName, rid):
                            })
 
 
-def displayRecord(request, displayModuleName, displayModelName, rid):
+def displayRecord(request, displayModuleName, displayModelName, rid, force=False):
     """
     Default display for a record
     """
@@ -496,14 +500,17 @@ def displayRecord(request, displayModuleName, displayModelName, rid):
 
     try:
         ## try any specialized display first
-        return HttpResponseRedirect(record.get_absolute_url())
+        if not force:
+            return HttpResponseRedirect(record.get_absolute_url())
     except AttributeError:
-        myFields = [x for x in modelFields(myModel) if not maskField(x) ]
-        if retformat == 'json':
-            renderfn = log_and_json
-        else:
-            renderfn = log_and_render
-        return renderfn(request, reqlog, 'xgds_data/displayRecord.html',
+        pass # not defined
+
+    myFields = [x for x in modelFields(myModel) if not maskField(x) ]
+    if retformat == 'json':
+        renderfn = log_and_json
+    else:
+        renderfn = log_and_render
+    return renderfn(request, reqlog, 'xgds_data/displayRecord.html',
                               {'title': verbose_name(myModel) + ': ' + str(record),
                                'module': displayModuleName,
                                'model': displayModelName,
@@ -933,7 +940,6 @@ def getRelated(modelField):
             for x in modelField.rel.to.objects.all() ])
 
 
-from django.forms.utils import ErrorList, ErrorDict
 def jsonifier(obj):
     try:
         return calendar.timegm(obj.timetuple()) * 1000

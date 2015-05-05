@@ -95,16 +95,13 @@ def recordList(reslog, results):
                 print(e)
 
 
-def log_and_render(request, reqlog, template, rendargs,
-                   content_type=settings.DEFAULT_CONTENT_TYPE,
-                   nolog=None,
-                   listing=None):
+def logstuff(reqlog, template, rendargs, nolog=None, listing=None):
     """
-    Logs the response in the database and returns the rendered page
+    Logs the response in the database if logging is enabled
     """
-    if nolog is None:
-        nolog = []
     if logEnabled():
+        if nolog is None:
+            nolog = []
         reslog = ResponseLog.create(request=reqlog, template=template)
         reslog.save()
 
@@ -123,4 +120,14 @@ def log_and_render(request, reqlog, template, rendargs,
         ResponseArgument.objects.bulk_create(args)
         if listing:
             recordList(reslog, listing)
+
+
+def log_and_render(request, reqlog, template, rendargs,
+                   content_type=settings.DEFAULT_CONTENT_TYPE,
+                   nolog=None,
+                   listing=None):
+    """
+    Logs the response in the database and returns the rendered page
+    """
+    logstuff(reqlog, template, rendargs, nolog, listing)
     return render(request, template, rendargs, content_type=content_type)

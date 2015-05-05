@@ -119,7 +119,7 @@ def get_client_ip(request):
 
 if logEnabled():
     class RequestLog(models.Model):
-        timestampSeconds = models.DateTimeField(blank=False)
+        timestampSeconds = models.DateTimeField(verbose_name="Time", blank=False)
         path = models.CharField(max_length=256, blank=False)
         ipaddress = models.CharField(max_length=256, blank=False)
         #user = models.CharField(max_length=64, blank=False)  # probably can be a foreign key
@@ -169,7 +169,10 @@ if logEnabled():
 
         @classmethod
         def create(cls, request, template=None):
-            return cls(timestampSeconds=datetime.utcnow(), request=request, template=template)
+            if (template is None):
+                return cls(timestampSeconds=datetime.utcnow(), request=request)
+            else:
+                return cls(timestampSeconds=datetime.utcnow(), request=request, template=template)
         
         def __unicode__(self):
             return 'Response %s:%s' % (self.id, self.template)

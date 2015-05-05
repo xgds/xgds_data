@@ -179,6 +179,8 @@ def makeFilters(model, qdatas, soft=True):
                         clause = Q(**{fieldname + '__exact': fieldval})
                     elif fieldval is None or re.match("\s*$", fieldval) or (fieldoperator == '=~'):
                         pass
+                    elif fieldval == 'None' and isinstance(mf, fields.NullBooleanField):
+                        pass
                     else:
                         negate = (fieldoperator == '!=')
                         if fieldval == 'True':
