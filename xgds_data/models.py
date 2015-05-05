@@ -20,6 +20,7 @@ from django.db import models
 from django.contrib.auth.models import User
 from django.http import HttpRequest
 from django.contrib.contenttypes.models import ContentType
+from django.core.urlresolvers import reverse
 
 from xgds_data import settings
 from xgds_data.logconfig import logEnabled
@@ -103,6 +104,10 @@ if logEnabled():
         session = models.CharField(max_length=64, null=True, blank=True)
         referer = models.CharField(max_length=256, null=True, blank=True)
         user_agent = models.CharField(max_length=256, null=True, blank=True)
+
+
+        def get_absolute_url(self):
+            return reverse('xgds_data_replayRequest', args=[self.id])
 
         @classmethod
         def create(cls, request):
