@@ -727,65 +727,74 @@ def getMatches(myModel, qdatas, soft, queryStart=0, queryEnd=None, threshold=Non
         processGeneric = len(gmatches.keys()) > 0
 
         hardCount = myModel.objects.filter(hardfilter).count()
-        if (not processGeneric) and ((not scorer) or (hardCount > 100)):
+
+        if (scorer or processGeneric) and threshold is None:
+            threshold = sortThreshold()
+
+        if scorer and ((hardCount <= 100) or processGeneric):
+            query = myModel.objects.filter(myfilter)
+            query = query.defer(*deferFields)
+
+            ## this code may not be needed in some version of Django
+            ## apparently count() gets confused when extra refers
+            ## to fields inherited from a non-abstract class
+            ## it doesn't include those (parent) table
+            ## same problem doesn't seem to occur on selection queries
+            ## we need to make the connection ourselves
+            ## WARNING: This probably will fail on grandparents, etc.
+            extramodels = [ ]
+            for b in desiredRanges(qdatas).keys():
+                fmodel = fieldModel(resolveField(myModel, b))
+                if ((fmodel != myModel) and (fmodel not in extramodels)):
+                    extramodels.append(fmodel)
+
+            extratables = [db_table(m) for m in extramodels]
+            extrawhere = [dbFieldRef(parentField(myModel,p))+" = "+dbFieldRef(pk(p)) for p in extramodels if parentField(myModel,p) is not None]
+            extrawhere.append('%s >= %s' % (scorer, threshold))
+            query = query.extra(tables=extratables, where=extrawhere)
+            totalCount = query.count()
+            query = query.extra(select={'score': scorer}, order_by=['-score'])
+        else:
             totalCount = hardCount
             query = myModel.objects.filter(hardfilter)
             query = query.extra(select={'score': 1})
-        else:
-            query = myModel.objects.filter(myfilter)
-            query = query.defer(*deferFields)
-            if threshold is None:
-                threshold = sortThreshold()
 
-            if processGeneric: ## need to test this branch
-                totalCount = None  # we need to do the full query to get the count
-                myweight = totalweight(myModel, qdatas)
-                rescore = dict()
-                for x in query:
-                    myscore = getattr(x, 'score')
-                    mysum = myweight * myscore
-                    maxsum = myweight
-                    valid = True
-                    for gfield, gresults in gmatches.iteritems():
-                        gid = getattr(x, gfield.throughfield_name).pk
-                        gweight = gweights[gfield]
-                        gscore = gresults.get(gid)
-                        if gscore is not None:
-                            mysum = mysum + gweight * gscore
-                            maxsum = maxsum + gweight
-                        else:
-                            valid = False
-                    if not valid:
-                        rescore[x] = 0
-                    elif mysum == maxsum:
-                        rescore[x] = 1
+            
+        if processGeneric:
+            hardCount = 0  # we need to do the full query to get the count
+            myweight = totalweight(myModel, qdatas)
+            rescore = dict()
+            for x in query:
+                myscore = getattr(x, 'score')
+                mysum = myweight * myscore
+                maxsum = myweight
+                valid = True
+                for gfield, gresults in gmatches.iteritems():
+                    gid = getattr(x, gfield.throughfield_name).pk
+                    gweight = gweights[gfield]
+                    gscore = gresults.get(gid)
+                    if gscore is not None:
+                        mysum = mysum + gweight * gscore
+                        maxsum = maxsum + gweight
                     else:
-                        rescore[x] = mysum / maxsum
-                query = [x[0] for x in sorted(rescore.iteritems(), key=itemgetter(1), reverse=True)]
-                for x in query:
-                    setattr(x, 'score', rescore[x])
-                query = [x for x in query if getattr(x, 'score') >= threshold]
-                totalCount = len(query)
-            else: # not processGeneric
-                ## this code may not be needed in some version of Django
-                ## apparently count() gets confused when extra refers
-                ## to fields inherited from a non-abstract class
-                ## it doesn't include those (parent) table
-                ## same problem doesn't seem to occur on selection queries
-                ## we need to make the connection ourselves
-                ## WARNING: This probably will fail on grandparents, etc.
-                extramodels = [ ]
-                for b in desiredRanges(qdatas).keys():
-                    fmodel = fieldModel(resolveField(myModel, b))
-                    if ((fmodel != myModel) and (fmodel not in extramodels)):
-                        extramodels.append(fmodel)
-
-                extratables = [ db_table(m) for m in extramodels ]
-                extrawhere = [ dbFieldRef(parentField(myModel,p))+" = "+dbFieldRef(pk(p)) for p in extramodels ]
-                extrawhere.append('%s >= %s' % (scorer, threshold))
-                query = query.extra(tables=extratables, where=extrawhere)
-                totalCount = query.count()
-                query = query.extra(select={'score': scorer}, order_by=['-score'])
+                        valid = False
+                if not valid:
+                    rescore[x] = 0
+                elif mysum == maxsum:
+                    rescore[x] = 1
+                else:
+                    rescore[x] = mysum / maxsum
+            query = [x[0] for x in sorted(rescore.iteritems(), key=itemgetter(1), reverse=True)]
+            newquery = []
+            for x in query:
+                setattr(x, 'score', rescore[x])
+                if rescore[x] >= threshold:
+                    newquery.append(x)
+                    if rescore[x] == 1:
+                        hardCount = hardCount + 1
+            query = newquery
+            #query = [x for x in query if getattr(x, 'score') >= threshold]
+            totalCount = len(query)
 
         if not queryEnd or queryEnd > totalCount:
             queryEnd = totalCount
