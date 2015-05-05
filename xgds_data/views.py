@@ -50,9 +50,10 @@ except ImportError:
 from xgds_data import settings
 from xgds_data.introspection import (modelFields, maskField, isAbstract, 
                                      resolveModel, ordinalField,
-                                     pk, verbose_name, settingsForModel, 
+                                     pk, pkValue, verbose_name, settingsForModel, 
                                      modelName, moduleName, fullid)
 from xgds_data.forms import QueryForm, SearchForm, EditForm, AxesForm, SpecializedForm
+from xgds_data.models import Collection, GenericLink
 from xgds_data.dlogging import recordRequest, recordList, log_and_render
 from xgds_data.logconfig import logEnabled
 from xgds_data.search import getMatches, pageLimits, retrieve
@@ -993,6 +994,95 @@ def plotQueryResults(request, searchModuleName, searchModelName, start, end, sof
                           nolog=['plotData', 'labels', 'formset', 'axesform'],
                           listing=objs)
 
+
+def editCollection(request, rid):
+    """
+    edit a collection of data
+    """
+    editModuleName = moduleName(Collection)
+    editModelName = modelName(Collection)
+    ## UGH - this is copy of edit collection just to change the template,
+    ## just to change the submit url
+    ## Need to fix
+    reqlog = recordRequest(request)
+    modelmodule = get_app(editModuleName)
+    myModel = getattr(modelmodule, editModelName)
+    tmpFormClass = SpecializedForm(EditForm, myModel)
+    myFields = [x for x in modelFields(myModel) if not maskField(x) ]
+    record = myModel.objects.get(pk=rid)
+    if (request.REQUEST.get('fnctn',None) == 'edit'):
+        form = tmpFormClass(request.POST)
+        assert form.is_valid()
+        changed = False
+        for f in myFields:
+            try:
+                val = form.cleaned_data[f.name]
+                oldval = getattr(record,f.name)
+                try:
+                    oldval = oldval.all()
+                except AttributeError:
+                    pass
+                if val != oldval:
+                    setattr(record,f.name,val)
+                    changed = True
+            except KeyError:
+                pass
+
+        if (changed):
+            record.save()
+        return HttpResponseRedirect(reverse('xgds_data_displayRecord', args=[editModuleName, editModelName, rid]))
+    else:
+        editee = myModel.objects.get(pk=rid)
+        formData = dict()
+        for f in myFields:
+            stuff = getattr(editee,f.name)
+            if isinstance(f, ManyToManyField):
+                ## ModelMultipleChoiceField requires ids, not instances
+                stuff = [ getattr(x,pk(x).name) for x in stuff.all()]
+            formData[f.name] = stuff
+        editForm = tmpFormClass(formData)
+
+        return log_and_render(request, reqlog, 'xgds_data/editCollection.html',
+                          {'title': 'Editing ' + verbose_name(myModel) + ': ' + str(record),
+                           'module': editModuleName,
+                           'model': editModelName,
+                           'displayFields': myFields,
+                           'pk':  pk(myModel),
+                           'record' : record,
+                           'form' : editForm,
+                           })
+
+
+
+def createCollection(request, groupModuleName, groupModelName, expert=False):
+    """
+    create a collection of data
+    """
+
+    def actionRenderFn(request, groupeeModuleName, groupeeModelName, objs):
+        coll = Collection.objects.create()
+        links = []
+        for inst in objs:
+            links.append(GenericLink.objects.create(link=inst))
+
+        if len(links) > 0:
+            ## Boo- bulk_create doesn't get the ids, so we can't subsequently link
+            ##GenericLink.objects.bulk_create(links)
+            coll.contents.add(*links)
+        coll.save()
+
+        coll.get_edit_url()
+        try:
+            ## try any specialized edit first
+            return HttpResponseRedirect(coll.get_edit_url())
+        except AttributeError:
+            return HttpResponseRedirect(reverse('xgds_data_editRecord', args=[moduleName(Collection), modelName(Collection), pkValue(coll)]))
+
+    return selectForAction(request, groupModuleName, groupModelName, 
+                           'xgds_data_createCollection',
+                           'Group Selected',
+                           actionRenderFn,
+                           expert=expert)
 
 #if logEnabled():
 def replayRequest(request, rid):

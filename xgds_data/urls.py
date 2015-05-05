@@ -32,10 +32,19 @@ urlpatterns = patterns(
         name='xgds_data_searchChooseApp'),
     url(r'^search/(?P<searchModuleName>[^/]+)/$', 'chooseSearchModel',
         name='xgds_data_searchChooseModel'),
+
     url(r'^search/(?P<searchModuleName>[^/]+)/(?P<searchModelName>[^/]+)/$', 'searchChosenModel',
         name='xgds_data_searchChosenModel'),
     url(r'^search/(?P<searchModuleName>[^/]+)/(?P<searchModelName>[^/]+)/(?P<expert>[^/]+)$', 'searchChosenModel',
         name='xgds_data_searchChosenModel'),
+
+    url(r'^group/(?P<groupModuleName>[^/]+)/(?P<groupModelName>[^/]+)/$', 'createCollection',
+        name='xgds_data_createCollection'),
+    url(r'^group/(?P<groupModuleName>[^/]+)/(?P<groupModelName>[^/]+)/(?P<expert>[^/]+)$', 'createCollection',
+        name='xgds_data_createCollection'),
+    url(r'^editCollection/(?P<rid>[^/]+)$', views.editCollection, name='xgds_data_editCollection'),
+
+
     url(r'^search/plot/(?P<searchModuleName>[^/]+)/(?P<searchModelName>[^/]+)/$', 'plotQueryResults',
         name='xgds_data_searchPlotQueryResults'),
     url(r'^search/plot/(?P<searchModuleName>[^/]+)/(?P<searchModelName>[^/]+)/(?P<soft>[^/]+)/$', 'plotQueryResults',
@@ -52,12 +61,6 @@ urlpatterns = patterns(
         name='xgds_data_searchSimilar'),
 
     url(r'^replayRequest/(?P<rid>\d+)$', 'replayRequest', name='xgds_data_replayRequest'),
-
-    # legacy urls
-    #url(r'^chooseSearchModel/(?P<searchModuleName>[^/]+)/$', 'chooseSearchModel',
-    #    name='xgds_data_chooseSearchModel_orig'),
-    #url(r'^searchChosenModel/(?P<searchModuleName>[^/]+)/(?P<searchModelName>[^/]+)/$', 'searchChosenModel',
-    #    name='xgds_data_searchChosenModel_orig'),
 )
 
 try:

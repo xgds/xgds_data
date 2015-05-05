@@ -20,6 +20,7 @@ from django.db import models
 from django.contrib.auth.models import User
 from django.http import HttpRequest
 from django.contrib.contenttypes.models import ContentType
+from django.contrib.contenttypes import generic                                 
 from django.core.urlresolvers import reverse
 
 from xgds_data import settings
@@ -41,6 +42,29 @@ def truncate(val, limit):
         return None
     else:
         return val[0:(limit - 2)]  # save an extra space because the db seems to want that
+
+class GenericLink(models.Model):
+    linkType = models.ForeignKey(ContentType, null=True, blank=True)
+    linkId = models.PositiveIntegerField(null=True, blank=True)
+    link = generic.GenericForeignKey('linkType', 'linkId') 
+
+    def get_absolute_url(self):
+        return reverse('xgds_data_displayRecord',
+                       args=[xgds_data.introspection.moduleName(self.link),
+                             xgds_data.introspection.modelName(self.link),
+                             xgds_data.introspection.pkValue(self.link)])
+
+    def __unicode__(self):
+        return self.link.__unicode__()
+
+class Collection(models.Model):
+    name = models.CharField(max_length=64)
+    description = models.CharField(max_length=1024)
+    contents = models.ManyToManyField(GenericLink)
+
+    def get_edit_url(self):
+        return reverse('xgds_data_editCollection',
+                       args=[xgds_data.introspection.pkValue(self)])
 
 
 class VirtualIncludedField(models.Field):
@@ -92,7 +116,6 @@ def get_client_ip(request):
     else:
         ip = request.META.get('REMOTE_ADDR')
     return ip
-
 
 if logEnabled():
     class RequestLog(models.Model):
