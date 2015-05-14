@@ -128,12 +128,16 @@ if logEnabled():
             return rlog
 
         def __unicode__(self):
-            return 'Request %s:%s' % (self.id, self.path)
+            stuff = self.path.rstrip('/').split('/')
+            return stuff[len(stuff)-1]
 
     class RequestArgument(models.Model):
         request = models.ForeignKey(RequestLog, null=False, blank=False)
         name = models.CharField(max_length=256, blank=False)
         value = models.TextField(blank=True)
+
+        def __unicode__(self):
+            return '%s = %s' % (self.name, self.value)
 
     class ResponseLog(models.Model):
         timestampSeconds = models.DateTimeField(blank=False)

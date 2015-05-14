@@ -22,3 +22,18 @@ def total_seconds(timediff):
         return timediff.total_seconds()
     except:
         return (timediff.microseconds + (timediff.seconds + timediff.days * 24 * 3600) * 10**6) / 10**6
+
+
+def label(obj):
+    """Figure out what to label this thing"""
+    try:
+        if (obj.last_name.strip() != '') and (obj.first_name.strip() != ''):
+            return ', '.join([obj.last_name, obj.first_name])
+        elif (obj.last_name.strip() != ''):
+            return obj.last_name
+        elif (obj.first_name.strip() != ''):
+            return obj.first_name
+        else:
+            return unicode(obj)
+    except AttributeError:
+        return unicode(obj)

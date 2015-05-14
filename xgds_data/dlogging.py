@@ -20,6 +20,7 @@ from django.shortcuts import render
 
 from xgds_data import settings
 from xgds_data.logconfig import logEnabled
+from xgds_data.introspection import pk, pkValue
 
 if logEnabled():
     from xgds_data.models import (RequestLog,
@@ -39,8 +40,8 @@ def recordRequest(request):
         reqlog.save()
         args = []
         for a in data.keys():
-            args = args + [RequestArgument(request=reqlog, name=a, value=v) for v in data.getlist(a)]
-        # args = [ RequestArgument(request=reqlog, name=key, value=data.get(key)) for key in data ]
+            args = args + [RequestArgument(request=reqlog, name=a, value=v) for v in data.getlist(a) if v.strip() != '']
+
         RequestArgument.objects.bulk_create(args)
 
         return reqlog
@@ -58,6 +59,16 @@ def getListItemProperty(obj, prop):
         return getattr(obj, prop)
 
 
+def getFid(item, classpk):
+    """
+    Returns the id to store in the log
+    """
+    try:
+        return pkValue(item)
+    except AttributeError: # its a dict, apparently. Suspect this is no longer happens
+        return getListItemProperty(item, classpk.name)
+
+
 def recordList(reslog, results):
     """
     Logs a ranked list of results
@@ -72,12 +83,14 @@ def recordList(reslog, results):
                                   # fclass=str(results[r - 1]['__class__']),
                                   # fid=results[r - 1][  results[r - 1]['__class__']._meta.pk.name ] )
                                   fclass=str(getListItemProperty(results[r - 1], '__class__')),
-                                  fid=getListItemProperty(results[r - 1],
-                                                          getListItemProperty(results[r - 1], '__class__')._meta.pk.name))
-
+                                  #fid=getListItemProperty(results[r - 1], getListItemProperty(results[r - 1], '__class__')._meta.pk.name))
+                                  fid=getFid(results[r - 1],  pk(getListItemProperty(results[r - 1], '__class__')))
+                                  )
                      for r in ranks]
             try:
                 ResponseList.objects.bulk_create(items)
+            except TypeError as e:
+                print('dlogging.py is confused by {0}'.format(getListItemProperty(results[r - 1], '__class__')))
             except ValueError as e:
                 print(e)
 
@@ -96,9 +109,6 @@ def log_and_render(request, reqlog, template, rendargs,
         reslog.save()
 
         args = []
-#        for a in rendargs.keys():
-#            args = args + [ ResponseArgument(response=reslog, name=key, value=rendargs.get(key).__str__()[:1024]) \
-#                            for key in rendargs.getlist(a) if nolog.count(key) == 0 ]
         for key in rendargs:
             if nolog.count(key) == 0:
                 try:
@@ -109,8 +119,6 @@ def log_and_render(request, reqlog, template, rendargs,
                 except (TypeError, AssertionError):
                     # not iterable
                     args = args + [ResponseArgument(response=reslog, name=key, value=str(rendargs.get(key))[:1024])]
-#        args = [ ResponseArgument(response=reslog, name=key, value=rendargs.get(key).__str__()[:1024]) \
-#                  if nolog.count(key) == 0 ]
 
         ResponseArgument.objects.bulk_create(args)
         if listing:

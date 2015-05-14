@@ -20,11 +20,13 @@ from django.utils.safestring import mark_safe
 from django.db.models import fields
 from django.forms.widgets import RadioSelect, TextInput
 from django.contrib.contenttypes.generic import GenericForeignKey
+from django.contrib.auth.models import User
 
 from xgds_data import settings
 from xgds_data.models import VirtualIncludedField
 from xgds_data.introspection import modelFields, maskField, isOrdinalOveridden, isAbstract, pk, ordinalField
-from xgds_data.DataStatistics import tableSize
+from xgds_data.DataStatistics import tableSize, fieldSize
+from xgds_data.utils import label
 # pylint: disable=R0924
 
 
@@ -34,6 +36,11 @@ class QueryForm(forms.Form):
     mostRecentFirst = forms.BooleanField(label='Most recent first',
                                          required=False,
                                          initial=True)
+
+
+class specialModelChoiceField(forms.ModelChoiceField):
+    def label_from_instance(self, obj):
+        return label(obj)
 
 def estimateFieldCount(field, itemCount, maxItemCount, maxFieldCount):
     """
@@ -65,7 +72,7 @@ def specialWidget(mymodel, field, enumerableFields):
                 maxpulldown = settings.XGDS_DATA_MAX_PULLDOWNABLE
             except AttributeError:
                 maxpulldown = 100
-            relatedCount = estimateFieldCount(field, tableSize(mymodel), maxpulldown, 10 * maxpulldown)
+            relatedCount = fieldSize(field, tableSize(mymodel), maxpulldown, 10 * maxpulldown)
             if (relatedCount is not None) and (relatedCount <= maxpulldown):
                 widget = 'pulldown'
             else:
@@ -134,12 +141,14 @@ def valueFormField(mymodel, field, widget, allowMultiple=True, label=None):
             # can't use as queryset arg because it needs a queryset, not a list
             #foreigners = sorted(field.related.parent_model.objects.all(), key=lambda x: unicode(x))
             qset = field.related.parent_model.objects.all()
+            if (field.related.parent_model == User):
+                qset = qset.order_by('last_name')
             if isinstance(field, models.ManyToManyField) and allowMultiple:
                 return forms.ModelMultipleChoiceField(queryset=qset,
                                                       required=False,
                                                       label=label) 
             else:
-                return forms.ModelChoiceField(queryset=qset,
+                return specialModelChoiceField(queryset=qset,
                                               # initial=qset,
                                               # order_by('name'),
                                               empty_label="<Any>",
@@ -418,10 +427,10 @@ class AxesForm(forms.Form):
                       (itemCount is None)):
                     pass
                 else:
-                    estCount = estimateFieldCount(x,
-                                                  tableSize(x.model),
-                                                  maxseriesable,
-                                                  maxseriesable * 1000)
+                    estCount = fieldSize(x,
+                                         tableSize(x.model),
+                                          maxseriesable,
+                                          maxseriesable * 1000)
                     if (estCount is not None) and (estCount <= maxseriesable):
                         seriesablefields.append(x)
 

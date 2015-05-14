@@ -59,7 +59,7 @@ def isAbstract(model):
     Check if model is abstract. Might be a better way to do this, but I didn't find it.
     """
     return model._meta.abstract
-
+        
 
 def pk(model):
     """
@@ -68,11 +68,25 @@ def pk(model):
     return model._meta.pk
 
 
+def pkValue(instance):
+    """
+    return the primary key value
+    """
+    try:
+        return instance.pk
+    except AttributeError:
+        pkval = getattr(instance,pk(instance).name)
+        try:
+            return pkval.pk
+        except AttributeError:
+            return pkval
+
+
 def modelName(model):
     """
     return the short name of the model (or of the instance's model)
     """
-    return model._meta.object_name
+    return concrete_model(model)._meta.object_name
 
 
 def moduleName(model):

@@ -828,6 +828,7 @@ def searchChosenModelCore(request, data, searchModuleName, searchModelName, expe
             resultfullids = dict([ (r, fullid(r)) for r in results ])
 
         vname =  verbose_name(myModel)
+
         templateargs = {'title': 'Search ' + vname,
                         'resultfullids' : resultfullids,
                         'module': searchModuleName,

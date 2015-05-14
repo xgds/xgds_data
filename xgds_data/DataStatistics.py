@@ -26,8 +26,8 @@ from xgds_data.models import cacheStatistics
 if cacheStatistics():
     from xgds_data.models import ModelStatistic
 
-counts = dict()
-countsAge = dict()
+tableCounts = dict()
+tableCountsAge = dict()
 
 def tableSize(model):
     """
@@ -36,9 +36,9 @@ def tableSize(model):
     tsize = None
     try:
         maxage = datetime.timedelta(seconds = 60)
-        aged = datetime.datetime.now() - countsAge[model]
+        aged = datetime.datetime.now() - tableCountsAge[model]
         if (aged < maxage):
-            tsize = counts[model]
+            tsize = tableCounts[model]
     except KeyError:
         pass
 
@@ -50,9 +50,39 @@ def tableSize(model):
                 tsize = int(countEst[0].value)
         if tsize is None:
             tsize = model.objects.count()
-        countsAge[model] = datetime.datetime.now()
-        counts[model] = tsize
+        tableCountsAge[model] = datetime.datetime.now()
+        tableCounts[model] = tsize
     return tsize
+
+
+fieldCounts = dict()
+fieldCountsAge = dict()
+
+def fieldSize(field, itemCount, maxItemCount, maxFieldCount):
+    """
+    Get table size either from cache or live
+    """
+    estCount = None
+    try:
+        maxage = datetime.timedelta(seconds = 60)
+        aged = datetime.datetime.now() - fieldCountsAge[field]
+        if (aged < maxage):
+            estCount = fieldCounts[field]
+    except KeyError:
+        pass
+
+    if estCount is None:
+        try:
+            estCount = tableSize(field.rel.to)
+        except AttributeError:
+            if (itemCount < maxItemCount):
+                estCount = itemCount
+            elif (itemCount < maxFieldCount):
+                estCount = field.model.objects.values(field.name).order_by().distinct().count()
+
+        fieldCountsAge[field] = datetime.datetime.now()
+        fieldCounts[field] = estCount
+    return estCount
 
 
 def nextPercentile(model, fld, val, kind):

@@ -23,16 +23,24 @@ from django.utils.safestring import mark_safe
 from django.core.urlresolvers import reverse
 from django.core.exceptions import ObjectDoesNotExist
 from django.contrib.contenttypes import generic
+try:
+    from django.utils.html import format_html
+except ImportError:
+    pass
+
 from string import capwords
 
 from xgds_data.models import VirtualIncludedField
-from xgds_data.introspection import pk, modelName, moduleName
+from xgds_data.introspection import pkValue
 from xgds_data.introspection import modelName as intmodelName
 from xgds_data.introspection import moduleName as intmoduleName
+from xgds_data.utils import label
 
 integer_test = re.compile(r'^\d+$')
 numeric_test = re.compile(r'^[\.\-Ee\d]+$')
 register = template.Library()
+
+register.filter('pkValue', pkValue)
 
 # http://stackoverflow.com/questions/844746/performing-a-getattr-style-lookup-in-a-django-template
 def getattribute(value, arg):
@@ -46,11 +54,12 @@ def getattribute(value, arg):
     elif isinstance(arg, VirtualIncludedField):
         try:
             #throughInstance = arg.throughfield.__get__(value);
-            throughInstance = getattr(value, arg.throughfield_name)
-            includedFieldName = arg.name
-            if throughInstance:
-                v = getattr(throughInstance, includedFieldName)
-                # v = getattribute(throughInstance, arg)
+            if arg.throughfield_name is None:
+                throughInstance = value
+            else:
+                throughInstance = getattr(value, arg.throughfield_name)
+            if throughInstance is not None:
+                v = getattr(throughInstance, arg.name)
             else:
                 v = None
         except AttributeError as inst:
@@ -75,19 +84,6 @@ def getattribute(value, arg):
     return v
 
 register.filter('getattribute', getattribute)
-
-
-def pkValue(instance):
-    try:
-        return instance.pk
-    except AttributeError:
-        pkval = getattr(instance,pk(instance).name)
-        try:
-            return pkval.pk
-        except AttributeError:
-            return pkval
-
-register.filter('pkValue', pkValue)
 
 
 def modelName(instance):
@@ -115,49 +111,66 @@ def displayLinkedData(field, value):
             #                     field.rel.to.__name__,
             #                     getattr(value,pk(value).name)])
             url = reverse('xgds_data_displayRecord',
-                          args=[moduleName(value),
-                                modelName(value),
+                          args=[intmoduleName(value),
+                                intmodelName(value),
                                 pkValue(value)])
-        return mark_safe('<A HREF="' + url + '">'+ unicode(value) + '</A>')
-        ##return mark_safe('<A HREF="' + url + '">'+ unicode(display(field.rel.to,value)) + '</A>')
+        try:
+            return format_html(u'<A HREF="{0}">{1}</A>',mark_safe(url),unicode(value))
+        except NameError:
+            return mark_safe('<A HREF="' + url + '">'+ unicode(value) + '</A>')
 
+        ##return mark_safe('<A HREF="' + url + '">'+ unicode(display(field.rel.to,value)) + '</A>')
+        
 
 def display(field, value):
     """Returns html snippet appropriate for value and field"""
-    if isinstance(field, models.ImageField):
-        if value == '':
-            return ''
-        else:
-            return mark_safe('<A HREF="' + field.storage.url(value) + '"><IMG SRC="' + field.storage.url(value) + '" WIDTH="100"></A>')
-    elif isinstance(field, (models.ForeignKey, models.OneToOneField)):
-        return displayLinkedData(field,value)
-    elif isinstance(field, generic.GenericForeignKey):
-        if value is not None:
+    try:
+        value.last_name
+        ##return ', '.join([value.last_name, value.first_name])
+        return label(value)
+    except AttributeError:
+        if isinstance(field, models.ImageField):
+            if value == '':
+                return ''
+            else:
+                try:
+                    return format_html(u'<A HREF="{0}"><IMG SRC="{1}" WIDTH="100"></A>',
+                                       mark_safe(field.storage.url(value)),
+                                       mark_safe(field.storage.url(value)))
+                except NameError:
+                    return mark_safe('<A HREF="' + field.storage.url(value) + '"><IMG SRC="' + field.storage.url(value) + '" WIDTH="100"></A>')
+        elif isinstance(field, (models.ForeignKey, models.OneToOneField)):
             return displayLinkedData(field,value)
-        else:
+        elif isinstance(field, generic.GenericForeignKey):
+            if value is not None:
+                return displayLinkedData(field,value)
+            else:
+                return value
+        elif isinstance(field, models.ManyToManyField):
+            results = []
+            for v in value:
+                results.append(displayLinkedData(field,v))
+            return mark_safe(','.join(results))   
+        elif isinstance(field, models.fields.files.FileField):
+            if value.name:
+                try:
+                    return format_html(u'<A HREF="{0}">{1}</A>',mark_safe(field.storage.url(value)),value.name)
+                except NameError:
+                    return mark_safe(u'<A HREF="{0}">{1}</A>'.format(field.storage.url(value)),value.name)
+            else:
+                return ""
+        elif isinstance(value, User):
+            return ', '.join([value.last_name, value.first_name])
+        elif isinstance(value, basestring):
             return value
-    elif isinstance(field, models.ManyToManyField):
-        results = []
-        for v in value:
-            results.append(displayLinkedData(field,v))
-        return mark_safe(','.join(results))   
-    elif isinstance(field, models.fields.files.FileField):
-        if value.name:
-            return mark_safe('<A HREF="' + field.storage.url(value) + '">') + value.name + mark_safe('</A>')
         else:
-            return ""
-    elif isinstance(value, basestring):
-        return value
-    elif isinstance(value, User):
-        return ', '.join([value.last_name, value.first_name])
-    else:
-        try:
-            foo = ', '.join(value)
-            return foo
-        except TypeError:
-            return value
-        except ValueError:
-            return None
+            try:
+                foo = ', '.join([displayLinkedData(field,v) for v in value])
+                return mark_safe(foo)
+            except TypeError:
+                return value
+            except ValueError:
+                return None
 
 register.filter('display', display)
 
