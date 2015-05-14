@@ -420,9 +420,8 @@ $(function () {
 {% with divpage=1|divide:pageSize %}
 	{% with end_index=page|divide:divpage|floatformat:"0"  %}
 	{% with start_index=pageSize|divide:-1|add:end_index|add:1  %}
-	{% with last_page=count|divide:pageSize|addfloat:0.4999|floatformat:"0"|add:0  %}
-	{% with last_page_plus_one=last_page|add:1  %}
 	<div id="pager">
+
 	<input type="hidden" name="start" id="id_start">
 	<input type="hidden" name="end"  id="id_end">
 		<span class="counts">Displaying {{start_index}}-
@@ -449,29 +448,8 @@ selected - Select
      </TABLE>
      {% endif %}
 
-
-    	{% if standalone %}
-			<div class="paginate" style="float:right; margin-bottom:3px;">
-    	{% else %}
-			<div class="dataTables_paginate" style="float:right; margin-bottom:3px;">
-		{% endif %}
-		{% if page > 1 %}<a href="javascript:gotoPage({{ page|add:"-1" }});">Previous</a>{% else %}<a class="ui-state-disabled">Previous</a>{%endif%}
-		{% for num in 1|range:last_page_plus_one %}  
-			{% if num < page|add:"3" and num > page|add:"-3" or num < 3 or num > last_page|add:"-2" %}
-			   {% ifequal num page %}
-		            <a class="ui-state-disabled">{{num}}</a>
-		        {% else %} 
-			   		<a href="javascript:gotoPage({{ num }});">{{ num }}</a>
-			   	{% endifequal %}
-		   {% elif num == page|add:"3" or num == page|add:"-3" %}
-		   		...
-		   {% endif %}  
-		{% endfor %}  
-		{% if more %}<a href="javascript:gotoPage({{ page|add:"1" }});">Next</a>{% else %}<a class="ui-state-disabled">Next</a>{%endif%}
-	    </div>
+{% include "xgds_data/paginator.html" %}
 	</div>
-	{% endwith %}
-	{% endwith %}
 	{% endwith %}
 	{% endwith %}
 	{% endwith %}
@@ -587,36 +565,15 @@ selected - Select
 	{% with divpage=1|divide:pageSize %}
 	{% with end_index=page|divide:divpage|floatformat:"0"  %}
 	{% with start_index=pageSize|divide:-1|add:end_index|add:1  %}
-	{% with last_page=count|divide:pageSize|addfloat:0.4999|floatformat:"0"|add:0  %}
-	{% with last_page_plus_one=last_page|add:1  %}
 	<div id="pager">
 	<input type="hidden" name="start" id="id_start">
 	<input type="hidden" name="end"  id="id_end">
 		<span class="counts">Displaying {{start_index}}-
 		{% if end_index|add:"0" < count|add:"0" %}{{end_index}}{% else %}{{count}}{% endif %}
 		 out of {{ count }} records</span>
-    	{% if standalone %}
-			<div class="paginate" style="float:right; margin-bottom:3px;">
-    	{% else %}
-			<div class="dataTables_paginate" style="float:right; margin-bottom:3px;">
-		{% endif %}
-		{% if page > 1 %}<a href="javascript:gotoPage({{ page|add:"-1" }});">Previous</a>{% else %}<a class="ui-state-disabled">Previous</a>{%endif%}
-		{% for num in 1|range:last_page_plus_one %}  
-			{% if num < page|add:"3" and num > page|add:"-3" or num < 3 or num > last_page|add:"-2" %}
-			   {% ifequal num page %}
-		            <a class="ui-state-disabled">{{num}}</a>
-		        {% else %} 
-			   		<a href="javascript:gotoPage({{ num }});">{{ num }}</a>
-			   	{% endifequal %}
-		   {% elif num == page|add:"3" or num == page|add:"-3" %}
-		   		...
-		   {% endif %}  
-		{% endfor %}  
-		{% if more %}<a href="javascript:gotoPage({{ page|add:"1" }});">Next</a>{% else %}<a class="ui-state-disabled">Next</a>{%endif%}
-	    </div>
+
+{% include "xgds_data/paginator.html" %}
 	</div>
-	{% endwith %}
-	{% endwith %}
 	{% endwith %}
 	{% endwith %}
 	{% endwith %}

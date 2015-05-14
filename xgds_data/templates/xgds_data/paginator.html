@@ -1,0 +1,57 @@
+{% load xgds_data_extras %}
+
+{% load url from future %}
+
+{% if standalone %}
+    <div class="paginate" style="float:right; margin-bottom:3px;">
+{% else %}
+    <div class="dataTables_paginate" style="float:right; margin-bottom:3px;">
+{% endif %}
+{% with last_page=count|divide:pageSize|addfloat:0.4999|floatformat:"0"|add:0  %}
+{% with last_page_plus_one=last_page|add:1  %}
+	{% if page > 1 %}
+		    <a href="javascript:gotoPage({{ page|add:"-1" }});">Previous</a>{% else %}<a class="ui-state-disabled">Previous</a>
+        {% endif %}
+
+	{% for num in 1|range:4 %}
+		    {% if num < page|add:"-2" %}
+			{% if forloop.last %}
+		   		...
+			{% else %}
+		     <a href="javascript:gotoPage({{ num }});">{{ num }}</a>
+		    {% endif %}
+		    {% endif %}
+	{% endfor %}
+
+	{% with page_minus_three=page|add:"-2" %}
+	{% with page_plus_four=page|add:"3" %}
+
+	{% for num in page_minus_three|range:page_plus_four %}
+		     {% if num > 0 and num < last_page_plus_one %}
+		        {% if num = page %}
+		            <a class="ui-state-disabled">{{num}}</a>
+		        {% else %}
+			     <a href="javascript:gotoPage({{ num }});">{{ num }}</a>
+		        {% endif %}
+		     {% endif %}
+	{% endfor %}
+        {% endwith %}
+        {% endwith %}
+
+	{% with ending=last_page|add:"-2" %}
+	{% for num in ending|range:last_page_plus_one %}
+		{% if num > page|add:2 %}
+			{% if forloop.first %}
+		   		...
+			{% else %}
+
+			     <a href="javascript:gotoPage({{ num }});">{{ num }}</a>
+		        {% endif %}
+		{% endif %}
+	{% endfor %}
+        {% endwith %}
+
+		{% if more %}<a href="javascript:gotoPage({{ page|add:"1" }});">Next</a>{% else %}<a class="ui-state-disabled">Next</a>{%endif%}
+{% endwith %}
+{% endwith %}
+</div>
