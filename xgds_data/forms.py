@@ -311,20 +311,19 @@ def editFormFields(mymodel, field, enumerableFields):
         pass # still need to cross this bridge
     else:
         widget = specialWidget(mymodel, field, enumerableFields)
+        print(field, widget)
         try:
             name = field.verbose_name
         except AttributeError:
             name = field.name
         valField = valueFormField(mymodel, field, widget, label=name)
-        if widget == 'pulldown':
-            formfields[field.name] = valField
-##            formfields[field.name] = forms.ModelMultipleChoiceField(queryset=field.related.parent_model.objects.all(),
-##                                                                     required = False)
-        elif valField is None:
+        if valField is None:
             ## This must be class that we have missed of haven't gotten around to supporting/ignoring
             longname = '.'.join([field.__class__.__module__,
                                  field.__class__.__name__])
             print("EditForm doesn't deal with %s yet" % longname)
+        elif widget == 'textbox' and isinstance(field, fields.related.RelatedField):
+            print("Too many values to edit %s" % field.name)
         else:
             formfields[field.name] = valField
 

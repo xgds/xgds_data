@@ -33,7 +33,7 @@ from django.template import RequestContext
 from django.db import connection, DatabaseError
 from django.db import models
 from django.db.models import get_app, get_apps, get_models, ManyToManyField
-from django.db.models.fields import DateTimeField, DateField, TimeField
+from django.db.models.fields import DateTimeField, DateField, TimeField, related
 from django.forms.models import ModelMultipleChoiceField, model_to_dict
 from django import forms
 from django.db.models import Model
@@ -55,7 +55,7 @@ from xgds_data.introspection import (modelFields, maskField, isAbstract,
 from xgds_data.forms import QueryForm, SearchForm, EditForm, AxesForm, SpecializedForm
 from xgds_data.dlogging import recordRequest, recordList, log_and_render
 from xgds_data.logconfig import logEnabled
-from xgds_data.search import getCount, ishard, getMatches, pageLimits, retrieve
+from xgds_data.search import getMatches, pageLimits, retrieve
 from xgds_data.utils import total_seconds
 from xgds_data.templatetags import xgds_data_extras
 
@@ -343,7 +343,7 @@ def searchHandoff(request, searchModuleName, searchModelName, fn, soft = True):
 
     formset = tmpFormSet(data)
     if formset.is_valid():
-        results, totalCount = getMatches(myModel, formset, soft)
+        results, totalCount, hardCount = getMatches(myModel, formset, soft)
     else:
         debug = formset.errors
 
@@ -428,17 +428,19 @@ def editRecord(request, editModuleName, editModelName, rid):
         assert form.is_valid()
         changed = False
         for f in myFields:
-            oldval = getattr(record,f.name)
-            val = form.cleaned_data[f.name]
             try:
-                oldval = oldval.all()
-            except AttributeError:
+                val = form.cleaned_data[f.name]
+                oldval = getattr(record,f.name)
+                try:
+                    oldval = oldval.all()
+                except AttributeError:
+                    pass
+                if val != oldval:
+                    setattr(record,f.name,val)
+                    changed = True
+            except KeyError:
                 pass
 
-
-            if val != oldval:
-                setattr(record,f.name,val)
-                changed = True
         if (changed):
             record.save()
         return HttpResponseRedirect(reverse('xgds_data_displayRecord', args=[editModuleName, editModelName, rid]))
@@ -527,6 +529,7 @@ def selectForAction(request, moduleName, modelName, targetURLName,
                 except ValueError:
                     pass
             objs = searchHandoff(request, moduleName, modelName, resultsIdentity)
+            print('a',len(objs))
             if (len(notpicks) > 0):
                 objs = objs.exclude(pk__in=[x.pk for x in retrieve(notpicks)])
             ## print(retrieve(notpicks))
@@ -719,15 +722,15 @@ def searchChosenModelCore(request, data, searchModuleName, searchModelName, expe
                 queryStart = 0
                 queryEnd = None
 
-            if ishard(formset):
-                hardCount = None
-            else:
-                hardCount = getCount(myModel, formset, False)
-                if hardCount > 100:
-                    soft = False
+            # if ishard(formset):
+            #     hardCount = None
+            # else:
+            #     hardCount = getCount(myModel, formset, False)
+            #     if hardCount > 100:
+            #         soft = False
 
-            results, totalCount = getMatches(myModel, formset, soft, \
-                                             queryStart, queryEnd, minCount = hardCount)
+            results, totalCount, hardCount = getMatches(myModel, formset, soft, \
+                                                            queryStart, queryEnd)
             if hardCount is None:
                 hardCount = totalCount
 
@@ -826,6 +829,11 @@ def searchChosenModelCore(request, data, searchModuleName, searchModelName, expe
             resultfullids = dict()
         else:
             resultfullids = dict([ (r, fullid(r)) for r in results ])
+            pfs = [ f.name for f in modelFields(myModel) if isinstance(f,related.RelatedField) and not maskField(f) ]
+            try:
+                results = results.prefetch_related(*pfs)
+            except AttributeError:
+                pass # probably got list-ified
 
         vname =  verbose_name(myModel)
 
@@ -916,9 +924,17 @@ def plotQueryResults(request, searchModuleName, searchModelName, start, end, sof
         ## a lot of this code mimics what is in searchChosenModel
         ## should figure out a way of centralizing instead of copying
 
-        objs, totalCount = getMatches(myModel, formset, soft, start, end)
         plotdata = []
         pkName = pk(myModel).name
+        objs, totalCount, hardCount = getMatches(myModel, formset, soft, start, end)
+       
+        pfs = [ f.name for f in modelFields(myModel) if isinstance(f,related.RelatedField) and not maskField(f) ]
+        try:
+            objs = objs.prefetch_related(*pfs)
+        except AttributeError:
+            pass # probably got list-ified
+
+        
         for x in objs:
             pdict = { pkName: x.pk }
             for fld in myFields:
@@ -928,7 +944,7 @@ def plotQueryResults(request, searchModuleName, searchModelName, start, end, sof
                 except AttributeError:
                     pdict[fld.name] = val
             plotdata.append(pdict)
-        pldata = [ str(x) for x in objs]
+        pldata = [str(x) for x in objs]
 
         ## the following code determines if there are any foreign keys that can be selected, and if so,
         ## replaces the corresponding values (which will be ids) with the string representation

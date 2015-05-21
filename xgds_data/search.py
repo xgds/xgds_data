@@ -117,10 +117,6 @@ def makeFilters(model, formset, soft=True):
     """
     filters = None
     mfields = dict([(f.name, f) for f in modelFields(model)])
-    ##if (threshold == 1):
-    ##    filters = None
-    ##else:
-    ##    filters = Q(**{ 'score__gte' : threshold } )
     ## forms are interpreted as internally conjunctive, externally disjunctive
     for form in formset:
         subfilter = Q()
@@ -280,7 +276,6 @@ def sdRandomSample(model, expression, size):
     cursor = connection.cursor()
 ##    runtime = datetime.datetime.now()
     cursor.execute(sql)
-    print(sql)
 ##    runtime = timer(runtime, "<<< inner random sample >>>")
     return cursor.fetchall()[0]
 
@@ -478,11 +473,13 @@ def scaleEval(model, field, lorange, hirange, size, fieldRef):
         if (isinstance(datamax, datetime.datetime) and (datamax.tzinfo is None)):
             datamax = datamax.replace(tzinfo=pytz.utc)
 
-        ## assume its uniformly distributed, i.e., sd of uniform distribution
-        retv = (1/(12**(0.5)))*(datamax-datamin)
+        drange = datamax-datamin
+        if isinstance(drange, datetime.timedelta):
+            drange = total_seconds(drange)
 
-        if isinstance(retv, datetime.timedelta):
-            retv = total_seconds(retv)
+        ## assume its uniformly distributed, i.e., sd of uniform distribution
+        retv = (1/(12**(0.5)))*drange
+
 
         #print(datamin, datamax, datamax - datamin, retv)
         return retv
@@ -597,11 +594,11 @@ def desiredRanges(frms):
     return desiderata
 
 
-def ishard(frms):
-    """
-    Does the query lack soft constraints?
-    """
-    return (len(desiredRanges(frms)) == 0)
+# def ishard(frms):
+#     """
+#     Does the query lack soft constraints?
+#     """
+#     return (len(desiredRanges(frms)) == 0)
 
 
 def sortFormula(model, formset):
@@ -668,19 +665,22 @@ def pageLimits(page, pageSize):
     return ((page - 1) * pageSize, page * pageSize)
 
 
-def getCount(myModel, formset, soft):
-    """
-    Get the query results as dicts, so relevance scores can be included
-    """
-    return getMatches(myModel, formset, soft, countOnly=True)
+# def getCount(myModel, formset, soft):
+#     """
+#     Just the count
+#     """
+#     return getMatches(myModel, formset, soft, countOnly=True)
 
 
 ## formerly getResults
-def getMatches(myModel, formset, soft, queryStart=0, queryEnd=None, minCount=None, countOnly=False, threshold=None):
+## removed minCount
+## removed countOnly
+def getMatches(myModel, formset, soft, queryStart=0, queryEnd=None, threshold=None):
     """
-    Get the query results as dicts, so relevance scores can be included
+    Get the query results
     """
     #results = []
+    hardfilter = makeFilters(myModel, formset, False)
     myfilter = makeFilters(myModel, formset, soft)
     if soft:
         scorer = sortFormula(myModel, formset)
@@ -690,17 +690,20 @@ def getMatches(myModel, formset, soft, queryStart=0, queryEnd=None, minCount=Non
     if isAbstract(myModel):
         aggresults = []
         aggcount = 0
+        agghardcount = 0
         scores = dict()        
         for subm in concreteDescendents(myModel):
-            subresults, subcount = getMatches(subm, formset, soft, queryStart=0, queryEnd=queryEnd, minCount=minCount)
+            subresults, subcount, subhardcount = getMatches(subm, formset, soft, queryStart=0, queryEnd=queryEnd, threshold=threshold)
             aggcount = aggcount + subcount
+            agghardcount = agghardcount + subcount
             for x in subresults:
                 scores[x] = x.score
             aggresults = aggresults + [x for x in subresults]
         # aggresults = sorted(aggresults, key=itemgetter('score'), reverse=True)
         aggresults = sorted(aggresults,key=lambda x: scores[x])
         aggresults = aggresults[queryStart:]
-        return (aggresults, aggcount)
+
+        return (aggresults, aggcount, agghardcount)
     else:
         ## not retrieving GenericKey fields may just mean we end up
         ## loading them one at a time, later, so don't defer those
@@ -724,15 +727,47 @@ def getMatches(myModel, formset, soft, queryStart=0, queryEnd=None, minCount=Non
                 #print(gmodel, soft, countOnly, len(gresults.keys()))
         processGeneric = len(gmatches.keys()) > 0
 
-        query = myModel.objects.filter(myfilter)
-        query = query.defer(*deferFields)
-        if threshold is None:
-            threshold = sortThreshold()
+        hardCount = myModel.objects.filter(hardfilter).count()
+        if (not processGeneric) and ((not scorer) or (hardCount > 100)):
+            totalCount = hardCount
+            query = myModel.objects.filter(hardfilter)
+            query = query.extra(select={'score': 1})
+        else:
+            query = myModel.objects.filter(myfilter)
+            query = query.defer(*deferFields)
+            if threshold is None:
+                threshold = sortThreshold()
 
-        if scorer:
-            if processGeneric:
+            if processGeneric: ## need to test this branch
                 totalCount = None  # we need to do the full query to get the count
-            else:
+                myweight = totalweight(myModel, formset)
+                rescore = dict()
+                for x in query:
+                    myscore = getattr(x, 'score')
+                    mysum = myweight * myscore
+                    maxsum = myweight
+                    valid = True
+                    for gfield, gresults in gmatches.iteritems():
+                        gid = getattr(x, gfield.throughfield_name).pk
+                        gweight = gweights[gfield]
+                        gscore = gresults.get(gid)
+                        if gscore is not None:
+                            mysum = mysum + gweight * gscore
+                            maxsum = maxsum + gweight
+                        else:
+                            valid = False
+                    if not valid:
+                        rescore[x] = 0
+                    elif mysum == maxsum:
+                        rescore[x] = 1
+                    else:
+                        rescore[x] = mysum / maxsum
+                query = [x[0] for x in sorted(rescore.iteritems(), key=itemgetter(1), reverse=True)]
+                for x in query:
+                    setattr(x, 'score', rescore[x])
+                query = [x for x in query if getattr(x, 'score') >= threshold]
+                totalCount = len(query)
+            else: # not processGeneric
                 ## this code may not be needed in some version of Django
                 ## apparently count() gets confused when extra refers
                 ## to fields inherited from a non-abstract class
@@ -749,70 +784,21 @@ def getMatches(myModel, formset, soft, queryStart=0, queryEnd=None, minCount=Non
                 extratables = [ db_table(m) for m in extramodels ]
                 extrawhere = [ dbFieldRef(parentField(myModel,p))+" = "+dbFieldRef(pk(p)) for p in extramodels ]
                 extrawhere.append('%s >= %s' % (scorer, threshold))
-                countquery = query.extra(tables=extratables, where=extrawhere)
-                totalCount = countquery.count()
+                query = query.extra(tables=extratables, where=extrawhere)
+                totalCount = query.count()
+                query = query.extra(select={'score': scorer}, order_by=['-score'])
 
-            query = query.extra(select={'score': scorer}, order_by=['-score'])
-            if (minCount is not None) and (totalCount is not None) and (totalCount < minCount):
-                ## this only makes sense if it's an approximate count
-                ## and that approximate count is too low
-                totalCount = minCount
+        if not queryEnd or queryEnd > totalCount:
+            queryEnd = totalCount
+        ## note totalCount does not necessarily equal len(query)
+        if (queryStart == 0) and (queryEnd == totalCount) and (totalCount == len(query)):
+            ## don't truncate unnecessarily, as it would mess up a delete
+            ## if we have such
+            pass
         else:
-            query = query.extra(select={'score': 1})
-            # hardCount = query.count()
-            if minCount is None:
-                if processGeneric:
-                    totalCount = None  # we need to do the full query to get the count
-                else:
-                    totalCount = query.count()
-            else:
-                totalCount = minCount
+            query = query[queryStart:queryEnd]
 
-        if processGeneric:
-            myweight = totalweight(myModel, formset)
-            rescore = dict()
-            for x in query:
-                myscore = getattr(x, 'score')
-                mysum = myweight * myscore
-                maxsum = myweight
-                valid = True
-                for gfield, gresults in gmatches.iteritems():
-                    gid = getattr(x, gfield.throughfield_name).pk
-                    gweight = gweights[gfield]
-                    gscore = gresults.get(gid)
-                    if gscore is not None:
-                        mysum = mysum + gweight * gscore
-                        maxsum = maxsum + gweight
-                    else:
-                        valid = False
-                if not valid:
-                    rescore[x] = 0
-                elif mysum == maxsum:
-                    rescore[x] = 1
-                else:
-                    rescore[x] = mysum / maxsum
-            query = [x[0] for x in sorted(rescore.iteritems(), key=itemgetter(1), reverse=True)]
-            for x in query:
-                setattr(x, 'score', rescore[x])
-            query = [x for x in query if getattr(x, 'score') >= threshold]
-            totalCount = len(query)
-
-        if (countOnly):
-            return totalCount
-        else:
-            if queryEnd:
-                queryEnd = min(totalCount, queryEnd)
-            else:
-                queryEnd = totalCount
-            ## note totalCount does not necessarily equal len(query)
-            if (queryStart == 0) and (queryEnd == totalCount) and (totalCount == len(query)):
-                ## don't truncate unnecessarily, as it would mess up a delete
-                ## if we have such
-                pass
-            else:
-                query = query[queryStart:queryEnd]
-
-            return (query, totalCount)
+        return (query, totalCount, hardCount)
 
 
 def retrieve(fullids):

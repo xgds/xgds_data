@@ -23,11 +23,23 @@ import datetime
 # django.setup()
 
 from xgds_data.models import cacheStatistics
+from xgds_data import settings
 if cacheStatistics():
     from xgds_data.models import ModelStatistic
 
 tableCounts = dict()
 tableCountsAge = dict()
+fieldCounts = dict()
+fieldCountsAge = dict()
+
+def timeout():
+    """
+    Get the timeout for the cache
+    """
+    try:
+        return settings.XGDS_DATA_CACHE_TIMEOUT
+    except AttributeError:
+        return 60
 
 def tableSize(model):
     """
@@ -35,18 +47,20 @@ def tableSize(model):
     """
     tsize = None
     try:
-        maxage = datetime.timedelta(seconds = 60)
-        aged = datetime.datetime.now() - tableCountsAge[model]
-        if (aged < maxage):
+        if timeout() is not None:
+            maxage = datetime.timedelta(seconds = timeout())
+            aged = datetime.datetime.now() - tableCountsAge[model]
+            if (aged < maxage):
+                tsize = tableCounts[model]
+        else:
             tsize = tableCounts[model]
-    except KeyError:
+    except KeyError: # not in cache yet
         pass
-
+    
     if tsize is None:
         if cacheStatistics():
             countEst = ModelStatistic.objects.filter(model=model.__name__).filter(field=None).filter(statistic="count")
             if (countEst.count() > 0):
-                print("Guessed")
                 tsize = int(countEst[0].value)
         if tsize is None:
             tsize = model.objects.count()
@@ -55,20 +69,20 @@ def tableSize(model):
     return tsize
 
 
-fieldCounts = dict()
-fieldCountsAge = dict()
-
 def fieldSize(field, itemCount, maxItemCount, maxFieldCount):
     """
     Get table size either from cache or live
     """
     estCount = None
     try:
-        maxage = datetime.timedelta(seconds = 60)
-        aged = datetime.datetime.now() - fieldCountsAge[field]
-        if (aged < maxage):
+        if timeout() is not None:
+            maxage = datetime.timedelta(seconds = timeout())
+            aged = datetime.datetime.now() - fieldCountsAge[field]
+            if (aged < maxage):
+                estCount = fieldCounts[field]
+        else:
             estCount = fieldCounts[field]
-    except KeyError:
+    except KeyError: # not in cache yet
         pass
 
     if estCount is None:

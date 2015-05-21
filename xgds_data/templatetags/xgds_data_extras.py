@@ -45,11 +45,17 @@ register.filter('pkValue', pkValue)
 # http://stackoverflow.com/questions/844746/performing-a-getattr-style-lookup-in-a-django-template
 def getattribute(value, arg):
     """Gets an attribute of an object dynamically from a string name"""
-    if hasattr(value, str(arg)):
-        v = getattr(value, arg)
-    elif hasattr(value, 'has_key') and arg in value:
-        v = value[arg]
-    elif integer_test.match(str(arg)) and len(value) > int(arg):
+    try:
+        return getattr(value, arg)
+    except (TypeError, AttributeError):
+        pass
+    
+    try:
+        return value[arg]
+    except (TypeError, AttributeError):
+        pass
+
+    if integer_test.match(str(arg)) and len(value) > int(arg):
         v = value[int(arg)]
     elif isinstance(arg, VirtualIncludedField):
         try:
@@ -81,6 +87,7 @@ def getattribute(value, arg):
         v = settings.TEMPLATE_STRING_IF_INVALID
     if (isinstance(v, models.Manager)):
         v = v.all()
+
     return v
 
 register.filter('getattribute', getattribute)
@@ -148,8 +155,17 @@ def display(field, value):
                 return value
         elif isinstance(field, models.ManyToManyField):
             results = []
-            for v in value:
-                results.append(displayLinkedData(field,v))
+            if (len(value) > 100):
+                for v in value[0:4]:
+                    results.append(displayLinkedData(field,v))
+                results.append("...")
+                for v in value[len(results)-4:len(results)]:
+                    results.append(displayLinkedData(field,v))
+
+                results.append("("+str(len(value))+" records)")
+            else:
+                for v in value:
+                    results.append(displayLinkedData(field,v))
             return mark_safe(','.join(results))   
         elif isinstance(field, models.fields.files.FileField):
             if value.name:

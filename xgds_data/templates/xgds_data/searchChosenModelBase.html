@@ -96,6 +96,8 @@ var submitExpertURL="{% url 'xgds_data_searchChosenModel' module model 'expert' 
 	}
 	document.QueryForm["fnctn"].value = fnctn;
     $("#id_pageno").val(pageno); 
+    {% block submitPostProcess %}
+    {% endblock submitPostProcess %}
     document.QueryForm.submit();
     return false;
   }
@@ -284,7 +286,7 @@ $(function () {
 	  src="{{ EXTERNAL_URL }}flot/jquery.flot.threshold.js"></script>
 {% endif %}
 
-{% endblock %}
+{% endblock scripts %}
 
 {% block contents  %}
 {% block query %}	
