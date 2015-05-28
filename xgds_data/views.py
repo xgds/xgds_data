@@ -484,6 +484,7 @@ def displayRecord(request, displayModuleName, displayModelName, rid):
     modelmodule = get_app(displayModuleName)
     myModel = getattr(modelmodule, displayModelName)
     record = myModel.objects.get(pk=rid)
+    retformat = request.REQUEST.get('format', 'html')
     try:
         editable = settings.XGDS_DATA_EDITING
     except AttributeError:
@@ -498,7 +499,11 @@ def displayRecord(request, displayModuleName, displayModelName, rid):
         return HttpResponseRedirect(record.get_absolute_url())
     except AttributeError:
         myFields = [x for x in modelFields(myModel) if not maskField(x) ]
-        return log_and_render(request, reqlog, 'xgds_data/displayRecord.html',
+        if retformat == 'json':
+            renderfn = log_and_json
+        else:
+            renderfn = log_and_render
+        return renderfn(request, reqlog, 'xgds_data/displayRecord.html',
                               {'title': verbose_name(myModel) + ': ' + str(record),
                                'module': displayModuleName,
                                'model': displayModelName,
@@ -636,7 +641,7 @@ def log_and_json(request, reqlog, template, templateargs, nolog = None, listing 
     experimenting with JSON
     """
     keysMustBeAString(templateargs)
-    return HttpResponse(json.dumps(templateargs, default=jsonifier), content_type='text/plain')
+    return HttpResponse(json.dumps(templateargs, default=jsonifier), content_type='application/json')
 
 
 def searchChosenModelCore(request, data, searchModuleName, searchModelName, expert=False, override=None, passthroughs=dict()):
@@ -670,6 +675,7 @@ def searchChosenModelCore(request, data, searchModuleName, searchModelName, expe
     debug = []
     formCount = 1
     soft = True
+    retformat = data.get('format', 'html')
     mode = data.get('fnctn', False)
     page = data.get('pageno', None)
     allselected = data.get('allselected', False)
@@ -689,7 +695,7 @@ def searchChosenModelCore(request, data, searchModuleName, searchModelName, expe
     if (mode == 'csv'):
         page = None
     else:
-        pageSize = 25
+        pageSize = int(data.get('pageSize','25'))
         more = False
         if page:
             page = int(page)
@@ -898,10 +904,14 @@ def searchChosenModelCore(request, data, searchModuleName, searchModelName, expe
                         'autoSubmit': autoSubmit,
                         }
         templateargs.update(passthroughs)
-        return log_and_render(request, reqlog, template,
-                              templateargs,
-                              nolog=['formset', 'axesform', 'results', 'resultsids', 'scores'],
-                              listing=results)
+        if retformat == 'json':
+            renderfn = log_and_json
+        else:
+            renderfn = log_and_render
+        return renderfn(request, reqlog, template,
+                        templateargs,
+                        nolog=['formset', 'axesform', 'results', 'resultsids', 'scores'],
+                        listing=results)
 
 
 def megahandler(obj):
@@ -923,6 +933,7 @@ def getRelated(modelField):
             for x in modelField.rel.to.objects.all() ])
 
 
+from django.forms.utils import ErrorList, ErrorDict
 def jsonifier(obj):
     try:
         return calendar.timegm(obj.timetuple()) * 1000
@@ -952,7 +963,7 @@ def jsonifier(obj):
     except AttributeError:
         pass
 
-    try:
+    try: # field stuff
         stuff = dict()
         for k in [# "bound_data",   # instancemethod
                   # "choices",     # ModelChoiceIterator
@@ -966,16 +977,31 @@ def jsonifier(obj):
                   # "valid_value",   # instancemethod
         ]:
             stuff[k] = getattr(obj,k)
+            # stuff['choices'] = jsonifier(list(getattr(obj,'choices')))
         return stuff
     except AttributeError:
         pass
+
+    if isinstance(obj,(ErrorDict,ErrorList)):
+        return obj
+
+    # can go too deep
+    # try:
+    #     return dict([(f.name,jsonifier(getattr(obj,f.name))) for f in modelFields(obj) if not maskField(f)])
+    # except AttributeError:
+    #     pass
 
     try:
         return obj.name
     except AttributeError:
         pass
 
-    if isinstance(obj, Model):
+    try:
+        return list(obj.values())
+    except AttributeError:
+        pass
+
+    if isinstance(obj, (Model,unicode, str)):
         return str(obj)
     else:
         return 'some kind of {0}'.format(str(obj.__class__))
@@ -1093,6 +1119,7 @@ def editCollection(request, rid):
     tmpFormClass = SpecializedForm(EditForm, myModel)
     myFields = [x for x in modelFields(myModel) if not maskField(x) ]
     record = myModel.objects.get(pk=rid)
+    retformat = request.REQUEST.get('format', 'html')
     if (request.REQUEST.get('fnctn',None) == 'edit'):
         form = tmpFormClass(request.POST)
         assert form.is_valid()
@@ -1129,7 +1156,11 @@ def editCollection(request, rid):
             formData[f.name] = val
         editForm = tmpFormClass(formData)
 
-        return log_and_render(request, reqlog, 'xgds_data/editCollection.html',
+        if retformat == 'json':
+            renderfn = log_and_json
+        else:
+            renderfn = log_and_render
+        return renderfn(request, reqlog, 'xgds_data/editCollection.html',
                           {'title': 'Editing ' + verbose_name(myModel) + ': ' + str(record),
                            'module': editModuleName,
                            'model': editModelName,
