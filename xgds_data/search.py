@@ -24,7 +24,7 @@ from operator import itemgetter
 
 from django import forms
 from django.db import connection
-from django.db.models import Q, Field
+from django.db.models import Q, Field, fields
 from django.db.models.fields import PositiveIntegerField, PositiveSmallIntegerField
 from django.contrib.contenttypes.generic import GenericForeignKey
 from django.db.models import Min, Max, Count
@@ -91,14 +91,14 @@ def isPostgres():
     return settings.DATABASES['default']['ENGINE'] == 'django.db.backends.postgresql_psycopg2'
 
 
-def genericArguments(model, formset, soft=True):
+def genericArguments(model, qdatas, soft=True):
     """
-    Gets the portion of a formset that applies to generic pointers
+    Gets the portion of a query that applies to generic pointers
     """
     mfields = dict([(f.name, f) for f in modelFields(model)])
     fdict = dict()
-    for form in formset:
-        for fieldname, fieldval in form.cleaned_data.iteritems():
+    for qd in qdatas:
+        for fieldname, fieldval in qd.iteritems():
             if (fieldname.endswith('_lo') or fieldname.endswith('_hi')):
                 fieldname = fieldname[:-3]
 
@@ -111,19 +111,18 @@ def genericArguments(model, formset, soft=True):
     return(fdict)
 
 
-def makeFilters(model, formset, soft=True):
+def makeFilters(model, qdatas, soft=True):
     """
-    Helper for getMatches; figures out restrictions given a formset
+    Helper for getMatches; figures out restrictions given a query parameters
     """
     filters = None
     mfields = dict([(f.name, f) for f in modelFields(model)])
     ## forms are interpreted as internally conjunctive, externally disjunctive
-    for form in formset:
+    for qd in qdatas:
         subfilter = Q()
-        for fieldname in form.cleaned_data:
-            fieldval = form.cleaned_data[fieldname]
-            fieldoperator = form.cleaned_data.get(fieldname + '_operator')
-            formfield = form[fieldname].field
+        for fieldname in qd:
+            fieldval = qd[fieldname]
+            fieldoperator = qd.get(fieldname + '_operator')
             basename = fieldname
             if (basename.endswith('_lo') or basename.endswith('_hi')):
                 basename = basename[:-3]
@@ -139,9 +138,9 @@ def makeFilters(model, formset, soft=True):
                     if fieldname.endswith('_operator'):
                         pass
                     elif (fieldname.endswith('_lo') or fieldname.endswith('_hi')):
-                        loval = form.cleaned_data[basename + '_lo']
-                        hival = form.cleaned_data[basename + '_hi']
-                        fieldoperator = form.cleaned_data[basename + '_operator']
+                        loval = qd[basename + '_lo']
+                        hival = qd[basename + '_hi']
+                        fieldoperator = qd[basename + '_operator']
                         if isinstance(mf, VirtualIncludedField):
                             basename = mf.throughfield_name + '__' + basename
                         if soft and (fieldoperator == 'IN~'):
@@ -169,29 +168,27 @@ def makeFilters(model, formset, soft=True):
                                 clause = Q(**{basename + '__gte': loval})
                             elif hival is not None:
                                 clause = Q(**{basename + '__lte': hival})
-                    elif isinstance(formfield, forms.ModelMultipleChoiceField):
+                    elif isinstance(mf, fields.related.ManyToManyField):
+                        # isinstance(formfield, forms.ModelMultipleChoiceField):
                         negate = fieldoperator == 'NOT IN'
                         clause = Q(**{fieldname + '__in': fieldval})
-                    elif isinstance(formfield, forms.ModelChoiceField):
+                    elif (isinstance(mf, fields.related.ForeignKey) or
+                          isinstance(mf, fields.related.OneToOneField)):
+                    ## elif isinstance(formfield, forms.ModelChoiceField):
                         negate = fieldoperator == '!='
                         clause = Q(**{fieldname + '__exact': fieldval})
-                    elif isinstance(formfield, forms.ChoiceField):
-                        negate = fieldoperator == '!='
+                    elif fieldval is None or re.match("\s*$", fieldval) or (fieldoperator == '=~'):
+                        pass
+                    else:
+                        negate = (fieldoperator == '!=')
                         if fieldval == 'True':
                             ## True values appear to be represented as numbers greater than 0
                             clause = Q(**{fieldname + '__gt': 0})
                         elif fieldval == 'False':
                             ## False values appear to be represented as 0
                             clause = Q(**{fieldname + '__exact': 0})
-                    else:
-                        if fieldval is None or re.match("\s*$", fieldval):
-                            pass
                         else:
-                            if (fieldoperator == '=~'):
-                                pass
-                            else:
-                                negate = (fieldoperator == '!=')
-                                clause = Q(**{fieldname + '__icontains': fieldval})
+                            clause = Q(**{fieldname + '__icontains': fieldval})
                     if clause:
                         if negate:
                             subfilter &= ~clause
@@ -564,20 +561,20 @@ def scoreNumeric(model, field, lorange, hirange, tsize):
         return "{1}/({1} + {0})".format(baseScore(fieldRef, lorange, hirange), scale)
 
 
-def desiredRanges(frms):
+def desiredRanges(qdatas):
     """
     Pulls out the approximate (soft) constraints from the form
     """
     desiderata = dict()
     ## frms are interpreted as internally conjunctive, externally disjunctive
-    for form in frms:
-        for field in form.cleaned_data:
-            if (form.cleaned_data[field] is not None) and (field.endswith('_operator')):
+    for qd in qdatas:
+        for field in qd:
+            if (qd[field] is not None) and (field.endswith('_operator')):
                 base = field[:-9]
-                operator = form.cleaned_data[field]
+                operator = qd[field]
                 if operator == 'IN~':
-                    loval = form.cleaned_data[base + '_lo']
-                    hival = form.cleaned_data[base + '_hi']
+                    loval = qd[base + '_lo']
+                    hival = qd[base + '_hi']
                     if loval in (None, 'None'):
                         loval = 'min'
                     if hival in (None, 'None'):
@@ -601,18 +598,18 @@ def desiredRanges(frms):
 #     return (len(desiredRanges(frms)) == 0)
 
 
-def sortFormula(model, formset):
+def sortFormula(model, qdatas):
     """
     Helper for searchChosenModel; comes up with a formula for ordering the results
     """
-    return sortFormulaRanges(model, desiredRanges(formset))
+    return sortFormulaRanges(model, desiredRanges(qdatas))
 
 
-def totalweight(model, formset):
+def totalweight(model, qdatas):
     """
     Counts how many ranges count against this model
     """
-    desiderata = desiredRanges(formset)
+    desiderata = desiredRanges(qdatas)
     tw = 0
     for b in desiderata.keys():
         field = resolveField(model, b)
@@ -675,15 +672,15 @@ def pageLimits(page, pageSize):
 ## formerly getResults
 ## removed minCount
 ## removed countOnly
-def getMatches(myModel, formset, soft, queryStart=0, queryEnd=None, threshold=None):
+def getMatches(myModel, qdatas, soft, queryStart=0, queryEnd=None, threshold=None):
     """
     Get the query results
     """
     #results = []
-    hardfilter = makeFilters(myModel, formset, False)
-    myfilter = makeFilters(myModel, formset, soft)
+    hardfilter = makeFilters(myModel, qdatas, False)
+    myfilter = makeFilters(myModel, qdatas, soft)
     if soft:
-        scorer = sortFormula(myModel, formset)
+        scorer = sortFormula(myModel, qdatas)
     else:
         scorer = None
 
@@ -693,7 +690,7 @@ def getMatches(myModel, formset, soft, queryStart=0, queryEnd=None, threshold=No
         agghardcount = 0
         scores = dict()        
         for subm in concreteDescendents(myModel):
-            subresults, subcount, subhardcount = getMatches(subm, formset, soft, queryStart=0, queryEnd=queryEnd, threshold=threshold)
+            subresults, subcount, subhardcount = getMatches(subm, qdatas, soft, queryStart=0, queryEnd=queryEnd, threshold=threshold)
             aggcount = aggcount + subcount
             agghardcount = agghardcount + subcount
             for x in subresults:
@@ -714,16 +711,16 @@ def getMatches(myModel, formset, soft, queryStart=0, queryEnd=None, threshold=No
                 cantDefer.extend([x.ct_field, x.fk_field])
         deferFields = [x.name for x in modelFields(myModel) if maskField(x) and isinstance(x, Field) and x.name not in cantDefer]
 
-        gargs = genericArguments(myModel, formset, soft)
+        gargs = genericArguments(myModel, qdatas, soft)
         gmatches = dict()
         gweights = dict()
         for gfield in gargs.keys():
             for gmodel in gargs[gfield]:
                 gresults = dict()
-                for m in getMatches(gmodel, formset, soft, threshold=0)[0]:
+                for m in getMatches(gmodel, qdatas, soft, threshold=0)[0]:
                     gresults[m.pk] = m.score
                 gmatches[gfield] = gresults
-                gweights[gfield] = totalweight(gmodel, formset)
+                gweights[gfield] = totalweight(gmodel, qdatas)
                 #print(gmodel, soft, countOnly, len(gresults.keys()))
         processGeneric = len(gmatches.keys()) > 0
 
@@ -740,7 +737,7 @@ def getMatches(myModel, formset, soft, queryStart=0, queryEnd=None, threshold=No
 
             if processGeneric: ## need to test this branch
                 totalCount = None  # we need to do the full query to get the count
-                myweight = totalweight(myModel, formset)
+                myweight = totalweight(myModel, qdatas)
                 rescore = dict()
                 for x in query:
                     myscore = getattr(x, 'score')
@@ -776,7 +773,7 @@ def getMatches(myModel, formset, soft, queryStart=0, queryEnd=None, threshold=No
                 ## we need to make the connection ourselves
                 ## WARNING: This probably will fail on grandparents, etc.
                 extramodels = [ ]
-                for b in desiredRanges(formset).keys():
+                for b in desiredRanges(qdatas).keys():
                     fmodel = fieldModel(resolveField(myModel, b))
                     if ((fmodel != myModel) and (fmodel not in extramodels)):
                         extramodels.append(fmodel)
@@ -905,11 +902,11 @@ def instanceScore(instance, desiderata, scales=None):
     return multiScore(instance.__class__, values, desiderata, scales=scales)
 
 
-def sortedTopK(model, formset, query, k):
+def sortedTopK(model, qdatas, query, k):
     """
     Threshold algorithm, still being optimized
     """
-    desiderata = desiredRanges(formset)
+    desiderata = desiredRanges(qdatas)
     return sortedTopKRanges(model, desiderata, query, k)
 
 

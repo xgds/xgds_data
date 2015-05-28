@@ -68,6 +68,10 @@ if logEnabled():
     from xgds_data.models import RequestLog, RequestArgument, ResponseLog, HttpRequestReplay
 
 
+def formsetToQD(formset):
+    return [form.cleaned_data for form in formset]
+
+
 def index(request):
     return HttpResponse("Hello, world. You're at the xgds_data index.")
 
@@ -344,7 +348,7 @@ def searchHandoff(request, searchModuleName, searchModelName, fn, soft = True):
 
     formset = tmpFormSet(data)
     if formset.is_valid():
-        results, totalCount, hardCount = getMatches(myModel, formset, soft)
+        results, totalCount, hardCount = getMatches(myModel, formsetToQD(formset), soft)
     else:
         debug = formset.errors
 
@@ -449,12 +453,17 @@ def editRecord(request, editModuleName, editModelName, rid):
         editee = myModel.objects.get(pk=rid)
         formData = dict()
         for f in myFields:
-            stuff = getattr(editee,f.name)
+            val = getattr(editee,f.name)
+            try: ## to get the id instead of the object
+                val = pkValue(val)
+            except AttributeError:
+                pass # no id, no problem
             if isinstance(f, ManyToManyField):
                 ## ModelMultipleChoiceField requires ids, not instances
-                stuff = [ getattr(x,pk(x).name) for x in stuff.all()]
-            formData[f.name] = stuff
+                val = [ getattr(x,pk(x).name) for x in val.all()]
+            formData[f.name] = val
         editForm = tmpFormClass(formData)
+#        print(editForm)
 
         return log_and_render(request, reqlog, 'xgds_data/editRecord.html',
                           {'title': 'Editing ' + verbose_name(myModel) + ': ' + str(record),
@@ -612,6 +621,24 @@ def searchChosenModel(request, searchModuleName, searchModelName, expert=False, 
     return searchChosenModelCore(request, data, searchModuleName, searchModelName, expert, override, passthroughs)
 
 
+def keysMustBeAString(d):
+    for k,v in d.items():
+        if type(k) is not str:
+            d[str(k)] = d[k]
+            del d[k]
+        try:
+            keysMustBeAString(v)
+        except AttributeError:
+            pass
+
+def log_and_json(request, reqlog, template, templateargs, nolog = None, listing = None):
+    """
+    experimenting with JSON
+    """
+    keysMustBeAString(templateargs)
+    return HttpResponse(json.dumps(templateargs, default=jsonifier), content_type='text/plain')
+
+
 def searchChosenModelCore(request, data, searchModuleName, searchModelName, expert=False, override=None, passthroughs=dict()):
     """
     Search over the fields of the selected model
@@ -662,7 +689,7 @@ def searchChosenModelCore(request, data, searchModuleName, searchModelName, expe
     if (mode == 'csv'):
         page = None
     else:
-        pageSize = 10
+        pageSize = 25
         more = False
         if page:
             page = int(page)
@@ -730,13 +757,19 @@ def searchChosenModelCore(request, data, searchModuleName, searchModelName, expe
             #     if hardCount > 100:
             #         soft = False
 
-            results, totalCount, hardCount = getMatches(myModel, formset, soft, \
+            results, totalCount, hardCount = getMatches(myModel, formsetToQD(formset), soft, \
                                                             queryStart, queryEnd)
             if hardCount is None:
                 hardCount = totalCount
 
             more = queryStart + len(results) < totalCount
         else:
+            for formdex in range(0,len(formset.errors)):
+                for field, fielderrors in formset.errors[formdex].items():
+                    for fedex in range(0,len(fielderrors)):
+                        errmsg = fielderrors[fedex]
+                        if errmsg == 'Select a valid choice. That choice is not one of the available choices.':
+                            fielderrors[fedex] = 'Select a valid choice. Valid choices are {0}'.format(', '.join([x[1] for x in formset[formdex].fields[field].choices]))
             debug = formset.errors
     elif (mode == 'change'):
         formCount = int(data['form-TOTAL_FORMS'])
@@ -890,13 +923,63 @@ def getRelated(modelField):
             for x in modelField.rel.to.objects.all() ])
 
 
-def megahandler2(obj):
-    if isinstance(obj, datetime.datetime):
+def jsonifier(obj):
+    try:
         return calendar.timegm(obj.timetuple()) * 1000
-    elif isinstance(obj, Model):
+    except AttributeError:
+        pass
+
+    try:
+        ret =[ jsonifier(f) for f in obj.forms ]
+        #for k in dir(obj):
+        #    print(k,getattr(obj,k))
+        #print(obj)
+        return ret
+    except AttributeError:
+        pass
+
+    try:
+        #ret = jsonifier(obj.fields)
+        #for k in ['add_error', 'add_initial_prefix', 'add_prefix', 'as_expert_table', 'as_p', 'as_table', 'as_ul', 'auto_id', 'base_fields', 'changed_data', 'clean', 'data', u'declared_fields', 'empty_permitted', 'error_class', 'errors', 'fields', 'files', 'full_clean', 'has_changed', 'hidden_fields', 'initial', 'is_bound', 'is_multipart', 'is_valid', 'label_suffix', 'media', 'model', 'modelVerboseName', 'non_field_errors', 'prefix', 'visible_fields']:
+         #   print(k,getattr(obj,k))
+        return (obj.prefix,dict([('errors', jsonifier(obj.errors)), 
+                                 ('fields', jsonifier(obj.fields))]))
+    except AttributeError:
+        pass
+
+    try:
+        return dict([(str(k), jsonifier(v)) for k,v in obj.items()])
+    except AttributeError:
+        pass
+
+    try:
+        stuff = dict()
+        for k in [# "bound_data",   # instancemethod
+                  # "choices",     # ModelChoiceIterator
+                  # "empty_values",   # maybe not interesting
+                  # "error_messages",   # dict
+                  "help_text",   
+                  "initial",   
+                  "label",   
+                  "required",   
+                  "show_hidden_initial",   
+                  # "valid_value",   # instancemethod
+        ]:
+            stuff[k] = getattr(obj,k)
+        return stuff
+    except AttributeError:
+        pass
+
+    try:
+        return obj.name
+    except AttributeError:
+        pass
+
+    if isinstance(obj, Model):
         return str(obj)
     else:
-        return None
+        return 'some kind of {0}'.format(str(obj.__class__))
+        # return dir(obj)
 
 
 def plotQueryResults(request, searchModuleName, searchModelName, start, end, soft=True):
@@ -927,7 +1010,7 @@ def plotQueryResults(request, searchModuleName, searchModelName, start, end, sof
 
         plotdata = []
         pkName = pk(myModel).name
-        objs, totalCount, hardCount = getMatches(myModel, formset, soft, start, end)
+        objs, totalCount, hardCount = getMatches(myModel, formsetToQD(formset), soft, start, end)
        
         pfs = [ f.name for f in modelFields(myModel) if isinstance(f,related.RelatedField) and not maskField(f) ]
         try:
@@ -976,7 +1059,7 @@ def plotQueryResults(request, searchModuleName, searchModelName, start, end, sof
     return log_and_render(request, reqlog, template,
                           {'title': 'Plot ' + verbose_name(myModel),
                            'standalone': not GEOCAMUTIL_FOUND,
-                           'plotData': json.dumps(plotdata, default=megahandler2),
+                           'plotData': json.dumps(plotdata, default=jsonifier),
                            'labels': pldata,
                            'timeFields': json.dumps(timeFields),
                            'module': searchModuleName,
@@ -1035,11 +1118,15 @@ def editCollection(request, rid):
         editee = myModel.objects.get(pk=rid)
         formData = dict()
         for f in myFields:
-            stuff = getattr(editee,f.name)
+            val = getattr(editee,f.name)
+            try: ## to get the id instead of the object
+                val = pkValue(val)
+            except AttributeError:
+                pass # no id, no problem
             if isinstance(f, ManyToManyField):
                 ## ModelMultipleChoiceField requires ids, not instances
-                stuff = [ getattr(x,pk(x).name) for x in stuff.all()]
-            formData[f.name] = stuff
+                val = [ getattr(x,pk(x).name) for x in val.all()]
+            formData[f.name] = val
         editForm = tmpFormClass(formData)
 
         return log_and_render(request, reqlog, 'xgds_data/editCollection.html',

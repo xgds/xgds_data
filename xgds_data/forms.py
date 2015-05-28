@@ -149,11 +149,11 @@ def valueFormField(mymodel, field, widget, allowMultiple=True, label=None):
                                                       label=label) 
             else:
                 return specialModelChoiceField(queryset=qset,
-                                              # initial=qset,
-                                              # order_by('name'),
-                                              empty_label="<Any>",
-                                              required=False,
-                                              label=label)
+                                               # initial=qset,
+                                               # order_by('name'),
+                                               empty_label="<Any>",
+                                               required=False,
+                                               label=label)
         elif widget is 'textbox':
             qset = field.related.parent_model.objects.all()
             try:
@@ -311,7 +311,6 @@ def editFormFields(mymodel, field, enumerableFields):
         pass # still need to cross this bridge
     else:
         widget = specialWidget(mymodel, field, enumerableFields)
-        print(field, widget)
         try:
             name = field.verbose_name
         except AttributeError:
