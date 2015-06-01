@@ -43,6 +43,7 @@ urlpatterns = patterns(
     url(r'^group/(?P<groupModuleName>[^/]+)/(?P<groupModelName>[^/]+)/(?P<expert>[^/]+)$', 'createCollection',
         name='xgds_data_createCollection'),
     url(r'^editCollection/(?P<rid>[^/]+)$', views.editCollection, name='xgds_data_editCollection'),
+    url(r'^collectionContents/(?P<rid>[^/]+)$', views.getCollectionContents, name='xgds_data_getCollectionContents'),
 
 
     url(r'^search/plot/(?P<searchModuleName>[^/]+)/(?P<searchModelName>[^/]+)/$', 'plotQueryResults',
@@ -56,9 +57,7 @@ urlpatterns = patterns(
     url(r'^display/(?P<displayModuleName>[^/]+)/(?P<displayModelName>[^/]+)/(?P<rid>[^/]*)$', 'displayRecord', name='xgds_data_displayRecord'),
     url(r'^display/(?P<displayModuleName>[^/]+)/(?P<displayModelName>[^/]+)/(?P<rid>[^/]*)/(?P<force>[^/]*)$', 'displayRecord', name='xgds_data_displayRecord'),
 
-    url(r'^similar/(?P<searchModuleName>[^/]+)/(?P<searchModelName>[^/]+)/$', 'searchSimilar',
-        name='xgds_data_searchSimilar'),
-    url(r'^similar/(?P<searchModuleName>[^/]+)/(?P<searchModelName>[^/]+)/(?P<pkid>\d+)$', 'searchSimilar',
+    url(r'^similar/(?P<searchModuleName>[^/]+)/(?P<searchModelName>[^/]+)/(?P<pkid>[^/]+)$', 'searchSimilar',
         name='xgds_data_searchSimilar'),
 
     url(r'^replayRequest/(?P<rid>\d+)$', 'replayRequest', name='xgds_data_replayRequest'),

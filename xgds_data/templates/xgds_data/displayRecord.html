@@ -10,18 +10,18 @@
 {% if allowSimiliar %}
   <TR>
   {% if editable %}
-    <TD><a href="{% url 'xgds_data_editRecord' module model record.id %}">Edit</a>
-        <span style="float:right;"><a href="{% url 'xgds_data_deleteRecord' module model record.id %}">Delete</a>&nbsp;&nbsp;&nbsp;</span>
+    <TD><a href="{% url 'xgds_data_editRecord' module model record|pkValue %}">Edit</a>
+        <span style="float:right;"><a href="{% url 'xgds_data_deleteRecord' module model record|pkValue %}">Delete</a>&nbsp;&nbsp;&nbsp;</span>
    </TD>
   {% else %}
     <TD></TD>
   {% endif %}
-   <TD><a href="{% url 'xgds_data_searchSimilar' module model record.id %}">Similar Records</A></TD>
+   <TD><a href="{% url 'xgds_data_searchSimilar' module model record|pkValue %}">Similar Records</A></TD>
   </TR>
 {% elif editable %}
   <TR>
-    <TD><a href="{% url 'xgds_data_editRecord' module model record.id %}">Edit</a></TD>
-    <TD><a href="{% url 'xgds_data_deleteRecord' module model record.id %}">Delete</a></TD>
+    <TD><a href="{% url 'xgds_data_editRecord' module model record|pkValue %}">Edit</a></TD>
+    <TD><a href="{% url 'xgds_data_deleteRecord' module model record|pkValue %}">Delete</a></TD>
   </TR>
 {% endif %}
 

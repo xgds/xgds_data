@@ -940,14 +940,14 @@ def getRelated(modelField):
             for x in modelField.rel.to.objects.all() ])
 
 
-def jsonifier(obj):
+def jsonifier(obj,level=2):
     try:
         return calendar.timegm(obj.timetuple()) * 1000
     except AttributeError:
         pass
 
     try:
-        ret =[ jsonifier(f) for f in obj.forms ]
+        ret =[ jsonifier(f,level=level-1) for f in obj.forms ]
         #for k in dir(obj):
         #    print(k,getattr(obj,k))
         #print(obj)
@@ -959,13 +959,13 @@ def jsonifier(obj):
         #ret = jsonifier(obj.fields)
         #for k in ['add_error', 'add_initial_prefix', 'add_prefix', 'as_expert_table', 'as_p', 'as_table', 'as_ul', 'auto_id', 'base_fields', 'changed_data', 'clean', 'data', u'declared_fields', 'empty_permitted', 'error_class', 'errors', 'fields', 'files', 'full_clean', 'has_changed', 'hidden_fields', 'initial', 'is_bound', 'is_multipart', 'is_valid', 'label_suffix', 'media', 'model', 'modelVerboseName', 'non_field_errors', 'prefix', 'visible_fields']:
          #   print(k,getattr(obj,k))
-        return (obj.prefix,dict([('errors', jsonifier(obj.errors)), 
-                                 ('fields', jsonifier(obj.fields))]))
+        return (obj.prefix,dict([('errors', jsonifier(obj.errors,level=level-1)), 
+                                 ('fields', jsonifier(obj.fields,level=level-1))]))
     except AttributeError:
         pass
 
     try:
-        return dict([(str(k), jsonifier(v)) for k,v in obj.items()])
+        return dict([(str(k), jsonifier(v,level=level-1)) for k,v in obj.items()])
     except AttributeError:
         pass
 
@@ -983,7 +983,7 @@ def jsonifier(obj):
                   # "valid_value",   # instancemethod
         ]:
             stuff[k] = getattr(obj,k)
-            # stuff['choices'] = jsonifier(list(getattr(obj,'choices')))
+            # stuff['choices'] = jsonifier(list(getattr(obj,'choices')),level=level-1)
         return stuff
     except AttributeError:
         pass
@@ -992,10 +992,11 @@ def jsonifier(obj):
         return obj
 
     # can go too deep
-    # try:
-    #     return dict([(f.name,jsonifier(getattr(obj,f.name))) for f in modelFields(obj) if not maskField(f)])
-    # except AttributeError:
-    #     pass
+    if (level > 0):
+        try:
+            return dict([(f.name,jsonifier(getattr(obj,f.name),level=level-1)) for f in modelFields(obj) if not maskField(f)])
+        except AttributeError:
+            pass
 
     try:
         return obj.name
@@ -1195,7 +1196,6 @@ def createCollection(request, groupModuleName, groupModelName, expert=False):
             coll.contents.add(*links)
         coll.save()
 
-        coll.get_edit_url()
         try:
             ## try any specialized edit first
             return HttpResponseRedirect(coll.get_edit_url())
@@ -1207,6 +1207,28 @@ def createCollection(request, groupModuleName, groupModelName, expert=False):
                            'Group Selected',
                            actionRenderFn,
                            expert=expert)
+
+
+def getCollectionContents(request, rid):
+    """
+    Stuff in a collection
+    """
+    reqlog = recordRequest(request)
+    record = Collection.objects.get(pk=rid)
+    stuff = record.resolvedContents()
+    retformat = request.REQUEST.get('format', 'html')
+    for x in modelFields(GenericLink):
+        if x.name == 'link':
+            field = x
+    if retformat == 'json':
+        renderfn = log_and_json
+    else:
+        renderfn = log_and_render
+    return renderfn(request, reqlog, 'xgds_data/collectionContents.html',
+                              {'title': 'Contents of ' + str(record),
+                               'field': field,
+                               'contents' : stuff,
+                               })
 
 #if logEnabled():
 def replayRequest(request, rid):
