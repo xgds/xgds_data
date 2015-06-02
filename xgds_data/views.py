@@ -991,10 +991,9 @@ def jsonifier(obj,level=2):
     if isinstance(obj,(ErrorDict,ErrorList)):
         return obj
 
-    # can go too deep
     if (level > 0):
         try:
-            return dict([(f.name,jsonifier(getattr(obj,f.name),level=level-1)) for f in modelFields(obj) if not maskField(f)])
+            return dict([(f.name,jsonifier(safegetattr(obj,f.name),level=level-1)) for f in modelFields(obj) if not maskField(f)])
         except AttributeError:
             pass
 
@@ -1010,8 +1009,10 @@ def jsonifier(obj,level=2):
 
     if isinstance(obj, (Model,unicode, str)):
         return str(obj)
+    elif obj is None or isinstance(obj, (bool, int, long, float)):
+        return obj
     else:
-        return 'some kind of {0}'.format(str(obj.__class__))
+        return '{0}: {1}'.format(str(obj.__class__),str(obj))
         # return dir(obj)
 
 
