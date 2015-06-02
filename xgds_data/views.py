@@ -648,7 +648,7 @@ def log_and_json(request, reqlog, template, templateargs, nolog = None, listing 
     experimenting with JSON
     """
     keysMustBeAString(templateargs)
-    return HttpResponse(json.dumps(templateargs, default=jsonifier), content_type='application/json')
+    return HttpResponse(json.dumps(templateargs, default=jsonify), content_type='application/json')
 
 
 def searchChosenModelCore(request, data, searchModuleName, searchModelName, expert=False, override=None, passthroughs=dict()):
@@ -947,7 +947,7 @@ def jsonifier(obj,level=2):
         pass
 
     try:
-        ret =[ jsonifier(f,level=level-1) for f in obj.forms ]
+        ret =[ jsonify(f,level=level-1) for f in obj.forms ]
         #for k in dir(obj):
         #    print(k,getattr(obj,k))
         #print(obj)
@@ -956,16 +956,16 @@ def jsonifier(obj,level=2):
         pass
 
     try:
-        #ret = jsonifier(obj.fields)
+        #ret = jsonify(obj.fields)
         #for k in ['add_error', 'add_initial_prefix', 'add_prefix', 'as_expert_table', 'as_p', 'as_table', 'as_ul', 'auto_id', 'base_fields', 'changed_data', 'clean', 'data', u'declared_fields', 'empty_permitted', 'error_class', 'errors', 'fields', 'files', 'full_clean', 'has_changed', 'hidden_fields', 'initial', 'is_bound', 'is_multipart', 'is_valid', 'label_suffix', 'media', 'model', 'modelVerboseName', 'non_field_errors', 'prefix', 'visible_fields']:
          #   print(k,getattr(obj,k))
-        return (obj.prefix,dict([('errors', jsonifier(obj.errors,level=level-1)), 
-                                 ('fields', jsonifier(obj.fields,level=level-1))]))
+        return (obj.prefix,dict([('errors', jsonify(obj.errors,level=level-1)), 
+                                 ('fields', jsonify(obj.fields,level=level-1))]))
     except AttributeError:
         pass
 
     try:
-        return dict([(str(k), jsonifier(v,level=level-1)) for k,v in obj.items()])
+        return dict([(str(k), jsonify(v,level=level-1)) for k,v in obj.items()])
     except AttributeError:
         pass
 
@@ -983,7 +983,7 @@ def jsonifier(obj,level=2):
                   # "valid_value",   # instancemethod
         ]:
             stuff[k] = getattr(obj,k)
-            # stuff['choices'] = jsonifier(list(getattr(obj,'choices')),level=level-1)
+            # stuff['choices'] = jsonify(list(getattr(obj,'choices')),level=level-1)
         return stuff
     except AttributeError:
         pass
@@ -993,7 +993,7 @@ def jsonifier(obj,level=2):
 
     if (level > 0):
         try:
-            return dict([(f.name,jsonifier(safegetattr(obj,f.name),level=level-1)) for f in modelFields(obj) if not maskField(f)])
+            return dict([(f.name,jsonify(safegetattr(obj,f.name),level=level-1)) for f in modelFields(obj) if not maskField(f) or (f == pk(obj))])
         except AttributeError:
             pass
 
@@ -1014,6 +1014,10 @@ def jsonifier(obj,level=2):
     else:
         return '{0}: {1}'.format(str(obj.__class__),str(obj))
         # return dir(obj)
+
+
+def jsonify(obj,level=2):
+    return jsonifier(obj,level=level)
 
 
 def plotQueryResults(request, searchModuleName, searchModelName, start, end, soft=True):
@@ -1093,7 +1097,7 @@ def plotQueryResults(request, searchModuleName, searchModelName, start, end, sof
     return log_and_render(request, reqlog, template,
                           {'title': 'Plot ' + verbose_name(myModel),
                            'standalone': not GEOCAMUTIL_FOUND,
-                           'plotData': json.dumps(plotdata, default=jsonifier),
+                           'plotData': json.dumps(plotdata, default=jsonify),
                            'labels': pldata,
                            'timeFields': json.dumps(timeFields),
                            'module': searchModuleName,
