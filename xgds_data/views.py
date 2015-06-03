@@ -940,14 +940,14 @@ def getRelated(modelField):
             for x in modelField.rel.to.objects.all() ])
 
 
-def jsonifier(obj,level=2):
+def jsonifier(obj, level=2):
     try:
         return calendar.timegm(obj.timetuple()) * 1000
     except AttributeError:
         pass
 
     try:
-        ret =[ jsonify(f,level=level-1) for f in obj.forms ]
+        ret =[jsonify(f, level=level-1) for f in obj.forms]
         #for k in dir(obj):
         #    print(k,getattr(obj,k))
         #print(obj)
@@ -959,8 +959,8 @@ def jsonifier(obj,level=2):
         #ret = jsonify(obj.fields)
         #for k in ['add_error', 'add_initial_prefix', 'add_prefix', 'as_expert_table', 'as_p', 'as_table', 'as_ul', 'auto_id', 'base_fields', 'changed_data', 'clean', 'data', u'declared_fields', 'empty_permitted', 'error_class', 'errors', 'fields', 'files', 'full_clean', 'has_changed', 'hidden_fields', 'initial', 'is_bound', 'is_multipart', 'is_valid', 'label_suffix', 'media', 'model', 'modelVerboseName', 'non_field_errors', 'prefix', 'visible_fields']:
          #   print(k,getattr(obj,k))
-        return (obj.prefix,dict([('errors', jsonify(obj.errors,level=level-1)), 
-                                 ('fields', jsonify(obj.fields,level=level-1))]))
+        return (obj.prefix, dict([('errors', jsonify(obj.errors, level=level-1)),
+                                  ('fields', jsonify(obj.fields, level=level-1))]))
     except AttributeError:
         pass
 
@@ -975,11 +975,11 @@ def jsonifier(obj,level=2):
                   # "choices",     # ModelChoiceIterator
                   # "empty_values",   # maybe not interesting
                   # "error_messages",   # dict
-                  "help_text",   
-                  "initial",   
-                  "label",   
-                  "required",   
-                  "show_hidden_initial",   
+                  "help_text",
+                  "initial",
+                  "label",
+                  "required",
+                  "show_hidden_initial",
                   # "valid_value",   # instancemethod
         ]:
             stuff[k] = getattr(obj,k)
@@ -1016,8 +1016,8 @@ def jsonifier(obj,level=2):
         # return dir(obj)
 
 
-def jsonify(obj,level=2):
-    return jsonifier(obj,level=level)
+def jsonify(obj, level=2):
+    return jsonifier(obj, level=level)
 
 
 def plotQueryResults(request, searchModuleName, searchModelName, start, end, soft=True):

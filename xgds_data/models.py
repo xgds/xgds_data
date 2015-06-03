@@ -71,6 +71,7 @@ class Collection(models.Model):
     def resolvedContents(self):
         return [x.link for x in self.contents.all() if x.link is not None]
 
+
 class VirtualIncludedField(models.Field):
     description = "Including fields from a linked object as if they were your own"
 
