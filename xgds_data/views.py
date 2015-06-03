@@ -1178,7 +1178,6 @@ def editCollection(request, rid):
                            })
 
 
-
 def createCollection(request, groupModuleName, groupModelName, expert=False):
     """
     create a collection of data
