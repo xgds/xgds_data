@@ -136,7 +136,6 @@ if logEnabled():
         referer = models.CharField(max_length=256, null=True, blank=True)
         user_agent = models.CharField(max_length=256, null=True, blank=True)
 
-
         def get_absolute_url(self):
             return reverse('xgds_data_replayRequest', args=[self.id])
 
@@ -197,7 +196,7 @@ if logEnabled():
                 return cls(timestampSeconds=datetime.utcnow(), request=request)
             else:
                 return cls(timestampSeconds=datetime.utcnow(), request=request, template=template)
-        
+
         def __unicode__(self):
             return 'Response %s:%s' % (self.id, self.template)
 
