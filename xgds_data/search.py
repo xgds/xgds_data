@@ -29,10 +29,11 @@ from django.db.models.fields import PositiveIntegerField, PositiveSmallIntegerFi
 from django.contrib.contenttypes.generic import GenericForeignKey
 from django.db.models import Min, Max, Count
 from django.conf import settings
+from django.core.exceptions import ObjectDoesNotExist
 
 from xgds_data.introspection import (modelFields, resolveField, maskField,
                                      isAbstract, concreteDescendents, 
-                                     pk, db_table, isgeneric, fullid,
+                                     pk, pkValue, db_table, isgeneric, fullid,
                                      resolveModel, fieldModel, parentField)
 from xgds_data.models import cacheStatistics, VirtualIncludedField
 if cacheStatistics():
@@ -671,9 +672,6 @@ def pageLimits(page, pageSize):
 #     return getMatches(myModel, formset, soft, countOnly=True)
 
 
-## formerly getResults
-## removed minCount
-## removed countOnly
 def getMatches(myModel, qdatas, soft, queryStart=0, queryEnd=None, threshold=None):
     """
     Get the query results
@@ -770,13 +768,18 @@ def getMatches(myModel, qdatas, soft, queryStart=0, queryEnd=None, threshold=Non
                 maxsum = myweight
                 valid = True
                 for gfield, gresults in gmatches.iteritems():
-                    gid = getattr(x, gfield.throughfield_name).pk
-                    gweight = gweights[gfield]
-                    gscore = gresults.get(gid)
-                    if gscore is not None:
-                        mysum = mysum + gweight * gscore
-                        maxsum = maxsum + gweight
-                    else:
+                    try:
+                        gid = getattr(x, gfield.throughfield_name, None).pk
+                        gweight = gweights[gfield]
+                        gscore = gresults.get(gid)
+                        if gscore is not None:
+                            mysum = mysum + gweight * gscore
+                            maxsum = maxsum + gweight
+                        else:
+                            valid = False
+                    except AttributeError:
+                        valid = False
+                    except ObjectDoesNotExist: # dirty data!
                         valid = False
                 if not valid:
                     rescore[x] = 0

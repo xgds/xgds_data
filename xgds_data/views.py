@@ -285,7 +285,7 @@ def searchSimilar(request, searchModuleName, searchModelName, pkid):
     """
     Launch point for finding more items like this one
     """
-    reqlog = recordRequest(request)
+    ##reqlog = recordRequest(request)
     modelmodule = get_app(searchModuleName)
     myModel = getattr(modelmodule, searchModelName)
     myFields = modelFields(myModel)
@@ -490,9 +490,14 @@ def displayRecord(request, displayModuleName, displayModelName, rid, force=False
     record = myModel.objects.get(pk=rid)
     retformat = request.REQUEST.get('format', 'html')
     try:
-        editable = settings.XGDS_DATA_EDITING
+        if settings.XGDS_DATA_EDITING:
+            try: ## try any specialized edit first
+                editURL = record.get_edit_url()
+            except AttributeError:
+                editURL = reverse('xgds_data_editRecord',
+                                  args=[displayModuleName, displayModelName, pkValue(record)])
     except AttributeError:
-        editable = False
+        editURL = None
     numeric = False
     for f in modelFields(myModel):
         if ordinalField(myModel, f) and not isinstance(f, DateTimeField):
@@ -515,7 +520,7 @@ def displayRecord(request, displayModuleName, displayModelName, rid, force=False
                                'module': displayModuleName,
                                'model': displayModelName,
                                'verbose_model': verbose_name(myModel),
-                               'editable': editable,
+                               'editURL': editURL,
                                'allowSimiliar': numeric,
                                'displayFields': myFields,
                                'record' : record,
@@ -676,6 +681,7 @@ def searchChosenModelCore(request, data, searchModuleName, searchModelName, expe
         if intvEnd:
             initialData[primaryTimeField + '_hi'] = getTimePickerString(intvEnd)
         autoSubmit = 1 if bool(initialData) else 0
+
 
     tmpFormClass = SpecializedForm(SearchForm, myModel)
     tmpFormSet = formset_factory(tmpFormClass, extra=0)
@@ -872,6 +878,7 @@ def searchChosenModelCore(request, data, searchModuleName, searchModelName, expe
         template = resolveSetting('XGDS_DATA_SEARCH_TEMPLATES', myModel, 'xgds_data/searchChosenModel.html', override=override)
         checkable = resolveSetting('XGDS_DATA_CHECKABLE', myModel, False, override=override)
         timeformat = resolveSetting('XGDS_DATA_TIME_FORMAT', myModel, 'hh:mm tt z', override=override)
+
         if results is None:
             resultfullids = dict()
         else:
@@ -885,6 +892,7 @@ def searchChosenModelCore(request, data, searchModuleName, searchModelName, expe
         vname =  verbose_name(myModel)
 
         templateargs = {'title': 'Search ' + vname,
+                        'reqid': pkValue(reqlog),
                         'resultfullids' : resultfullids,
                         'module': searchModuleName,
                         'model': searchModelName,
@@ -917,7 +925,7 @@ def searchChosenModelCore(request, data, searchModuleName, searchModelName, expe
             renderfn = log_and_render
         return renderfn(request, reqlog, template,
                         templateargs,
-                        nolog=['formset', 'axesform', 'results', 'resultsids', 'scores'],
+                        nolog=['reqid', 'formset', 'axesform', 'results', 'resultsids', 'scores'],
                         listing=results)
 
 
@@ -940,14 +948,14 @@ def getRelated(modelField):
             for x in modelField.rel.to.objects.all() ])
 
 
-def jsonifier(obj, level=2):
+def jsonifier(obj,level=2):
     try:
         return calendar.timegm(obj.timetuple()) * 1000
     except AttributeError:
         pass
 
     try:
-        ret =[jsonify(f, level=level-1) for f in obj.forms]
+        ret =[ jsonify(f,level=level-1) for f in obj.forms ]
         #for k in dir(obj):
         #    print(k,getattr(obj,k))
         #print(obj)
@@ -959,8 +967,8 @@ def jsonifier(obj, level=2):
         #ret = jsonify(obj.fields)
         #for k in ['add_error', 'add_initial_prefix', 'add_prefix', 'as_expert_table', 'as_p', 'as_table', 'as_ul', 'auto_id', 'base_fields', 'changed_data', 'clean', 'data', u'declared_fields', 'empty_permitted', 'error_class', 'errors', 'fields', 'files', 'full_clean', 'has_changed', 'hidden_fields', 'initial', 'is_bound', 'is_multipart', 'is_valid', 'label_suffix', 'media', 'model', 'modelVerboseName', 'non_field_errors', 'prefix', 'visible_fields']:
          #   print(k,getattr(obj,k))
-        return (obj.prefix, dict([('errors', jsonify(obj.errors, level=level-1)),
-                                  ('fields', jsonify(obj.fields, level=level-1))]))
+        return (obj.prefix,dict([('errors', jsonify(obj.errors,level=level-1)), 
+                                 ('fields', jsonify(obj.fields,level=level-1))]))
     except AttributeError:
         pass
 
@@ -975,11 +983,11 @@ def jsonifier(obj, level=2):
                   # "choices",     # ModelChoiceIterator
                   # "empty_values",   # maybe not interesting
                   # "error_messages",   # dict
-                  "help_text",
-                  "initial",
-                  "label",
-                  "required",
-                  "show_hidden_initial",
+                  "help_text",   
+                  "initial",   
+                  "label",   
+                  "required",   
+                  "show_hidden_initial",   
                   # "valid_value",   # instancemethod
         ]:
             stuff[k] = getattr(obj,k)
@@ -1016,8 +1024,8 @@ def jsonifier(obj, level=2):
         # return dir(obj)
 
 
-def jsonify(obj, level=2):
-    return jsonifier(obj, level=level)
+def jsonify(obj,level=2):
+    return jsonifier(obj,level=level)
 
 
 def plotQueryResults(request, searchModuleName, searchModelName, start, end, soft=True):
@@ -1181,6 +1189,7 @@ def editCollection(request, rid):
                            'record' : record,
                            'form' : editForm,
                            })
+
 
 
 def createCollection(request, groupModuleName, groupModelName, expert=False):

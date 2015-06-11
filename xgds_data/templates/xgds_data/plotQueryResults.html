@@ -152,7 +152,6 @@ function cgiArgs(alist) {
 	    if (item) {
 	        var args = data[parseInt(seriesToIndex[item.series.label][item.dataIndex])];
             self.location = "{% url 'xgds_data_displayRecord' module model '' %}"+args["{{ pk }}"];
-	      // self.location = "{% url 'xgds_data_searchSimilar' module model %}"+args["{{ pk }}"];
 	    }
 	});
 

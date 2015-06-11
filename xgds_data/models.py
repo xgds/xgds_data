@@ -43,7 +43,6 @@ def truncate(val, limit):
     else:
         return val[0:(limit - 2)]  # save an extra space because the db seems to want that
 
-
 class GenericLink(models.Model):
     linkType = models.ForeignKey(ContentType, null=True, blank=True)
     linkId = models.PositiveIntegerField(null=True, blank=True)
@@ -56,8 +55,10 @@ class GenericLink(models.Model):
                              xgds_data.introspection.pkValue(self.link)])
 
     def __unicode__(self):
-        return self.link.__unicode__()
-
+        try:
+            return self.link.__unicode__()
+        except AttributeError:
+            return ""
 
 class Collection(models.Model):
     name = models.CharField(max_length=64)
@@ -70,7 +71,6 @@ class Collection(models.Model):
 
     def resolvedContents(self):
         return [x.link for x in self.contents.all() if x.link is not None]
-
 
 class VirtualIncludedField(models.Field):
     description = "Including fields from a linked object as if they were your own"
@@ -133,6 +133,7 @@ if logEnabled():
         referer = models.CharField(max_length=256, null=True, blank=True)
         user_agent = models.CharField(max_length=256, null=True, blank=True)
 
+
         def get_absolute_url(self):
             return reverse('xgds_data_replayRequest', args=[self.id])
 
@@ -177,7 +178,7 @@ if logEnabled():
                 return cls(timestampSeconds=datetime.utcnow(), request=request)
             else:
                 return cls(timestampSeconds=datetime.utcnow(), request=request, template=template)
-
+        
         def __unicode__(self):
             return 'Response %s:%s' % (self.id, self.template)
 

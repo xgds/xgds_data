@@ -22,6 +22,7 @@ from django.contrib.auth.models import User
 from django.utils.safestring import mark_safe
 from django.core.urlresolvers import reverse
 from django.core.exceptions import ObjectDoesNotExist
+from django.db import OperationalError
 from django.contrib.contenttypes import generic
 try:
     from django.utils.html import format_html
@@ -75,7 +76,7 @@ def getattribute(value, arg):
     elif isinstance(arg, models.Field):
         try:
             v = getattr(value, arg.name)
-        except ObjectDoesNotExist as expt:
+        except (ObjectDoesNotExist, OperationalError) as expt:
             # can happen with an inconsistent database, as in plrp
             print(value,arg.name)
             print(expt)
