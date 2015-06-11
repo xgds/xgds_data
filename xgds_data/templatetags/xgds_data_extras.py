@@ -17,15 +17,15 @@
 import re
 from django import template
 from django.conf import settings
-from django.db import models
+from django.db import models, DatabaseError, IntegrityError
 from django.contrib.auth.models import User
 from django.utils.safestring import mark_safe
 from django.core.urlresolvers import reverse
 from django.core.exceptions import ObjectDoesNotExist
-from django.db import OperationalError
 from django.contrib.contenttypes import generic
 try:
     from django.utils.html import format_html
+    from django.db import OperationalError
 except ImportError:
     pass
 
@@ -76,7 +76,7 @@ def getattribute(value, arg):
     elif isinstance(arg, models.Field):
         try:
             v = getattr(value, arg.name)
-        except (ObjectDoesNotExist, OperationalError) as expt:
+        except (ObjectDoesNotExist, OperationalError, DatabaseError, IntegrityError) as expt:
             # can happen with an inconsistent database, as in plrp
             print(value,arg.name)
             print(expt)

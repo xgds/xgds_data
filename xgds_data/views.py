@@ -556,7 +556,6 @@ def selectForAction(request, moduleName, modelName, targetURLName,
                 except ValueError:
                     pass
             objs = searchHandoff(request, moduleName, modelName, resultsIdentity)
-            print('a',len(objs))
             if (len(notpicks) > 0):
                 objs = objs.exclude(pk__in=[x.pk for x in retrieve(notpicks)])
             ## print(retrieve(notpicks))
@@ -890,9 +889,13 @@ def searchChosenModelCore(request, data, searchModuleName, searchModelName, expe
                 pass # probably got list-ified
 
         vname =  verbose_name(myModel)
+        try:
+            reqid = pkValue(reqlog)
+        except  AttributeError:
+            reqid = None
 
         templateargs = {'title': 'Search ' + vname,
-                        'reqid': pkValue(reqlog),
+                        'reqid': reqid,
                         'resultfullids' : resultfullids,
                         'module': searchModuleName,
                         'model': searchModelName,
@@ -1246,23 +1249,8 @@ def getCollectionContents(request, rid):
 #if logEnabled():
 def replayRequest(request, rid):
     reqlog = RequestLog.objects.get(id=rid)
-    reqargs = RequestArgument.objects.filter(request=reqlog)
+    rerequest = reqlog.recreateRequest(request)
     view, args, kwargs = resolve(reqlog.path)
-    onedict = {}
-    multidict = QueryDict('', mutable=True)
-    for arg in reqargs:
-        onedict[arg.name] = arg.value
-        multidict.appendlist(arg.name, arg.value)
-    if ('format' in request.REQUEST):
-        argname = unicode('format')
-        argvalue = request.REQUEST.get('format')
-        onedict[argname] = argvalue
-        multidict.appendlist(argname, argvalue)
-    redata = MergeDict(multidict, onedict)
-    rerequest = HttpRequestReplay(request, reqlog.path, redata)
     kwargs['request'] = rerequest
-
-    print(request.REQUEST)
-    print(redata)
 
     return view(*args, **kwargs)

@@ -123,6 +123,9 @@ def get_client_ip(request):
     return ip
 
 if logEnabled():
+    from django.http import QueryDict
+    from django.utils.datastructures import MergeDict
+
     class RequestLog(models.Model):
         timestampSeconds = models.DateTimeField(verbose_name="Time", blank=False)
         path = models.CharField(max_length=256, blank=False)
@@ -136,6 +139,22 @@ if logEnabled():
 
         def get_absolute_url(self):
             return reverse('xgds_data_replayRequest', args=[self.id])
+
+        def recreateRequest(self, request):
+            reqargs = RequestArgument.objects.filter(request=self)
+            onedict = {}
+            multidict = QueryDict('', mutable=True)
+            for arg in reqargs:
+                onedict[arg.name] = arg.value
+                multidict.appendlist(arg.name, arg.value)
+            if ('format' in request.REQUEST):
+                argname = unicode('format')
+                argvalue = request.REQUEST.get('format')
+                onedict[argname] = argvalue
+                multidict.appendlist(argname, argvalue)
+            redata = MergeDict(multidict, onedict)
+
+            return HttpRequestReplay(request, self.path, redata)
 
         @classmethod
         def create(cls, request):
