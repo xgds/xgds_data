@@ -42,6 +42,7 @@ class specialModelChoiceField(forms.ModelChoiceField):
     def label_from_instance(self, obj):
         return label(obj)
 
+
 def estimateFieldCount(field, itemCount, maxItemCount, maxFieldCount):
     """
     How many values occur for this field?
@@ -54,10 +55,10 @@ def estimateFieldCount(field, itemCount, maxItemCount, maxFieldCount):
             estCount = itemCount
         elif (itemCount < maxFieldCount):
             estCount = field.model.objects.values(field.name).order_by().distinct().count()
-    
+
     return estCount
 
-                            
+
 def specialWidget(mymodel, field, enumerableFields):
     """
     Determines the appropriate widget display if several could be applicable; otherwise returns None
@@ -90,7 +91,7 @@ def operatorFormField(mymodel, field, widget):
     categoricalOperators = (('=', '='),
                             ('!=', '!='))
     textOperators = (('=', '='),
-                       ('!=', '!='))
+                     ('!=', '!='))
     if widget is 'pulldown':
         return forms.ChoiceField(choices=categoricalOperators,
                                  initial=categoricalOperators[0][0],
@@ -139,14 +140,14 @@ def valueFormField(mymodel, field, widget, allowMultiple=True, label=None):
     elif isinstance(field, (models.ForeignKey,models.ManyToManyField,models.OneToOneField)):
         if widget is 'pulldown':
             # can't use as queryset arg because it needs a queryset, not a list
-            #foreigners = sorted(field.related.parent_model.objects.all(), key=lambda x: unicode(x))
+            # foreigners = sorted(field.related.parent_model.objects.all(), key=lambda x: unicode(x))
             qset = field.related.parent_model.objects.all()
             if (field.related.parent_model == User):
                 qset = qset.order_by('last_name')
             if isinstance(field, models.ManyToManyField) and allowMultiple:
                 return forms.ModelMultipleChoiceField(queryset=qset,
                                                       required=False,
-                                                      label=label) 
+                                                      label=label)
             else:
                 return specialModelChoiceField(queryset=qset,
                                                # initial=qset,
@@ -181,19 +182,19 @@ def searchFormFields(mymodel, field, enumerableFields):
     elif isinstance(field, VirtualIncludedField):
         tmfs = field.targetFields()
         if len(tmfs):
-            ## need to assume all are the same, so just use the first one
+            #  need to assume all are the same, so just use the first one
             formfields.update(searchFormFields(tmfs[0].model, tmfs[0], enumerableFields))
     else:
         widget = specialWidget(mymodel, field, enumerableFields)
         opField = operatorFormField(mymodel, field, widget)
         if opField is None:
-            ## This must be class that we have missed of haven't gotten around to supporting/ignoring
+            #  This must be class that we have missed of haven't gotten around to supporting/ignoring
             longname = '.'.join([field.__class__.__module__,
                                  field.__class__.__name__])
             print("SearchForm forms doesn't deal with %s yet" % longname)
         else:
             formfields[field.name + '_operator'] = opField
-            if ordinalField(mymodel, field):         
+            if ordinalField(mymodel, field):
                 formfields[field.name + '_lo'] = valueFormField(mymodel, field, widget)
                 formfields[field.name + '_hi'] = valueFormField(mymodel, field, widget)
             else:
