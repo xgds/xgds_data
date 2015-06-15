@@ -779,6 +779,11 @@ def searchChosenModelCore(request, data, searchModuleName, searchModelName, expe
                                                             queryStart, queryEnd)
             if hardCount is None:
                 hardCount = totalCount
+            pfs = [ f.name for f in modelFields(myModel) if isinstance(f,related.RelatedField) and not maskField(f) ]
+            try:
+                results = results.prefetch_related(*pfs)
+            except AttributeError:
+                pass # probably got list-ified
 
             more = queryStart + len(results) < totalCount
         else:
@@ -813,7 +818,7 @@ def searchChosenModelCore(request, data, searchModuleName, searchModelName, expe
             response = HttpResponse(content, content_type=content_type)
             response['Content-Disposition'] = 'attachment; filename='+ verbose_name(myModel) + extension
         except ImportError:
-            response = HttpResponse(content_type='text/csv')
+            response = HttpResponse(content_type=content_type)
             # if you want to download instead of display in browser
             response['Content-Disposition'] = 'attachment; filename='+ verbose_name(myModel) + '.csv'
             writer = csv.writer(response)
@@ -882,11 +887,11 @@ def searchChosenModelCore(request, data, searchModuleName, searchModelName, expe
             resultfullids = dict()
         else:
             resultfullids = dict([ (r, fullid(r)) for r in results ])
-            pfs = [ f.name for f in modelFields(myModel) if isinstance(f,related.RelatedField) and not maskField(f) ]
-            try:
-                results = results.prefetch_related(*pfs)
-            except AttributeError:
-                pass # probably got list-ified
+#            pfs = [ f.name for f in modelFields(myModel) if isinstance(f,related.RelatedField) and not maskField(f) ]
+#            try:
+#                results = results.prefetch_related(*pfs)
+#            except AttributeError:
+#                pass # probably got list-ified
 
         vname =  verbose_name(myModel)
         try:

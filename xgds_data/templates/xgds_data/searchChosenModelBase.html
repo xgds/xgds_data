@@ -24,12 +24,14 @@
 {% block scripts %}
   {{ block.super }}
 {% if standalone %}
-  <script language="javascript" type="text/javascript" src="{{ STATIC_URL }}/external/js/jquery/jquery-ui.min.js"></script>
-  <script language="javascript" type="text/javascript" src="{{ STATIC_URL }}external/js/jquery/jquery-ui-timepicker-addon.js"></script>
   <script language="javascript" type="text/javascript"
-	  src="{{ STATIC_URL }}external/js/DataTables-1.9.4/jquery.dataTables.min.js"></script>
+  	src="{{ STATIC_URL }}/external/js/jquery/jquery-ui.min.js"></script>
   <script language="javascript" type="text/javascript"
-	  src="{{ STATIC_URL }}external/js/DataTables-1.9.4/FixedColumns.min.js"></script>
+  	src="{{ STATIC_URL }}external/js/jquery/jquery-ui-timepicker-addon.js"></script>
+  <script language="javascript" type="text/javascript"
+	  src="{{ STATIC_URL }}external/js/DataTables/jquery.dataTables.min.js"></script>
+  <script language="javascript" type="text/javascript"
+	  src="{{ STATIC_URL }}external/js/DataTables/dataTables.fixedColumns.min.js"></script>
 {% else %}
   <script language="javascript" type="text/javascript" src="{{ EXTERNAL_URL }}jquery-ui/jquery-ui.min.js"></script>
   <script language="javascript" type="text/javascript" src="{{ EXTERNAL_URL }}jQuery-Timepicker-Addon/dist/jquery-ui-timepicker-addon.min.js"></script>
@@ -161,7 +163,7 @@ var submitExpertURL="{% url 'xgds_data_searchChosenModel' module model 'expert' 
     			{ "bSortable": false, "bFilter": false, "aTargets": [ 0 ] }
     		]
     	};
-	oTable = $('#tableresults').dataTable(options);
+	oTable = $('#tableresults').DataTable(options);
 	{% if checkable %}
 	{% if standalone %}
 	{% else %}
@@ -169,7 +171,8 @@ var submitExpertURL="{% url 'xgds_data_searchChosenModel' module model 'expert' 
 	{% endif %}
 	{% else %}
 	{% if standalone %}
-	new FixedColumns( oTable, { "iLeftColumns": 1 } );
+	// new FixedColumns( oTable, { "iLeftColumns": 1 } );
+	new $.fn.dataTable.FixedColumns( oTable, { leftColumns: 1 } );
 	{% else %}
 	new $.fn.dataTable.FixedColumns( oTable, { leftColumns: 1 } );
 	{% endif %}

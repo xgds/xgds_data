@@ -53,7 +53,7 @@ def getattribute(value, arg):
     
     try:
         return value[arg]
-    except (TypeError, AttributeError):
+    except (TypeError, AttributeError, KeyError):
         pass
 
     if integer_test.match(str(arg)) and len(value) > int(arg):
