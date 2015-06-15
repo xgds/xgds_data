@@ -17,6 +17,6 @@
 <h2>{{ title }}</h2>
 You may {{ action }} any of the following:
 {% for name in ordered_names %}
-  <div class="navLink"><a href="{% url urlName module models|getattribute:name|getattribute:'__name__' %}">{{ name }}</a></div>
+  <div class="navLink"><a href="{% url urlName models|getattribute:name|moduleName models|getattribute:name|modelName %}">{{ name }}</a></div>
 {% endfor %}
 {% endblock %}

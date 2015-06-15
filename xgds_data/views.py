@@ -220,7 +220,6 @@ def chooseModel(request, moduleName, title, action, urlName):
 
     return render(request, 'xgds_data/chooseModel.html',
                   {'title': title,
-                   'module': moduleName,
                    'models': models,
                    'ordered_names': ordered_names,
                    'action': action,
