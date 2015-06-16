@@ -106,12 +106,14 @@ def genericArguments(model, qdatas, soft=True):
             mf = mfields.get(fieldname)
             if (mf is not None) and isgeneric(mf) and (fieldval is not None):
                 for tm in mf.throughModels():
-                    if mf not in fdict:
-                        fdict[mf] = set()
-                    fdict[mf].add(tm)
+                    if tm not in fdict:
+                        fdict[tm] = set()
+                    fdict[tm].add(mf)
     return(fdict)
 
 
+## TODO: does not appear to do anything with hard VirtualIncludedField
+## constraints, maybe as they show up as generic
 def makeFilters(model, qdatas, soft=True):
     """
     Helper for getMatches; figures out restrictions given a query parameters
@@ -712,24 +714,16 @@ def getMatches(myModel, qdatas, soft, queryStart=0, queryEnd=None, threshold=Non
         deferFields = [x.name for x in modelFields(myModel) if maskField(x) and isinstance(x, Field) and x.name not in cantDefer]
 
         gargs = genericArguments(myModel, qdatas, soft)
-        gmatches = dict()
-        gweights = dict()
-        for gfield in gargs.keys():
-            for gmodel in gargs[gfield]:
-                gresults = dict()
-                for m in getMatches(gmodel, qdatas, soft, threshold=0)[0]:
-                    gresults[m.pk] = m.score
-                gmatches[gfield] = gresults
-                gweights[gfield] = totalweight(gmodel, qdatas)
-                #print(gmodel, soft, countOnly, len(gresults.keys()))
-        processGeneric = len(gmatches.keys()) > 0
-
-        hardCount = myModel.objects.filter(hardfilter).count()
+        processGeneric = len(gargs.keys()) > 0
+        if processGeneric:
+            hardCount = 0  # we need to do the full query to get the count
+        else:
+            hardCount = myModel.objects.filter(hardfilter).count()
 
         if (scorer or processGeneric) and threshold is None:
             threshold = sortThreshold()
 
-        if scorer and ((hardCount <= 100) or processGeneric):
+        if scorer and (processGeneric or (hardCount <= 100)):
             query = myModel.objects.filter(myfilter)
             query = query.defer(*deferFields)
 
@@ -742,9 +736,12 @@ def getMatches(myModel, qdatas, soft, queryStart=0, queryEnd=None, threshold=Non
             ## WARNING: This probably will fail on grandparents, etc.
             extramodels = [ ]
             for b in desiredRanges(qdatas).keys():
-                fmodel = fieldModel(resolveField(myModel, b))
-                if ((fmodel != myModel) and (fmodel not in extramodels)):
-                    extramodels.append(fmodel)
+                try:
+                    fmodel = fieldModel(resolveField(myModel, b))
+                    if ((fmodel != myModel) and (fmodel not in extramodels)):
+                        extramodels.append(fmodel)
+                except AttributeError:
+                    pass
 
             extratables = [db_table(m) for m in extramodels]
             extrawhere = [dbFieldRef(parentField(myModel,p))+" = "+dbFieldRef(pk(p)) for p in extramodels if parentField(myModel,p) is not None]
@@ -756,10 +753,40 @@ def getMatches(myModel, qdatas, soft, queryStart=0, queryEnd=None, threshold=Non
             totalCount = hardCount
             query = myModel.objects.filter(hardfilter)
             query = query.extra(select={'score': 1})
-
             
         if processGeneric:
-            hardCount = 0  # we need to do the full query to get the count
+            gweights = dict()
+            for gmodel, gfs in gargs.iteritems():
+                for gfield in gfs:
+                    # print(gfield,gfield.throughModels(),gfield.targetFields(),gfield.model,gfield.throughfield_name,gfield.name,gfield.verbose_name)
+                    gweights[gfield] = totalweight(gmodel, qdatas)
+
+            allthroughfields = set()
+            scales = dict()
+            hards = dict()
+            desiderata = desiredRanges(qdatas)
+            for gfs in gargs.values():
+                for gf in gfs:
+                    allthroughfields.add(gf.throughfield_name)
+                    gmodel = gf.throughModels()[0]
+                    gfield = gf.targetFields()[0]
+                    try:
+                        loend, hiend = desiderata[gfield.name]
+                        tsize = tableSize(gmodel)
+                        scales[gfield.name] = scaleEval(gmodel, gfield, loend, hiend, tsize, dbFieldRef(gfield))
+                    except KeyError:
+                        # hard constraint- lame hack
+                        for qd in qdatas:
+                            oper = qd[gfield.name+'_operator']
+                            try:
+                                loend = qd[gfield.name]
+                                hiend = qd[gfield.name]
+                            except KeyError:
+                                loend = qd[gfield.name+'_lo']
+                                hiend = qd[gfield.name+'_hi']
+                            hards[gf] = (oper, loend, hiend)
+            query = query.prefetch_related(*allthroughfields)
+
             myweight = totalweight(myModel, qdatas)
             rescore = dict()
             for x in query:
@@ -767,20 +794,42 @@ def getMatches(myModel, qdatas, soft, queryStart=0, queryEnd=None, threshold=Non
                 mysum = myweight * myscore
                 maxsum = myweight
                 valid = True
-                for gfield, gresults in gmatches.iteritems():
+                for tf in allthroughfields:
                     try:
-                        gid = getattr(x, gfield.throughfield_name, None).pk
-                        gweight = gweights[gfield]
-                        gscore = gresults.get(gid)
-                        if gscore is not None:
-                            mysum = mysum + gweight * gscore
-                            maxsum = maxsum + gweight
+                        instance = getattr(x,tf)
+                        if instance is not None:
+                            gscore = instanceScore(instance, desiderata, scales=scales)
+                            for gfs in gargs.values():
+                                for gfield in gfs:
+                                    if tf == gfield.throughfield_name:
+                                        try:
+                                            oper, loend, hiend = hards[gfield]
+                                            gv = getattr(instance,gfield.name)
+                                            if ((oper == 'IN') and
+                                                ((gv < loend) or (gv > hiend))):
+                                                valid = False
+                                            elif ((oper == 'NOT IN') and
+                                                  (gv >= loend) and (gv <= hiend)):
+                                                valid = False
+                                            elif ((oper == '=') and
+                                                  (gv != loend)):
+                                                valid = False
+                                            elif ((oper == '!=') and
+                                                  (gv != loend)):
+                                                valid = False
+                                        except KeyError:
+                                            pass
+                                        try:
+                                            gweight = gweights[gfield]
+                                            mysum = mysum + gweight * gscore
+                                            maxsum = maxsum + gweight
+                                        except AttributeError:
+                                            valid = False
                         else:
                             valid = False
-                    except AttributeError:
-                        valid = False
                     except ObjectDoesNotExist: # dirty data!
                         valid = False
+
                 if not valid:
                     rescore[x] = 0
                 elif mysum == maxsum:
@@ -798,6 +847,73 @@ def getMatches(myModel, qdatas, soft, queryStart=0, queryEnd=None, threshold=Non
             query = newquery
             #query = [x for x in query if getattr(x, 'score') >= threshold]
             totalCount = len(query)
+
+
+
+
+
+            # gmatches = dict()
+            # gweights = dict()
+            # for gmodel, gfs in gargs.iteritems():
+            #     gids = []
+            #     for x in query:
+            #         try:
+            #             gid = getattr(x,list(gfs)[0].throughfield_name)
+            #             if gid is not None:
+            #                 gids.append(gid)
+            #         except ObjectDoesNotExist: # dirty data!
+            #             pass
+            #     print(len(gids))
+            #     gresults = dict()
+            #     print(qdatas)
+            #     gquery, gtotalCount, ghardCount = getMatches(gmodel, qdatas, soft, threshold=0)
+            #     print(gfs, type(gquery),type(gtotalCount),type(ghardCount))
+            #     for m in gquery:
+            #         gresults[m.pk] = m.score
+            #     for gfield in gfs:
+            #         print(gfield,gfield.throughModels(),gfield.targetFields(),gfield.model,gfield.throughfield_name,gfield.name,gfield.verbose_name)
+            #         gmatches[gfield] = gresults
+            #         gweights[gfield] = totalweight(gmodel, qdatas)
+            #         #print(gmodel, soft, countOnly, len(gresults.keys()))
+
+            # myweight = totalweight(myModel, qdatas)
+            # rescore = dict()
+            # for x in query:
+            #     myscore = getattr(x, 'score')
+            #     mysum = myweight * myscore
+            #     maxsum = myweight
+            #     valid = True
+            #     for gfield, gresults in gmatches.iteritems():
+            #         try:
+            #             gid = getattr(x, gfield.throughfield_name, None).pk
+            #             gweight = gweights[gfield]
+            #             gscore = gresults.get(gid)
+            #             if gscore is not None:
+            #                 mysum = mysum + gweight * gscore
+            #                 maxsum = maxsum + gweight
+            #             else:
+            #                 valid = False
+            #         except AttributeError:
+            #             valid = False
+            #         except ObjectDoesNotExist: # dirty data!
+            #             valid = False
+            #     if not valid:
+            #         rescore[x] = 0
+            #     elif mysum == maxsum:
+            #         rescore[x] = 1
+            #     else:
+            #         rescore[x] = mysum / maxsum
+            # query = [x[0] for x in sorted(rescore.iteritems(), key=itemgetter(1), reverse=True)]
+            # newquery = []
+            # for x in query:
+            #     setattr(x, 'score', rescore[x])
+            #     if rescore[x] >= threshold:
+            #         newquery.append(x)
+            #         if rescore[x] == 1:
+            #             hardCount = hardCount + 1
+            # query = newquery
+            # #query = [x for x in query if getattr(x, 'score') >= threshold]
+            # totalCount = len(query)
 
         if not queryEnd or queryEnd > totalCount:
             queryEnd = totalCount
@@ -830,28 +946,17 @@ def retrieve(fullids):
     ## return in original order
     return [groupedRecords[fid] for fid in fullids]
 
-
-## The following is experimental and not currently in use
-
-def makeQinfo(model, query, fld, loend, hiend, order=None):
-    """
-    Helper function for sortedTopK; may go away
-    """
-    if loend is not None:
-        query = query.filter(**{fld + '__gte': loend})
-    if hiend is not None:
-        query = query.filter(**{fld + '__lt': hiend})
-
-    return {'query': query, 'order': order}
-
-
 def unitScore(value, lorange, hirange, median):
     """
     Scores a value from 1 (best) to 0 (worst)
     """
     if (lorange != 'min') and (value < lorange):
+        if value is None:
+            return 0
         absdiff = lorange - value
     elif (hirange != 'max') and (value > hirange):
+        if value is None:
+            return 0
         absdiff = value - hirange
     else:
         absdiff = 0
@@ -876,25 +981,11 @@ def multiScore(model, values, desiderata, scales=None):
     count = 0
     for d in desiderata.keys():
         b = resolveField(model, d)
-        ## Yuk ... need to convert if field is unsigned
-        unsigned = False
-        if isinstance(b, (PositiveIntegerField, PositiveSmallIntegerField)):
-            unsigned = True
-        ## Add table designation to properly resolve a field name that has another SQL interpretation
-        ## (for instance, a field name 'long')
-        fieldRef = dbFieldRef(b)
-        if (unsigned):
-            fieldRef = "cast({0} as SIGNED)".format(fieldRef)
-
         if (d in scales):
             scale = scales[d]
         else:
             print("BAD")
             raise Exception("This is bad news!")
-            # tsize = None
-            # if not tsize:
-            #     tsize = tableSize(model)
-            # scale = medianEval(b.model, baseScore(fieldRef, desiderata[d][0], desiderata[d][1], tsize)
         score = score + unitScore(values[d], desiderata[d][0], desiderata[d][1], scale)
         count = count + 1
 
@@ -911,9 +1002,28 @@ def instanceScore(instance, desiderata, scales=None):
     if scales is None:
         scales = {}
     values = {}
+    newdesiderata = {}
     for d in desiderata.keys():
-        values[d] = getattr(instance, d)
-    return multiScore(instance.__class__, values, desiderata, scales=scales)
+        try:
+            values[d] = getattr(instance, d)
+            newdesiderata[d] = desiderata[d]
+        except AttributeError:
+            pass # no such attribute- should clean this up elsewhere
+    return multiScore(instance.__class__, values, newdesiderata, scales=scales)
+
+
+## The following is experimental and not currently in use
+
+def makeQinfo(model, query, fld, loend, hiend, order=None):
+    """
+    Helper function for sortedTopK; may go away
+    """
+    if loend is not None:
+        query = query.filter(**{fld + '__gte': loend})
+    if hiend is not None:
+        query = query.filter(**{fld + '__lt': hiend})
+
+    return {'query': query, 'order': order}
 
 
 def sortedTopK(model, qdatas, query, k):
