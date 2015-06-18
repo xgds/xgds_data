@@ -194,20 +194,20 @@ def ordinalField(model, field):
     """
     Does this field support ranges?
     """
-    if isinstance(field, xgds_data.models.VirtualIncludedField):
-        if isOrdinalOveridden(model, field):
-            return False
-        else:
-            for tmf in field.targetFields():
-                if not ordinalField(tmf.model, tmf):
-                    return False
-            return True
-    elif isinstance(field, (fields.DateTimeField,
+    if isOrdinalOveridden(model, field):
+        return False
+    elif isinstance(field, xgds_data.models.VirtualIncludedField):
+        for tmf in field.targetFields():
+            if not ordinalField(tmf.model, tmf):
+                return False
+        return True
+    elif isinstance(field, (fields.AutoField,
+                            fields.DateTimeField,
                             fields.DecimalField,
                             fields.FloatField,
                             fields.IntegerField,
                             fields.PositiveIntegerField)):
-        return not isOrdinalOveridden(model, field)
+        return True
     else:
         return False
 
