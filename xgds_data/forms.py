@@ -100,15 +100,14 @@ def operatorFormField(mymodel, field, widget):
         return forms.ChoiceField(choices=textOperators,
                                  initial=textOperators[0][0],
                                  required=True)
-    elif isinstance(field, (models.AutoField, models.CharField, models.TextField)) or isOrdinalOveridden(mymodel, field):
-        return forms.ChoiceField(choices=textOperators,
-                                 initial=textOperators[0][0],
-                                 required=True)
     elif ordinalField(mymodel, field):
         return forms.ChoiceField(choices=rangeOperators,
                                  initial=rangeOperators[0][0],
                                  required=True)
-
+    elif isinstance(field, (models.AutoField, models.CharField, models.TextField)) or isOrdinalOveridden(mymodel, field):
+        return forms.ChoiceField(choices=textOperators,
+                                 initial=textOperators[0][0],
+                                 required=True)
     elif isinstance(field, (models.BooleanField, models.NullBooleanField)):
         return forms.ChoiceField(choices=categoricalOperators,
                                  initial=categoricalOperators[0][0],
@@ -121,7 +120,7 @@ def valueFormField(mymodel, field, widget, allowMultiple=True, label=None):
     """
     Returns form field to provide a value appropriate for this model field
     """
-    if isinstance(field, (models.AutoField, models.CharField, models.TextField)) or isOrdinalOveridden(mymodel, field):
+    if isinstance(field, (models.CharField, models.TextField)) or isOrdinalOveridden(mymodel, field):
         return forms.CharField(required=False,label=label)
     elif isinstance(field, models.DateTimeField):
         return forms.DateTimeField(required=False,label=label)
@@ -129,7 +128,7 @@ def valueFormField(mymodel, field, widget, allowMultiple=True, label=None):
         return forms.FloatField(required=False,label=label)
     elif isinstance(field, models.PositiveIntegerField):
         return forms.IntegerField(min_value=1, required=False,label=label)
-    elif isinstance(field, models.IntegerField):
+    elif isinstance(field, (models.AutoField, models.IntegerField)):
         return forms.IntegerField(required=False,label=label)
     elif isinstance(field, (models.BooleanField, models.NullBooleanField)):
         return forms.ChoiceField(choices=((None, '<Any>'),
