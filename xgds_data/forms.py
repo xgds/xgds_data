@@ -24,7 +24,7 @@ from django.contrib.auth.models import User
 
 from xgds_data import settings
 from xgds_data.models import VirtualIncludedField
-from xgds_data.introspection import modelFields, maskField, isOrdinalOveridden, isAbstract, pk, ordinalField
+from xgds_data.introspection import (modelFields, maskField, isOrdinalOveridden, isAbstract, pk, ordinalField, modelName)
 from xgds_data.DataStatistics import tableSize, fieldSize
 from xgds_data.utils import label
 # pylint: disable=R0924
@@ -171,6 +171,16 @@ def valueFormField(mymodel, field, widget, allowMultiple=True, label=None):
         return None
 
 
+def fieldNameBase(field,name):
+    """
+    Get the form field name
+    """
+    if isinstance(field, VirtualIncludedField):
+        ##return field.throughfield_name+'.'+name
+        return name
+    else:
+        return name
+
 def searchFormFields(mymodel, field, enumerableFields):
     """
     Returns a dict of Form fields to add to a search form, based on the model field
@@ -182,7 +192,11 @@ def searchFormFields(mymodel, field, enumerableFields):
         tmfs = field.targetFields()
         if len(tmfs):
             #  need to assume all are the same, so just use the first one
-            formfields.update(searchFormFields(tmfs[0].model, tmfs[0], enumerableFields))
+            #print(searchFormFields(tmfs[0].model, tmfs[0], enumerableFields))
+            vfields = dict()
+            for name,ff in searchFormFields(tmfs[0].model, tmfs[0], enumerableFields).iteritems():
+                vfields[fieldNameBase(field,name)] = ff
+            formfields.update(vfields)
     else:
         widget = specialWidget(mymodel, field, enumerableFields)
         opField = operatorFormField(mymodel, field, widget)
@@ -192,12 +206,14 @@ def searchFormFields(mymodel, field, enumerableFields):
                                  field.__class__.__name__])
             print("SearchForm forms doesn't deal with %s yet" % longname)
         else:
-            formfields[field.name + '_operator'] = opField
+            ##fieldnamebase = modelName(mymodel)+'.'+field.name
+            fieldnamebase = fieldNameBase(field,field.name)
+            formfields[fieldnamebase + '_operator'] = opField
             if ordinalField(mymodel, field):
-                formfields[field.name + '_lo'] = valueFormField(mymodel, field, widget)
-                formfields[field.name + '_hi'] = valueFormField(mymodel, field, widget)
+                formfields[fieldnamebase + '_lo'] = valueFormField(mymodel, field, widget)
+                formfields[fieldnamebase + '_hi'] = valueFormField(mymodel, field, widget)
             else:
-                formfields[field.name] = valueFormField(mymodel, field, widget, allowMultiple=False)
+                formfields[fieldnamebase] = valueFormField(mymodel, field, widget, allowMultiple=False)
 
     return formfields
 
@@ -220,7 +236,7 @@ class SearchForm(forms.Form):
         for mfield in modelFields(self.model):
             # self.model._meta.fields:
             # n = mfield.name
-            fieldname = mfield.name
+            fieldname = fieldNameBase(mfield,mfield.name)
             # if (isinstance(mfield, VirtualIncludedField)):
             #    fieldname = mfield.compound_name()
             if (fieldname in self.fields or
