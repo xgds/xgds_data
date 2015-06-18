@@ -1199,6 +1199,14 @@ def editCollection(request, rid):
 
 
 
+def chooseGroupModel(request, groupModuleName):
+    """
+    List the models in the module, so they can be selected for grouping
+    """
+    return chooseModel(request, groupModuleName, 'Search ' + groupModuleName,
+                       'group', 'xgds_data_createCollection')
+
+
 def createCollection(request, groupModuleName, groupModelName, expert=False):
     """
     create a collection of data

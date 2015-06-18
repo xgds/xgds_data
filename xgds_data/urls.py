@@ -38,6 +38,8 @@ urlpatterns = patterns(
     url(r'^search/(?P<searchModuleName>[^/]+)/(?P<searchModelName>[^/]+)/(?P<expert>[^/]+)$', 'searchChosenModel',
         name='xgds_data_searchChosenModel'),
 
+    url(r'^group/(?P<groupModuleName>[^/]+)/$', views.chooseGroupModel,
+        name='xgds_data_groupChooseModel'),
     url(r'^group/(?P<groupModuleName>[^/]+)/(?P<groupModelName>[^/]+)/$', 'createCollection',
         name='xgds_data_createCollection'),
     url(r'^group/(?P<groupModuleName>[^/]+)/(?P<groupModelName>[^/]+)/(?P<expert>[^/]+)$', 'createCollection',
