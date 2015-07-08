@@ -1065,7 +1065,7 @@ def plotQueryResults(request, searchModuleName, searchModelName, start, end, sof
 
         plotdata = []
         pkName = pk(myModel).name
-        objs, totalCount, hardCount = getMatches(myModel, formsetToQD(formset), soft, start, end)
+        objs, totalCount, hardCount = getMatches(myModel, formsetToQD(formset), soft, queryStart = start, queryEnd = end)
        
         pfs = [ f.name for f in modelFields(myModel) if isinstance(f,related.RelatedField) and not maskField(f) ]
         try:
