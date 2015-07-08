@@ -41,6 +41,7 @@ if cacheStatistics():
 from xgds_data.DataStatistics import tableSize, segmentBounds, nextPercentile
 from xgds_data.utils import total_seconds
 
+sdCache = dict()
 
 def timer(t, msg):
     newtime = datetime.datetime.now()
@@ -434,21 +435,27 @@ def sdEval(model, expression, size):
     """
     Quick mysql-y way of estimating the median from a sample
     """
-    count = model.objects.count()
-    if count == 0:
-        return None
+    if model in sdCache:
+        print('Got it from the cache!')
+        return sdCache[model]
     else:
-        sampleSize = min(size, 1000)
-        result = ()
-        triesLeft = 100
-        ## not sure why, but sometimes nothing is returned
-        while (len(result) == 0) and (triesLeft > 0):
-            result = sdRandomSample(model, expression, sampleSize)
-            triesLeft = triesLeft - 1
-        if len(result) == 0:
-            return None
+        count = model.objects.count()
+        if count == 0:
+            ans= None
         else:
-            return result[0]
+            sampleSize = min(size, 1000)
+            result = ()
+            triesLeft = 100
+            ## not sure why, but sometimes nothing is returned
+            while (len(result) == 0) and (triesLeft > 0):
+                result = sdRandomSample(model, expression, sampleSize)
+                triesLeft = triesLeft - 1
+                if len(result) == 0:
+                    ans = None
+                else:
+                    ans = result[0]
+        sdCache[model] = ans
+        return ans
 
 
 def scaleEval(model, field, lorange, hirange, size, fieldRef):
@@ -674,7 +681,7 @@ def pageLimits(page, pageSize):
 #     return getMatches(myModel, formset, soft, countOnly=True)
 
 
-def getMatches(myModel, qdatas, soft, queryStart=0, queryEnd=None, threshold=None):
+def getMatches(myModel, qdatas, soft, moreData = None, queryStart=0, queryEnd=None, threshold=None):
     """
     Get the query results
     """

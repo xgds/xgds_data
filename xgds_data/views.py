@@ -71,7 +71,6 @@ except ImportError:
 if logEnabled():
     from xgds_data.models import RequestLog, RequestArgument, ResponseLog, HttpRequestReplay
 
-
 def formsetToQD(formset):
     return [form.cleaned_data for form in formset]
 
@@ -495,6 +494,8 @@ def displayRecord(request, displayModuleName, displayModelName, rid, force=False
             except AttributeError:
                 editURL = reverse('xgds_data_editRecord',
                                   args=[displayModuleName, displayModelName, pkValue(record)])
+        else:
+            editURL = None
     except AttributeError:
         editURL = None
     numeric = False
@@ -627,13 +628,14 @@ def deleteRecord(request, deleteModuleName, deleteModelName, rid):
                                })
 
 
-def searchChosenModel(request, searchModuleName, searchModelName, expert=False, override=None, passthroughs=dict()):
+def searchChosenModel(request, searchModuleName, searchModelName, expert=False, override=None, passthroughs=dict(), searchFn=getMatches):
     """
     Search over the fields of the selected model
     """
     data = request.REQUEST
     
-    return searchChosenModelCore(request, data, searchModuleName, searchModelName, expert, override, passthroughs)
+    return searchChosenModelCore(request, data, searchModuleName, searchModelName, 
+                                 expert=expert, override=override, passthroughs=passthroughs, searchFn=searchFn)
 
 
 def keysMustBeAString(d):
@@ -654,7 +656,7 @@ def log_and_json(request, reqlog, template, templateargs, nolog = None, listing 
     return HttpResponse(json.dumps(templateargs, default=jsonify), content_type='application/json')
 
 
-def searchChosenModelCore(request, data, searchModuleName, searchModelName, expert=False, override=None, passthroughs=dict()):
+def searchChosenModelCore(request, data, searchModuleName, searchModelName, expert=False, override=None, passthroughs=dict(), searchFn=getMatches):
     """
     Search over the fields of the selected model
     """
@@ -774,8 +776,8 @@ def searchChosenModelCore(request, data, searchModuleName, searchModelName, expe
             #     if hardCount > 100:
             #         soft = False
 
-            results, totalCount, hardCount = getMatches(myModel, formsetToQD(formset), soft, \
-                                                            queryStart, queryEnd)
+            results, totalCount, hardCount = searchFn(myModel, formsetToQD(formset), soft, \
+                                                            moreData = data, queryStart = queryStart, queryEnd = queryEnd)
             if hardCount is None:
                 hardCount = totalCount
             pfs = [ f.name for f in modelFields(myModel) if isinstance(f,related.RelatedField) and not maskField(f) ]
