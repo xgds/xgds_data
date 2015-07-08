@@ -11,7 +11,7 @@
   <TR>
   {% if editURL %}
     <TD><a href="{{ editURL }}">Edit</a>
-        <span style="float:right;"><a href="{% url 'xgds_data_deleteRecord' module model record|pkValue %}">Delete</a>&nbsp;&nbsp;&nbsp;</span>
+      <span style="float:right;"><a href="{% url 'xgds_data_deleteRecord' module model record|pkValue %}">Delete</a>&nbsp;&nbsp;&nbsp;</span>
    </TD>
   {% else %}
     <TD></TD>

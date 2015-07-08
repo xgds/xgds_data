@@ -43,34 +43,64 @@ def truncate(val, limit):
     else:
         return val[0:(limit - 2)]  # save an extra space because the db seems to want that
 
-class GenericLink(models.Model):
-    linkType = models.ForeignKey(ContentType, null=True, blank=True)
-    linkId = models.PositiveIntegerField(null=True, blank=True)
-    link = generic.GenericForeignKey('linkType', 'linkId') 
-
-    def get_absolute_url(self):
-        return reverse('xgds_data_displayRecord',
-                       args=[xgds_data.introspection.moduleName(self.link),
-                             xgds_data.introspection.modelName(self.link),
-                             xgds_data.introspection.pkValue(self.link)])
-
-    def __unicode__(self):
-        try:
-            return self.link.__unicode__()
-        except AttributeError:
-            return ""
-
 class Collection(models.Model):
     name = models.CharField(max_length=64)
     description = models.CharField(max_length=1024)
-    contents = models.ManyToManyField(GenericLink)
+##    contents = models.ManyToManyField(GenericLink)
 
     def get_edit_url(self):
         return reverse('xgds_data_editCollection',
                        args=[xgds_data.introspection.pkValue(self)])
 
+    def contentTypes(self):
+        return [ContentType.objects.get_for_id(mid) for mid in set(self.contents.all().values_list('linkType',flat=True))]
+
+    def models(self):
+        return [ct.model_class() for ct in self.contentTypes()]
+
+    @property
     def resolvedContents(self):
-        return [x.link for x in self.contents.all() if x.link is not None]
+        ctypes =[ContentType.objects.get_for_id(mid) for mid in set(self.contents.all().values_list('linkType',flat=True))]
+        rcontents = []
+        for ct in ctypes:
+            rcontents.extend(ct.model_class().objects.filter(pk__in=self.contents.filter(linkType=ct.id).values_list('linkId',flat=True)))
+        return rcontents
+
+    def add(self, something):
+        return GenericLink.objects.create(link=something,collection=self)
+
+    def __unicode__(self):
+        try:
+            return self.name
+        except AttributeError:
+            return "Missing link"
+
+
+class GenericLink(models.Model):
+    linkType = models.ForeignKey(ContentType, null=True, blank=True)
+    linkId = models.PositiveIntegerField(null=True, blank=True)
+    link = generic.GenericForeignKey('linkType', 'linkId') 
+    collection = models.ForeignKey(Collection, related_name='contents', null=True)
+
+    def get_absolute_url(self):
+        try:
+            return reverse('xgds_data_displayRecord',
+                           args=[xgds_data.introspection.moduleName(self.link),
+                                 xgds_data.introspection.modelName(self.link),
+                                 xgds_data.introspection.pkValue(self.link)])
+        except AttributeError:
+            return reverse('xgds_data_displayRecord',
+                           args=[xgds_data.introspection.moduleName(self),
+                                 xgds_data.introspection.modelName(self),
+                                 xgds_data.introspection.pkValue(self),
+                                 True])
+
+    def __unicode__(self):
+        try:
+            return self.link.__unicode__()
+        except AttributeError:
+            return "Missing link"
+
 
 class VirtualIncludedField(models.Field):
     description = "Including fields from a linked object as if they were your own"

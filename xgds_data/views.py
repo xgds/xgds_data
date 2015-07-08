@@ -1214,15 +1214,15 @@ def createCollection(request, groupModuleName, groupModelName, expert=False):
 
     def actionRenderFn(request, groupeeModuleName, groupeeModelName, objs):
         coll = Collection.objects.create()
+        coll.save()
         links = []
-        for inst in objs:
-            links.append(GenericLink.objects.create(link=inst))
+        if objs is not None:
+            for inst in objs:
+                ##links.append(GenericLink.objects.create(link=inst))
+                links.append(GenericLink(link=inst,collection=coll))
 
         if len(links) > 0:
-            ## Boo- bulk_create doesn't get the ids, so we can't subsequently link
-            ##GenericLink.objects.bulk_create(links)
-            coll.contents.add(*links)
-        coll.save()
+            glinks = GenericLink.objects.bulk_create(links)
 
         try:
             ## try any specialized edit first

@@ -130,6 +130,24 @@ def displayLinkedData(field, value):
         ##return mark_safe('<A HREF="' + url + '">'+ unicode(display(field.rel.to,value)) + '</A>')
         
 
+# def stringifyList(field,lst):
+#     """
+#     """
+#     results = []
+#     if (len(lst) > 100):
+#         for v in lst[0:4]:
+#             results.append(displayLinkedData(field,v))
+#         results.append("...")
+#         for v in lst[len(results)-4:len(results)]:
+#             results.append(displayLinkedData(field,v))
+
+#         results.append("("+str(len(lst))+" records)")
+#     else:
+#         for v in lst:
+#             results.append(displayLinkedData(field,v))
+#     return mark_safe(','.join(results))   
+
+
 def display(field, value):
     """Returns html snippet appropriate for value and field"""
     try:
@@ -154,20 +172,20 @@ def display(field, value):
                 return displayLinkedData(field,value)
             else:
                 return value
-        elif isinstance(field, models.ManyToManyField):
-            results = []
-            if (len(value) > 100):
-                for v in value[0:4]:
-                    results.append(displayLinkedData(field,v))
-                results.append("...")
-                for v in value[len(results)-4:len(results)]:
-                    results.append(displayLinkedData(field,v))
+        # elif isinstance(field, models.ManyToManyField):
+        #     results = []
+        #     if (len(value) > 100):
+        #         for v in value[0:4]:
+        #             results.append(displayLinkedData(field,v))
+        #         results.append("...")
+        #         for v in value[len(results)-4:len(results)]:
+        #             results.append(displayLinkedData(field,v))
 
-                results.append("("+str(len(value))+" records)")
-            else:
-                for v in value:
-                    results.append(displayLinkedData(field,v))
-            return mark_safe(','.join(results))   
+        #         results.append("("+str(len(value))+" records)")
+        #     else:
+        #         for v in value:
+        #             results.append(displayLinkedData(field,v))
+        #     return mark_safe(','.join(results))   
         elif isinstance(field, models.fields.files.FileField):
             if value.name:
                 try:
@@ -182,8 +200,22 @@ def display(field, value):
             return value
         else:
             try:
-                foo = ', '.join([displayLinkedData(field,v) for v in value])
-                return mark_safe(foo)
+                results = []
+                if (len(value) > 100):
+                    for v in value[0:4]:
+                        results.append(displayLinkedData(field,v))
+                    results.append("...")
+                    for v in value[len(results)-4:len(results)]:
+                        results.append(displayLinkedData(field,v))
+
+                    results.append("("+str(len(value))+" records)")
+                else:
+                    for v in value:
+                        results.append(displayLinkedData(field,v))
+                return mark_safe(','.join(results))   
+                # ##foo = ', '.join([displayLinkedData(field,v) for v in value])
+                # foo = stringifyList(field,value)
+                # return mark_safe(foo)
             except TypeError:
                 return value
             except ValueError:
