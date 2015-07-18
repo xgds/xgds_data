@@ -32,7 +32,7 @@ from django.conf import settings
 from django.core.exceptions import ObjectDoesNotExist
 
 from xgds_data.introspection import (modelFields, resolveField, maskField,
-                                     isAbstract, concreteDescendents, 
+                                     isAbstract, concreteDescendants, 
                                      pk, pkValue, db_table, isgeneric, fullid,
                                      resolveModel, fieldModel, parentField)
 from xgds_data.models import cacheStatistics, VirtualIncludedField
@@ -435,10 +435,9 @@ def sdEval(model, expression, size):
     """
     Quick mysql-y way of estimating the median from a sample
     """
-    if model in sdCache:
-        print('Got it from the cache!')
-        return sdCache[model]
-    else:
+    try:
+        return sdCache[model][expression]
+    except KeyError:
         count = model.objects.count()
         if count == 0:
             ans= None
@@ -454,7 +453,12 @@ def sdEval(model, expression, size):
                     ans = None
                 else:
                     ans = result[0]
-        sdCache[model] = ans
+        # sdCache[model] = ans
+        try:
+            sdCache[model][expression] = ans
+        except KeyError:
+            sdCache[model] = dict()
+            sdCache[model][expression] = ans
         return ans
 
 
@@ -493,7 +497,8 @@ def scaleEval(model, field, lorange, hirange, size, fieldRef):
         #print(datamin, datamax, datamax - datamin, retv)
         return retv
     else:
-        return sdEval(model, baseScore(fieldRef, lorange, hirange), size)
+        return sdEval(model, fieldRef, size)
+        #return sdEval(model, baseScore(fieldRef, lorange, hirange), size)
 
 
 def dbFieldRef(field):
@@ -681,7 +686,7 @@ def pageLimits(page, pageSize):
 #     return getMatches(myModel, formset, soft, countOnly=True)
 
 
-def getMatches(myModel, qdatas, soft, moreData = None, queryStart=0, queryEnd=None, threshold=None):
+def getMatches(myModel, qdatas, soft, queryStart=0, queryEnd=None, threshold=None):
     """
     Get the query results
     """
@@ -698,7 +703,7 @@ def getMatches(myModel, qdatas, soft, moreData = None, queryStart=0, queryEnd=No
         aggcount = 0
         agghardcount = 0
         scores = dict()        
-        for subm in concreteDescendents(myModel):
+        for subm in concreteDescendants(myModel):
             subresults, subcount, subhardcount = getMatches(subm, qdatas, soft, queryStart=0, queryEnd=queryEnd, threshold=threshold)
             aggcount = aggcount + subcount
             agghardcount = agghardcount + subcount
@@ -718,8 +723,15 @@ def getMatches(myModel, qdatas, soft, moreData = None, queryStart=0, queryEnd=No
         for x in modelFields(myModel):
             if isinstance(x, GenericForeignKey):
                 cantDefer.extend([x.ct_field, x.fk_field])
-        deferFields = [x.name for x in modelFields(myModel) if maskField(x) and isinstance(x, Field) and x.name not in cantDefer]
-
+        # deferFields = [x.name for x in modelFields(myModel) if maskField(x) and isinstance(x, Field) and x.name not in cantDefer]
+        onlyFields = []
+        for x in modelFields(myModel):
+            if isinstance(x, Field) and (not maskField(x) or x.name in cantDefer):
+                try:
+                    if x.throughfield_name is not None:
+                        onlyFields.append(x.throughfield_name) 
+                except AttributeError:
+                    onlyFields.append(x.name)
         gargs = genericArguments(myModel, qdatas, soft)
         processGeneric = len(gargs.keys()) > 0
         if processGeneric:
@@ -732,7 +744,6 @@ def getMatches(myModel, qdatas, soft, moreData = None, queryStart=0, queryEnd=No
 
         if scorer and (processGeneric or (hardCount <= 100)):
             query = myModel.objects.filter(myfilter)
-            query = query.defer(*deferFields)
 
             ## this code may not be needed in some version of Django
             ## apparently count() gets confused when extra refers
@@ -760,7 +771,11 @@ def getMatches(myModel, qdatas, soft, moreData = None, queryStart=0, queryEnd=No
             totalCount = hardCount
             query = myModel.objects.filter(hardfilter)
             query = query.extra(select={'score': 1})
-            
+        ## defer isnt' working right on inherited models in Django 1.5
+        ## only does, however
+        ##query = query.defer(*deferFields)
+        query = query.only(*onlyFields)
+    
         if processGeneric:
             gweights = dict()
             for gmodel, gfs in gargs.iteritems():
@@ -925,7 +940,8 @@ def getMatches(myModel, qdatas, soft, moreData = None, queryStart=0, queryEnd=No
         if not queryEnd or queryEnd > totalCount:
             queryEnd = totalCount
         ## note totalCount does not necessarily equal len(query)
-        if (queryStart == 0) and (queryEnd == totalCount) and (totalCount == len(query)):
+        if (queryStart == 0) and (queryEnd == totalCount):
+            ## and (totalCount == len(query)):
             ## don't truncate unnecessarily, as it would mess up a delete
             ## if we have such
             pass

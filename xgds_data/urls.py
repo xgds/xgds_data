@@ -38,6 +38,10 @@ urlpatterns = patterns(
     url(r'^search/(?P<searchModuleName>[^/]+)/(?P<searchModelName>[^/]+)/(?P<expert>[^/]+)$', 'searchChosenModel',
         name='xgds_data_searchChosenModel'),
 
+    url(r'^retrieve/(?P<searchModuleName>[^/]+)/(?P<searchModelName>[^/]+)/(?P<field>[^/]*)$', views.getFieldValues,
+        name='xgds_data_getFieldValues'),
+
+
     url(r'^group/(?P<groupModuleName>[^/]+)/$', views.chooseGroupModel,
         name='xgds_data_groupChooseModel'),
     url(r'^group/(?P<groupModuleName>[^/]+)/(?P<groupModelName>[^/]+)/$', 'createCollection',
@@ -52,10 +56,10 @@ urlpatterns = patterns(
         name='xgds_data_searchPlotQueryResults'),
     url(r'^search/plot/(?P<searchModuleName>[^/]+)/(?P<searchModelName>[^/]+)/(?P<soft>[^/]+)/$', 'plotQueryResults',
         name='xgds_data_searchPlotQueryResults'),
-    url(r'^search/plot/(?P<searchModuleName>[^/]+)/(?P<searchModelName>[^/]+)/(?P<start>\d+)/(?P<end>\d+)/$', 'plotQueryResults',
-        name='xgds_data_searchPlotQueryResults'),
-    url(r'^search/plot/(?P<searchModuleName>[^/]+)/(?P<searchModelName>[^/]+)/(?P<soft>[^/]+)/(?P<start>\d+)/(?P<end>\d+)/$', 'plotQueryResults',
-        name='xgds_data_searchPlotQueryResults'),
+    # url(r'^search/plot/(?P<searchModuleName>[^/]+)/(?P<searchModelName>[^/]+)/(?P<start>\d+)/(?P<end>\d+)/$', 'plotQueryResults',
+    #     name='xgds_data_searchPlotQueryResults'),
+    # url(r'^search/plot/(?P<searchModuleName>[^/]+)/(?P<searchModelName>[^/]+)/(?P<soft>[^/]+)/(?P<start>\d+)/(?P<end>\d+)/$', 'plotQueryResults',
+    #     name='xgds_data_searchPlotQueryResults'),
     url(r'^display/(?P<displayModuleName>[^/]+)/(?P<displayModelName>[^/]+)/(?P<rid>[^/]*)$', 'displayRecord', name='xgds_data_displayRecord'),
     url(r'^display/(?P<displayModuleName>[^/]+)/(?P<displayModelName>[^/]+)/(?P<rid>[^/]*)/(?P<force>[^/]*)$', 'displayRecord', name='xgds_data_displayRecord'),
 

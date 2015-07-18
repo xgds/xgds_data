@@ -48,7 +48,7 @@ except ImportError:
     GEOCAMUTIL_FOUND = False
 
 from xgds_data import settings
-from xgds_data.introspection import (modelFields, maskField, isAbstract, 
+from xgds_data.introspection import (modelFields, maskField, resolveField, isAbstract, 
                                      resolveModel, ordinalField,
                                      pk, pkValue, verbose_name, settingsForModel, 
                                      modelName, moduleName, fullid)
@@ -70,6 +70,8 @@ except ImportError:
 
 if logEnabled():
     from xgds_data.models import RequestLog, RequestArgument, ResponseLog, HttpRequestReplay
+
+queryCache = {}
 
 def formsetToQD(formset):
     return [form.cleaned_data for form in formset]
@@ -648,6 +650,7 @@ def keysMustBeAString(d):
         except AttributeError:
             pass
 
+
 def log_and_json(request, reqlog, template, templateargs, nolog = None, listing = None):
     """
     experimenting with JSON
@@ -777,7 +780,7 @@ def searchChosenModelCore(request, data, searchModuleName, searchModelName, expe
             #         soft = False
 
             results, totalCount, hardCount = searchFn(myModel, formsetToQD(formset), soft, \
-                                                            moreData = data, queryStart = queryStart, queryEnd = queryEnd)
+                                                            queryStart = queryStart, queryEnd = queryEnd)
             if hardCount is None:
                 hardCount = totalCount
             pfs = [ f.name for f in modelFields(myModel) if isinstance(f,related.RelatedField) and not maskField(f) ]
@@ -785,6 +788,7 @@ def searchChosenModelCore(request, data, searchModuleName, searchModelName, expe
                 results = results.prefetch_related(*pfs)
             except AttributeError:
                 pass # probably got list-ified
+            results = list(results)
 
             more = queryStart + len(results) < totalCount
         else:
@@ -932,9 +936,10 @@ def searchChosenModelCore(request, data, searchModuleName, searchModelName, expe
             renderfn = log_and_json
         else:
             renderfn = log_and_render
+        nolog = ['reqid', 'formset', 'axesform', 'results', 'resultsids', 'scores', 'displayFields']
         return renderfn(request, reqlog, template,
                         templateargs,
-                        nolog=['reqid', 'formset', 'axesform', 'results', 'resultsids', 'scores'],
+                        nolog=nolog,
                         listing=results)
 
 
@@ -1005,8 +1010,12 @@ def jsonifier(obj,level=2):
     except AttributeError:
         pass
 
-    if isinstance(obj,(ErrorDict,ErrorList)):
-        return obj
+    try:
+        if isinstance(obj,(ErrorDict,ErrorList)):
+            return obj
+    except NameError:
+        pass
+        ## ErrorDict, ErrorList not defined 
 
     if (level > 0):
         try:
@@ -1037,12 +1046,98 @@ def jsonify(obj,level=2):
     return jsonifier(obj,level=level)
 
 
-def plotQueryResults(request, searchModuleName, searchModelName, start, end, soft=True):
+def cleanQueryCache(timeout):
+    """
+    Remove entries exceeding timeout (in seconds)
+    """
+    curtime = datetime.datetime.now()
+    timedout = []
+    for k,v in queryCache.iteritems():
+        if total_seconds(curtime - v[0]) > timeout:
+            timedout.append(k)
+    for k in timedout:
+        del queryCache[k]
+
+
+def getFieldValues(request, searchModuleName, searchModelName, field, expert=False, override=None, passthroughs=dict(), searchFn=getMatches):
+    """
+    get values from a search for just one field
+    """
+    starttime = datetime.datetime.now()
+    soft = True # wrong
+    reqlog = recordRequest(request)
+    modelmodule = __import__('.'.join([searchModuleName, 'models'])).models
+    myModel = getattr(modelmodule, searchModelName)
+    myFields = [ x for x in modelFields(myModel) if not maskField(x) ]
+    tmpFormClass = SpecializedForm(SearchForm, myModel)
+    tmpFormSet = formset_factory(tmpFormClass)
+    data = request.REQUEST
+    soft = soft in (True, 'True')
+    
+    myField =  resolveField(myModel, field)
+
+    formset = tmpFormSet(data)
+    if formset.is_valid():
+        pkName = pk(myModel).name
+
+        query, totalCount, hardCount = getMatches(myModel, formsetToQD(formset), soft)
+        # print(str(objs.query))
+    ## need to turn into list, as a query will get re-values()'d.
+        qkey = str(query.query)
+        cleanQueryCache(300)
+        if (qkey in queryCache):
+            cachetime, objs = queryCache[qkey]
+        else:
+            objs = list(query)
+            queryCache[qkey] = (starttime, objs)
+
+        if myField is None:
+            dbobjs = [(pkValue(x), str(x)) for x in objs]
+            objs = []
+            for rank in range(len(dbobjs)):
+                objs.append(dict([(pkName,dbobjs[rank][0]),("Name",dbobjs[rank][1]),("Rank",rank)]))
+        else:
+            if isinstance(myField,related.RelatedField):
+                rmap = dict([(x,getattr(x,myField.column)) for x in objs])
+                relargs =  dict([(pk(myField.rel.to).name+'__in',
+                                  set(rmap.values()))])
+                relobjs = dict([(x.id, x) for x in myField.rel.to.objects.filter(**relargs)])
+                for x,relid in rmap.iteritems():
+                    try:
+                        setattr(x,myField.name,relobjs[relid])
+                    except KeyError:
+                        ## no relobjs[relid]!
+                        setattr(x,myField.name,None)
+
+                    # prefetch is not the way to go here, as we've
+                    # already retrieved original query
+                    # query = query.prefetch_related(myField)
+                    # objs = list(query)
+            objs = [dict([(pkName,pkValue(x)), (field,getattr(x,field))]) for x in objs]
+            ##objs = list(objs.values(pkName, field))
+            if isinstance(myField,related.RelatedField):
+                # nameids = [x[field] for x in objs]
+                # names = dict([(pkValue(r),str(r)) for r in myField.rel.to.objects.filter(pk__in=nameids)])               
+                for x in objs:
+                    try:
+                        x[field] = str(x[field])
+                    except KeyError:
+                        pass
+    else:
+        print(formset.errors)
+        objs = formset.errors
+
+    dumps = json.dumps(objs, default=jsonify)
+
+    return HttpResponse(dumps, content_type='application/json')
+
+
+def plotQueryResults(request, searchModuleName, searchModelName, soft=True):
     """
     Plot the results of a query
     """
-    start = int(start)
-    end = int(end)
+    # start = int(start)
+    # end = int(end)
     reqlog = recordRequest(request)
     modelmodule = __import__('.'.join([searchModuleName, 'models'])).models
     myModel = getattr(modelmodule, searchModelName)
@@ -1059,69 +1154,72 @@ def plotQueryResults(request, searchModuleName, searchModelName, start, end, sof
                   if isinstance(fieldVal, (DateField, TimeField))]
 
     formset = tmpFormSet(data)
+    pkName = pk(myModel).name
     if formset.is_valid():
         ## a lot of this code mimics what is in searchChosenModel
         ## should figure out a way of centralizing instead of copying
 
-        plotdata = []
-        pkName = pk(myModel).name
-        objs, totalCount, hardCount = getMatches(myModel, formsetToQD(formset), soft, queryStart = start, queryEnd = end)
-       
-        pfs = [ f.name for f in modelFields(myModel) if isinstance(f,related.RelatedField) and not maskField(f) ]
-        try:
-            objs = objs.prefetch_related(*pfs)
-        except AttributeError:
-            pass # probably got list-ified
-
-        
-        for x in objs:
-            pdict = { pkName: x.pk }
-            for fld in myFields:
-                val =  megahandler(safegetattr(x, fld.name, None))
-                try:
-                    pdict[fld.name] = val.name
-                except AttributeError:
-                    pdict[fld.name] = val
-            plotdata.append(pdict)
-        pldata = [str(x) for x in objs]
-
-        ## the following code determines if there are any foreign keys that can be selected, and if so,
-        ## replaces the corresponding values (which will be ids) with the string representation
-        seriesChoices = dict(axesform.fields['series'].choices)
-
-        seriesValues = dict([ (m.name, getRelated(m))
-                        for m in myFields
-                        if ((m.name in seriesChoices) and (m.rel is not None) )])
-        for x in plotdata:
-            for k in seriesValues.keys():
-                if x[k] is not None:
-                    try:
-                        x[k] = seriesValues[k][x[k]]
-                    except:  # pylint: disable=W0702
-                        x[k] = str(x[k])  # seriesValues[k][seriesValues[k].keys()[0]]
+#        plotdata = []
+#
+#        objs, totalCount, hardCount = getMatches(myModel, formsetToQD(formset), soft, queryStart = start, queryEnd = end)
+#       
+#        pfs = [ f.name for f in modelFields(myModel) if isinstance(f,related.RelatedField) and not maskField(f) ]
+#        try:
+#            objs = objs.prefetch_related(*pfs)
+#        except AttributeError:
+#            pass # probably got list-ified
+#
+#        
+#        for x in objs:
+#            pdict = { pkName: x.pk }
+#            for fld in myFields:
+#                val = megahandler(safegetattr(x, fld.name, None))
+#                try:
+#                    pdict[fld.name] = val.name
+#                except AttributeError:
+#                    pdict[fld.name] = val
+#            plotdata.append(pdict)
+#        pldata = [str(x) for x in objs]
+#
+#        ## the following code determines if there are any foreign keys that can be selected, and if so,
+#        ## replaces the corresponding values (which will be ids) with the string representation
+#        seriesChoices = dict(axesform.fields['series'].choices)
+#
+#        seriesValues = dict([ (m.name, getRelated(m))
+#                        for m in myFields
+#                        if ((m.name in seriesChoices) and (m.rel is not None) )])
+#        for x in plotdata:
+#            for k in seriesValues.keys():
+#                if x[k] is not None:
+#                    try:
+#                        x[k] = seriesValues[k][x[k]]
+#                    except:  # pylint: disable=W0702
+#                        x[k] = str(x[k])  # seriesValues[k][seriesValues[k].keys()[0]]
 
         debug = []
         #totalCount = myModel.objects.filter(filters).count()
-        shownCount = len(pldata)
+        # shownCount = len(pldata)
     else:
         debug = [(x, formset.errors[x]) for x in formset.errors]
-        totalCount = None
-        pldata = []
-        plotdata = []
-        objs = []
+#        totalCount = None
+#        pldata = []
+#        plotdata = []
+#        objs = []
+    totalCount = None
+    shownCount = None
 
     template = resolveSetting('XGDS_DATA_PLOT_TEMPLATES', myModel, 'xgds_data/plotQueryResults.html')
     return log_and_render(request, reqlog, template,
                           {'title': 'Plot ' + verbose_name(myModel),
                            'standalone': not GEOCAMUTIL_FOUND,
-                           'plotData': json.dumps(plotdata, default=jsonify),
-                           'labels': pldata,
+#                           'plotData': json.dumps(plotdata, default=jsonify),
+#                           'labels': pldata,
                            'timeFields': json.dumps(timeFields),
                            'module': searchModuleName,
                            'model': searchModelName,
-                           'pk': pk(myModel).name,
-                           'start': start,
-                           'end': end,
+                           'pk': pkName,
+                           # 'start': start,
+                           # 'end': end,
                            'soft': soft,
                            'debug': debug,
                            'count': totalCount,
@@ -1130,7 +1228,7 @@ def plotQueryResults(request, searchModuleName, searchModelName, start, end, sof
                            'axesform': axesform
                            },
                           nolog=['plotData', 'labels', 'formset', 'axesform'],
-                          listing=objs)
+                          )
 
 
 def editCollection(request, rid):

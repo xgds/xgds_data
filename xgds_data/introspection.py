@@ -212,14 +212,14 @@ def ordinalField(model, field):
         return False
 
 
-def concreteDescendents(model):
+def concreteDescendants(model):
     """
     Get non-abstract descendants of this class. Does not check subclasses on concrete descendants.
     """
     if isAbstract(model):
         submodels = []
         for sub in model.__subclasses__():
-            submodels = submodels + concreteDescendents(sub)
+            submodels = submodels + concreteDescendants(sub)
         return submodels
     else:
         return [model]

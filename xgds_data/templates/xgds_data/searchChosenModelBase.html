@@ -215,11 +215,11 @@ $("#expert").click(function() {
 	changemode(true);
 });
 $("#plot").click(function() {
-	document.QueryForm.action = "{% url 'xgds_data_searchPlotQueryResults' module model 0 10000 %}";
+	document.QueryForm.action = "{% url 'xgds_data_searchPlotQueryResults' module model %}";
 	document.QueryForm.submit();
 });
 $("#plothard").click(function() {
-	document.QueryForm.action = "{% url 'xgds_data_searchPlotQueryResults' module model 'exact' 0 10000 %}";
+	document.QueryForm.action = "{% url 'xgds_data_searchPlotQueryResults' module model 'exact' %}";
 	document.QueryForm.submit();
 });
 $("#prevpage").click(function() {
@@ -399,17 +399,13 @@ $(function () {
 {% block plot  %}
     {% if axesform %}
 	    {% if count != exactCount %}
-		    {% if count > 10000 %}
-		    	<input type="submit" class="mybutton" value="Plot (All)" id="plot" title="Plot limited to 10000 records" /> 
-		    {% elif count > 0 %}
+		    {% if count > 0 %}
 		    	<input type="submit" class="mybutton" value="Plot (All)" id="plot"/> 
 		    {% else %}
 		    	<input type="submit" value="Plot (All)" id="plot" disabled /> 
 		    {% endif %}
 	    {% endif %}
-	    {% if exactCount > 10000 %}
-	    	<input type="submit" class="mybutton" value="Plot (Exact)" id="plothard" title="Plot limited to 10000 records" /> 
-	    {% elif exactCount > 0 %}
+	    {% if exactCount > 0 %}
 	    	<input type="submit" class="mybutton" value="Plot (Exact)" id="plothard"/> 
 	    {% else %}
 	    	<input type="submit" value="Plot (Exact)" id="plothard" disabled />

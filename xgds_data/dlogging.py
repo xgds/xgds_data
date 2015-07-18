@@ -14,8 +14,11 @@
 #specific language governing permissions and limitations under the License.
 # __END_LICENSE__
 
+# this has been renamed to dlogging as logging was causing a very confusing name conflict
+
 from math import floor, log
 
+from django import forms
 from django.shortcuts import render
 
 from xgds_data import settings
@@ -107,12 +110,13 @@ def logstuff(reqlog, template, rendargs, nolog=None, listing=None):
 
         args = []
         for key in rendargs:
-            if nolog.count(key) == 0:
+            if key not in nolog and not isinstance(rendargs[key],(forms.Form,forms.formsets.BaseFormSet)):
                 try:
                     # check if an object is a list or tuple (but not string)
                     # http://stackoverflow.com/questions/1835018/python-check-if-an-object-is-a-list-or-tuple-but-not-string
                     assert not isinstance(rendargs.get(key), basestring)
-                    args = args + [ResponseArgument(response=reslog, name=key, value=str(v)[:1024]) for v in rendargs.get(key)]
+                    args = args + [ResponseArgument(response=reslog, name=key, value=str(v)[:1024]) 
+                                   for v in rendargs.get(key) if not isinstance(v,(forms.Form,forms.formsets.BaseFormSet))]
                 except (TypeError, AssertionError):
                     # not iterable
                     args = args + [ResponseArgument(response=reslog, name=key, value=str(rendargs.get(key))[:1024])]
