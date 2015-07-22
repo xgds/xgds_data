@@ -45,9 +45,15 @@ def modelFields(model):
     Retrieve the fields associated with the given model
     """
     myfields = model._meta.fields + model._meta.many_to_many + model._meta.virtual_fields
+    nameToField = dict([(x.name,x) for x in myfields])
+    vfields = []
     try:
         for throughFieldName, relName, relVerboseName in settingsForModel(settings.XGDS_DATA_EXPAND_RELATED, model):
-            myfields = myfields + [xgds_data.models.VirtualIncludedField(model, throughFieldName, relName, relVerboseName)]
+            try:
+                throughField = nameToField[throughFieldName]
+                myfields.append(xgds_data.models.VirtualIncludedField(model, throughFieldName, relName, relVerboseName))
+            except KeyError:
+                print("Error- VirtualField {0} on {1} references nonexistent field {2}".format(relVerboseName, model.name, throughFieldName))
     except AttributeError:
         pass
 

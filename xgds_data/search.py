@@ -720,15 +720,19 @@ def getMatches(myModel, qdatas, soft, queryStart=0, queryEnd=None, threshold=Non
         ## loading them one at a time, later, so don't defer those
         ## This might be too loose (e.g., if the GenericKey is not used
         cantDefer = []
+        cantOnly = []
         for x in modelFields(myModel):
-            if isinstance(x, GenericForeignKey):
+            try:
                 cantDefer.extend([x.ct_field, x.fk_field])
+                cantOnly.append(x.name)
+            except AttributeError:
+                pass
         # deferFields = [x.name for x in modelFields(myModel) if maskField(x) and isinstance(x, Field) and x.name not in cantDefer]
         onlyFields = []
         for x in modelFields(myModel):
-            if isinstance(x, Field) and (not maskField(x) or x.name in cantDefer):
+            if isinstance(x, Field) and (not maskField(x) or x.name in cantDefer) and (x.name not in cantOnly):
                 try:
-                    if x.throughfield_name is not None:
+                    if (x.throughfield_name is not None) and (x.throughfield_name not in cantOnly):
                         onlyFields.append(x.throughfield_name) 
                 except AttributeError:
                     onlyFields.append(x.name)

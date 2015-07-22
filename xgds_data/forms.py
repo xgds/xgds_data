@@ -176,7 +176,6 @@ def fieldNameBase(field,name):
     Get the form field name
     """
     if isinstance(field, VirtualIncludedField):
-        ##return field.throughfield_name+'.'+name
         return name
     else:
         return name
