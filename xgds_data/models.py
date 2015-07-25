@@ -66,6 +66,15 @@ class Collection(models.Model):
             rcontents.extend(ct.model_class().objects.filter(pk__in=self.contents.filter(linkType=ct.id).values_list('linkId',flat=True)))
         return rcontents
 
+    def limitedContents(self, maxSize):
+        ctypes =[ContentType.objects.get_for_id(mid) for mid in set(self.contents.all().values_list('linkType',flat=True))]
+        rcontents = []
+        for ct in ctypes:
+            need = maxSize - len(rcontents)
+            if need > 0:
+                rcontents.extend(ct.model_class().objects.filter(pk__in=self.contents.filter(linkType=ct.id).values_list('linkId',flat=True))[0:maxSize])
+        return rcontents
+
     def add(self, something):
         return GenericLink.objects.create(link=something,collection=self)
 
@@ -135,9 +144,6 @@ class VirtualIncludedField(models.Field):
                 if tmf.name == self.name:
                     targets.append(tmf)
         return targets
-
-    def isgeneric(self):
-        return True
 
 
 ## taken from http://stackoverflow.com/questions/4581789/how-do-i-get-user-ip-address-in-django

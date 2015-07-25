@@ -33,7 +33,7 @@ from django.core.exceptions import ObjectDoesNotExist
 
 from xgds_data.introspection import (modelFields, resolveField, maskField,
                                      isAbstract, concreteDescendants, 
-                                     pk, pkValue, db_table, isgeneric, fullid,
+                                     pk, pkValue, db_table, fullid,
                                      resolveModel, fieldModel, parentField)
 from xgds_data.models import cacheStatistics, VirtualIncludedField
 if cacheStatistics():
@@ -93,9 +93,9 @@ def isPostgres():
     return settings.DATABASES['default']['ENGINE'] == 'django.db.backends.postgresql_psycopg2'
 
 
-def genericArguments(model, qdatas, soft=True):
+def virtualArguments(model, qdatas, soft=True):
     """
-    Gets the portion of a query that applies to generic pointers
+    Gets the portion of a query that applies to virtual fields
     """
     mfields = dict([(f.name, f) for f in modelFields(model)])
     fdict = dict()
@@ -105,11 +105,14 @@ def genericArguments(model, qdatas, soft=True):
                 fieldname = fieldname[:-3]
 
             mf = mfields.get(fieldname)
-            if (mf is not None) and isgeneric(mf) and (fieldval is not None):
-                for tm in mf.throughModels():
-                    if tm not in fdict:
-                        fdict[tm] = set()
-                    fdict[tm].add(mf)
+            try:
+                if (mf is not None) and (fieldval is not None):
+                    for tm in mf.throughModels():
+                        if tm not in fdict:
+                            fdict[tm] = set()
+                        fdict[tm].add(mf)
+            except AttributeError:
+                pass # not a virtual field
     return(fdict)
 
 
@@ -136,7 +139,7 @@ def makeFilters(model, qdatas, soft=True):
             else:
                 if isinstance(mf, VirtualIncludedField):
                     fieldname = mf.throughfield_name + '__' + fieldname
-                if (fieldval is not None) and (not isgeneric(mf)):
+                elif (fieldval is not None):
                     clause = None
                     negate = False
                     if fieldname.endswith('_operator'):
@@ -175,7 +178,13 @@ def makeFilters(model, qdatas, soft=True):
                     elif isinstance(mf, fields.related.ManyToManyField):
                         # isinstance(formfield, forms.ModelMultipleChoiceField):
                         negate = fieldoperator == 'NOT IN'
-                        clause = Q(**{fieldname + '__in': fieldval})
+                        try:
+                            assert isinstance(fieldval, (list, tuple))
+                            assert not isinstance(fieldval, basestring)
+                            clause = Q(**{fieldname + '__in': fieldval})
+                        except AssertionError:
+                            ## needs to be iterable
+                            clause = Q(**{fieldname + '__in': [fieldval]})
                     elif (isinstance(mf, fields.related.ForeignKey) or
                           isinstance(mf, fields.related.OneToOneField)):
                     ## elif isinstance(formfield, forms.ModelChoiceField):
@@ -486,7 +495,11 @@ def scaleEval(model, field, lorange, hirange, size, fieldRef):
         if (isinstance(datamax, datetime.datetime) and (datamax.tzinfo is None)):
             datamax = datamax.replace(tzinfo=pytz.utc)
 
-        drange = datamax-datamin
+        if datamax == datamin:
+            ## also handles case when both are None
+            drange = 0
+        else:
+            drange = datamax-datamin
         if isinstance(drange, datetime.timedelta):
             drange = total_seconds(drange)
 
@@ -564,6 +577,10 @@ def scoreNumeric(model, field, lorange, hirange, tsize):
         scale = scaleEval(tf.model, tf, lorange, hirange, tsize, fieldRef)
     except (IndexError,AttributeError):
         scale = scaleEval(model, field, lorange, hirange, tsize, fieldRef)
+    if isPostgres():
+        nullcheck ="CAST(({0} IS NOT NULL) AS INT)".format(fieldRef)
+    else:
+        nullcheck ="({0} IS NOT NULL)".format(fieldRef)
     if scale is None:
         return '1'
     elif scale == 0:
@@ -571,11 +588,10 @@ def scoreNumeric(model, field, lorange, hirange, tsize):
         ## defining 0/x == 0 always, limit of standard formula leads to special case for 0, below.
         retv = "({0} = {1})".format(baseScore(fieldRef, lorange, hirange), scale)
         if isPostgres():
-            return "CAST({0} AS INT)".format(retv)
-        else:
-            return retv
+            retv = "CAST({0} AS INT)".format(retv)
     else:
-        return "{1}/({1} + {0})".format(baseScore(fieldRef, lorange, hirange), scale)
+        retv = "{1}/({1} + {0})".format(baseScore(fieldRef, lorange, hirange), scale)
+    return "{0} * {1}".format(nullcheck,retv)
 
 
 def desiredRanges(qdatas):
@@ -630,7 +646,7 @@ def totalweight(model, qdatas):
     tw = 0
     for b in desiderata.keys():
         field = resolveField(model, b)
-        if (field is None) or isgeneric(field):
+        if (field is None) or isinstance(field, VirtualIncludedField):
             pass
         else:
             tw = tw + 1
@@ -651,7 +667,7 @@ def sortFormulaRanges(model, desiderata):
         scores = dict()
         for b in desiderata.keys():
             field = resolveField(model, b)
-            if (field is None) or isgeneric(field):
+            if (field is None) or isinstance(field, VirtualIncludedField):
                 pass
             else:
                 scores[b] = scoreNumeric(model, field, desiderata[b][0], desiderata[b][1], tsize)
@@ -686,13 +702,16 @@ def pageLimits(page, pageSize):
 #     return getMatches(myModel, formset, soft, countOnly=True)
 
 
-def getMatches(myModel, qdatas, soft, queryStart=0, queryEnd=None, threshold=None):
+def getMatches(myModel, qdatas, soft, queryStart=0, queryEnd=None, threshold=None, baseQuery=None):
     """
     Get the query results
     """
     #results = []
+    #print(qdatas)
     hardfilter = makeFilters(myModel, qdatas, False)
     myfilter = makeFilters(myModel, qdatas, soft)
+    if baseQuery is None:
+        baseQuery = myModel.objects.all()
     if soft:
         scorer = sortFormula(myModel, qdatas)
     else:
@@ -736,18 +755,18 @@ def getMatches(myModel, qdatas, soft, queryStart=0, queryEnd=None, threshold=Non
                         onlyFields.append(x.throughfield_name) 
                 except AttributeError:
                     onlyFields.append(x.name)
-        gargs = genericArguments(myModel, qdatas, soft)
-        processGeneric = len(gargs.keys()) > 0
-        if processGeneric:
+        gargs = virtualArguments(myModel, qdatas, soft)
+        processVirtual = len(gargs.keys()) > 0
+        if processVirtual:
             hardCount = 0  # we need to do the full query to get the count
         else:
-            hardCount = myModel.objects.filter(hardfilter).count()
+            hardCount = baseQuery.filter(hardfilter).count()
 
-        if (scorer or processGeneric) and threshold is None:
+        if (scorer or processVirtual) and threshold is None:
             threshold = sortThreshold()
 
-        if scorer and (processGeneric or (hardCount <= 100)):
-            query = myModel.objects.filter(myfilter)
+        if scorer and (processVirtual or (hardCount <= 100)):
+            query = baseQuery.filter(myfilter)
 
             ## this code may not be needed in some version of Django
             ## apparently count() gets confused when extra refers
@@ -770,17 +789,17 @@ def getMatches(myModel, qdatas, soft, queryStart=0, queryEnd=None, threshold=Non
             extrawhere.append('%s >= %s' % (scorer, threshold))
             query = query.extra(tables=extratables, where=extrawhere)
             totalCount = query.count()
-            query = query.extra(select={'score': scorer}, order_by=['-score'])
+            query = query.extra(select={'score': scorer}, order_by=['-score',dbFieldRef(pk(myModel))])
         else:
             totalCount = hardCount
-            query = myModel.objects.filter(hardfilter)
+            query = baseQuery.filter(hardfilter)
             query = query.extra(select={'score': 1})
         ## defer isnt' working right on inherited models in Django 1.5
         ## only does, however
         ##query = query.defer(*deferFields)
         query = query.only(*onlyFields)
     
-        if processGeneric:
+        if processVirtual:
             gweights = dict()
             for gmodel, gfs in gargs.iteritems():
                 for gfield in gfs:
@@ -952,6 +971,8 @@ def getMatches(myModel, qdatas, soft, queryStart=0, queryEnd=None, threshold=Non
         else:
             query = query[queryStart:queryEnd]
 
+#        print(query.query)
+#        print(totalCount, hardCount)
         return (query, totalCount, hardCount)
 
 
@@ -972,6 +993,7 @@ def retrieve(fullids):
             groupedRecords[fullid(rec)] = rec
     ## return in original order
     return [groupedRecords[fid] for fid in fullids]
+
 
 def unitScore(value, lorange, hirange, median):
     """

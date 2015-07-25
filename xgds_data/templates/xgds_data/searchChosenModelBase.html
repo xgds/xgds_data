@@ -230,6 +230,26 @@ $("#nextpage").click(function() {
 	var page = parseInt($("#id_pageno").val()) + 1;
 	gotoPage(page);
 });
+$("#query-open").click(function() {
+	$("#query-close").css("display","block");
+	$("#query-open").css("display","none");
+	$("#query-section").css("display","none");
+});
+$("#query-close").click(function() {
+	$("#query-close").css("display","none");
+	$("#query-open").css("display","block");
+	$("#query-section").css("display","block");
+});
+$("#results-open").click(function() {
+	$("#results-close").css("display","block");
+	$("#results-open").css("display","none");
+	$("#outerresults").css("display","none");
+});
+$("#results-close").click(function() {
+	$("#results-close").css("display","none");
+	$("#results-open").css("display","block");
+	$("#outerresults").css("display","block");
+});
 
 {% if checkable  %}
 $('#pmaster').change(function() {                                           
@@ -275,6 +295,7 @@ $(function () {
         $('#query').click();
     }
 });
+
   </script>
   
 {% if standalone %}
@@ -300,7 +321,10 @@ $(function () {
 	<A id="expert" class="mybutton">Advanced Search</A>
 {% endif %}
 </div>
-<h2>{{ title }}</h2>  	
+<span class="ui-accordion-header-icon ui-icon ui-icon-triangle-1-s" style="float:left;{% if count %} display:none;{% endif %}" id="query-open"></span>
+<span class="ui-accordion-header-icon ui-icon ui-icon-triangle-1-e" style="float:left;{% if not count %} display:none;{% endif %}" id="query-close"></span>
+<h2>{{ title }}</h2>
+<div id="query-section" {% if count %}style="display:none;"{% endif %}>
 {% for d in debug %}
 	<span>{{ d }}</span>
 {% endfor %}
@@ -337,18 +361,17 @@ $(function () {
 	<input type="submit" value="Add Disjunction" id="addform" /> 
 	{% endif %}
 {% endif %}
-
+</div>
 {% endblock query %}
-
 {% block results  %}
-
- <div id='results'>    
+ <div id='results'>  
 {% if count %}
 
 	<HR>
 
 {% block count  %}
-
+<span class="ui-accordion-header-icon ui-icon ui-icon-triangle-1-s" style="float:left;" id="results-open"></span>
+<span class="ui-accordion-header-icon ui-icon ui-icon-triangle-1-e" style="float:left; display:none;" id="results-close"></span>
 	{% if count == exactCount %}
 		{{ count }} matching records
 	{% else %}
@@ -533,7 +556,7 @@ selected - Select
 	{% endfor %}
 		</tbody>
 	</table>
-</div>
+
 
 {% endblock listing %}
 
@@ -578,7 +601,7 @@ selected - Select
 	{% endwith %}
 
 {% endblock postamble %}
-
+</div>
 {% elif count == 0 %}
 	<HR>
 	No records match 

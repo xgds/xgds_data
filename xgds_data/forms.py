@@ -131,7 +131,7 @@ def valueFormField(mymodel, field, widget, allowMultiple=True, label=None):
     elif isinstance(field, (models.AutoField, models.IntegerField)):
         return forms.IntegerField(required=False,label=label)
     elif isinstance(field, (models.BooleanField, models.NullBooleanField)):
-        return forms.ChoiceField(choices=((None, '<Any>'),
+        return forms.ChoiceField(choices=(("", '<Any>'),
                                        (True, True),
                                        (False, False)),
                                  required=False,
