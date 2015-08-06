@@ -15,7 +15,7 @@
 # __END_LICENSE__
 
 from django.conf.urls import url, patterns
-from xgds_data import settings
+from django.conf import settings
 from xgds_data import views
 
 urlpatterns = patterns(

@@ -22,7 +22,7 @@ from django.forms.widgets import RadioSelect, TextInput
 from django.contrib.contenttypes.generic import GenericForeignKey
 from django.contrib.auth.models import User
 
-from xgds_data import settings
+from django.conf import settings
 from xgds_data.models import VirtualIncludedField
 from xgds_data.introspection import (modelFields, maskField, isOrdinalOveridden, isAbstract, pk, ordinalField, modelName)
 from xgds_data.DataStatistics import tableSize, fieldSize

@@ -23,7 +23,7 @@ from django.contrib.contenttypes.models import ContentType
 from django.contrib.contenttypes import generic                                 
 from django.core.urlresolvers import reverse
 
-from xgds_data import settings
+from django.conf import settings
 from xgds_data.logconfig import logEnabled
 #from xgds_data.introspection import modelFields
 import xgds_data.introspection

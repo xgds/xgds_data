@@ -23,7 +23,7 @@ import datetime
 # django.setup()
 
 from xgds_data.models import cacheStatistics
-from xgds_data import settings
+from django.conf import settings
 if cacheStatistics():
     from xgds_data.models import ModelStatistic
 

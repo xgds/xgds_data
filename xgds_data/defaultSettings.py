@@ -28,7 +28,7 @@ override it in the site-level settings module, like this:
 
 Other modules can access the value of FOO like this:
 
-  from xgds_data import settings
+  from django.conf import settings
   print settings.XGDS_DATA_FOO
 
 Don't try to get the value of XGDS_DATA_FOO from django.conf.settings.

@@ -47,7 +47,7 @@ try:
 except ImportError:
     GEOCAMUTIL_FOUND = False
 
-from xgds_data import settings
+from django.conf import settings
 from xgds_data.introspection import (modelFields, maskField, isAbstract, 
                                      resolveModel, ordinalField,
                                      pk, pkValue, verbose_name, settingsForModel, 

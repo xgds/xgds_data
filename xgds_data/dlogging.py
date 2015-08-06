@@ -18,7 +18,7 @@ from math import floor, log
 
 from django.shortcuts import render
 
-from xgds_data import settings
+from django.conf import settings
 from xgds_data.logconfig import logEnabled
 from xgds_data.introspection import pk, pkValue
 
