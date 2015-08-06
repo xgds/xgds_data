@@ -24,7 +24,6 @@
   <script language="javascript" type="text/javascript" src="{{ EXTERNAL_URL }}flot/jquery.flot.time.js"></script>
 {% endif %}
 
-{% if count %}
 <script language="javascript" type="text/javascript">
 function submitform(start, end)
 {
@@ -39,10 +38,58 @@ $("#next").click(function() {
 	submitform({{ start|add:"10000" }},{{ end|add:"10000" }});
 });
 
-var seriesToIndex; // translate from series index to flat index in names, data
-function makePlot(data,names) {
+function update() {
+	var xaxis = $('select[name|="xaxis"]').val();
+	var yaxis = $('select[name|="yaxis"]').val();
+	var series = $('select[name|="series"]').val();
+
+	var xdata = alldata[xaxis];
+	var ydata = alldata[yaxis];
+	var sdata;
+	if ((series == "None") || (series == undefined) || (series == "")) {
+		sdata = {};
+	} else {
+		sdata = alldata[series];
+	}
+	
+
+/* 
+	var xdata = {};
+	var ydata = {};
+	var sdata = {};
+
+	for (i in data) {
+		var id = data[i]['id'];
+		xdata[id] = data[i][xaxis];
+		ydata[id] = data[i][yaxis];
+		sdata[id] = data[i][series];
+		if (sdata[id] == undefined) {
+			// presumably this is when no series has been chosen
+			sdata[id]  = '<i>unspecified</i>';
+		}
+	}
+ */
+    if (alldata.Name == undefined) {
+        requestData(0, update); // weird semantics that gets name and rank metadata
+ 	} else if (xdata == undefined) {
+                alldata[xaxis] = {};
+ 		requestData(xaxis, update);
+ 	} else if (ydata == undefined) {
+                alldata[yaxis] = {};
+ 		requestData(yaxis, update);
+ 	} else if (sdata == undefined) {
+                alldata[series] = {};
+ 		requestData(series, update);
+ 	} else {
+ 		makePlot(xdata,ydata,sdata);
+ 	}
+}
+
+var seriesToPk; // translate from series index to flat index in names, data
+function makePlot(xdata,ydata,series) {
+        $("#hoverlabel").html("Rendering...");
 	$("#results_plot").html("");
-	var xSelect = $('select[name|="xaxis"]')[0];
+/* 	var xSelect = $('select[name|="xaxis"]')[0];
 	var xaxis = xSelect.options[xSelect.selectedIndex].value;
 	var ySelect = $('select[name|="yaxis"]')[0]
 	var yaxis = ySelect.options[ySelect.selectedIndex].value;
@@ -53,11 +100,35 @@ function makePlot(data,names) {
 	} else {
 		series = $('input[name|="series"]')[0].value;
 	}
-	
+ */	
 	var plotData = {};
-    seriesToIndex = {};
+    seriesToPk = {};
+    
+    for (var id in xdata) {
+    	var x = xdata[id];
+    	var y = ydata[id];
+    	var s = series[id];
+		if (s == undefined) {
+			// presumably this is when no series has been chosen
+			s  = '<i>unspecified</i>';
+		}
+    	
+    	var seriesdata = plotData[s];
+    	if (seriesdata == undefined) {
+    		seriesdata = {
+    				label : ''+s,
+    				lines : { show : false }, 
+    				points : { radius: 3, show : true, fill : true },
+    				data : []
+    			};
+    		plotData[s] = seriesdata;
+    		seriesToPk[s] = [];
+    	}
+    	seriesdata.data.push([ x, y ]);
+    	seriesToPk[s].push(id);
+    }
 
-	for (i in data) {
+/* 	for (i in data) {
 		var s = data[i][series];
 		if (!s) {
 			// presumably this is when no series has been chosen
@@ -86,7 +157,7 @@ function makePlot(data,names) {
 		}
 		plotData[s].data.push([ xval, yval ]);
 		seriesToIndex[s].push(i);
-	}
+	} */
 	var plotArray = [];
 	for (s in plotData) {
 		plotArray.push(plotData[s]);
@@ -94,6 +165,9 @@ function makePlot(data,names) {
 	
 	  var xmode = null;
 	  var ymode = null;
+          var xaxis = $('select[name|="xaxis"]').val();
+	  var yaxis = $('select[name|="yaxis"]').val();
+
 	  for (i in timeFields) {
 		  if (timeFields[i] == xaxis) {
 			  xmode = "time";
@@ -103,6 +177,12 @@ function makePlot(data,names) {
 		  }
 	  }
 	  $("#legend").html(""); // won't automatically be cleared if we no longer have a legend
+          $("#count").html(Object.keys(xdata).length);
+
+  $("#results_plot").on("plothover", plothoverHandler);
+  $("#results_plot").on("plotclick", plotclickHandler);
+  $("#hoverlabel").html('&nbsp;');
+
 	  return $.plot($("#results_plot"),
 			plotArray,
 			  {series: {shadowSize: 0, lines: {lineWidth:1}},
@@ -122,17 +202,100 @@ function makePlot(data,names) {
 
 function plothoverHandler(event, pos, item) {
     if (item) {
-        $("#hoverlabel").html(names[seriesToIndex[item.series.label][item.dataIndex]])
+        $("#hoverlabel").html(alldata.Name[seriesToPk[item.series.label][item.dataIndex]])
 		$("#hoverlabel").css("color",item.series.color);
     } else {
 		$("#hoverlabel").html('&nbsp;');
     }
 }
 
-$('select[name|="xaxis"]').change( function() { makePlot(data,names); } );
-$('select[name|="yaxis"]').change( function() { makePlot(data,names); } );
-$('select[name|="series"]').change( function() { makePlot(data,names); } );
-	
+function plotclickHandler(event, pos, item) {
+	    if (item) {
+                var id = parseInt(seriesToPk[item.series.label][item.dataIndex]);
+                self.location = "{% url 'xgds_data_displayRecord' module model '' %}"+id;
+	    }
+	}
+
+function escapeHtml(text) {
+  var map = {
+    '&': '&amp;',
+    '<': '&lt;',
+    '>': '&gt;',
+    '"': '&quot;',
+    "'": '&#039;'
+  };
+
+  return text.replace(/[&<>"']/g, function(m) { return map[m]; });
+}
+
+$('select[name|="xaxis"]').change(update);
+$('select[name|="yaxis"]').change(update);
+$('select[name|="series"]').change(update);
+
+var alldata = {};
+var ajaxData = {
+                'fields': [],
+		{% for field in formset.management_form %}                   "form-{{ field.name }}": "{{ field.value }}",
+		{% endfor %} 
+		{% for form in formset %}{% for field in form %}{% if field.value == None or field.value == '' %}{% else %}                   "form-0-{{ field.name }}": "{{ field.value }}"{% if not forloop.last %},{% endif %}
+		{% endif %}{% endfor %}{% endfor %}
+		};
+// console.log($('select[name|="xaxis"]').val());
+// console.log($('select[name|="yaxis"]').val());
+// console.log($('select[name|="series"]').val());
+
+//requestData(0); // weird semantics that gets name and rank metadata
+
+function requestData(field, callback) {
+
+  $("#results_plot").off("plothover");
+  $("#results_plot").off("plotclick");
+   $("#hoverlabel").css("color",'red');
+
+    var iload = 0,
+    loader = setInterval(function() {
+      iload = ++iload % 4;
+      $("#hoverlabel").html("Loading" + Array(iload).join('.'));
+    }, 600);
+
+               $.ajax({
+                       type: "POST",
+                       url: "{% url 'xgds_data_getFieldValues' module model ''%}" + field,
+                       data: ajaxData,
+                       success: function(data) { 
+				data.forEach(function(values) {
+					var id = values['{{pk}}'];
+					for (var k in values) {
+						if (k != '{{pk}}') {
+							var fieldvals = alldata[k];
+							if (fieldvals == undefined) {
+								fieldvals = {};
+								alldata[k] = fieldvals;
+							}
+                                                        if (values[k] == "None") {
+							    fieldvals[id] = "unspecified";
+                                                        } else if ($.type(values[k]) === "string") {
+							    fieldvals[id] = escapeHtml(values[k]);
+                                                        } else {
+							    fieldvals[id] = values[k];
+                                                        }
+						}
+					}
+				});
+                                clearInterval(loader);
+                                $("#hoverlabel").html('&nbsp;');
+				if (callback) {
+					callback();
+				}
+         	},
+                       error: function(xhr, status, error) {
+                           clearInterval(loader);
+                           $("#hoverlabel").html('Error');
+                }
+});
+}
+
+
 function cgiArgs(alist) {
 	var list = [];
 
@@ -144,25 +307,19 @@ function cgiArgs(alist) {
 }
 
   var timeFields = {{ timeFields|safe }};
-  var data = {{ plotData|safe }} ; 
-  var names = {{ labels|safe }} ; 
-  var plot = makePlot(data,names);
-  $("#results_plot").bind("plothover", plothoverHandler);
-  $("#results_plot").bind("plotclick", function (event, pos, item) {
-	    if (item) {
-	        var args = data[parseInt(seriesToIndex[item.series.label][item.dataIndex])];
-            self.location = "{% url 'xgds_data_displayRecord' module model '' %}"+args["{{ pk }}"];
-	    }
-	});
+  {% comment %}   var data = {{ plotData|safe }} ; 
+  var names = {{ labels|safe }} ; {% endcomment %} 
+  makePlot({},{},{});
+  var plot = update();
 
 </script>
-{% endif %}
 
 {% endblock %}
 
 
 {% block contents %}						
 <h2>{{ title }}</h2>
+
 {% for d in debug %}
 <span>{{ d }}</span>
 {% endfor %}
@@ -196,28 +353,14 @@ function cgiArgs(alist) {
 {% endif %}
 </table> 
 
-{% if count %}
+{% if formset.cleaned_data %}
 	<div align="center" id="hoverlabel" style="width:800px">&nbsp;</div>
 	<div id="results_plot" style="width:800px;height:450px">Loading...<BR /><BR /><BR />
-	<CENTER>(if this message doesn't go away, Javascript is probably disabled.)</CENTER>
+	<span>(if this message doesn't go away, Javascript is probably disabled.)</span>
 	</div>
 	<div id="legend"></div>
 	<HR>
-	<div>Plotting records {{ start|add:"1" }} through {{ start|add:showncount }} 
-	out of {{ count }} total</div>
-	{% if start|add:"0" > 0 %}
-		<input type="submit" value="Previous Records" id="prev" title="Refresh page with previous records"/>
-	{% else %}
-		<input type="submit" value="Previous Records" id="prev" title="There are no previous records" disabled/>
-	{% endif %}
-	{% if count > end|add:"0" %}
-	 	<input type="submit" value="Next Records" id="next" title="Refresh page with next records"/>
-	{% else %}
-	 	<input type="submit" value="Next Records" id="next" title="There are no next records" disabled/> 
-	{% endif %}
-{% elif formset.cleaned_data %}
-	<HR>
-	No records found 
+	<div>Plotting <span id="count">0</span> records</div>
 {% endif %}
 </form>
 

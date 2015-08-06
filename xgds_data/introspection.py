@@ -45,9 +45,15 @@ def modelFields(model):
     Retrieve the fields associated with the given model
     """
     myfields = model._meta.fields + model._meta.many_to_many + model._meta.virtual_fields
+    nameToField = dict([(x.name,x) for x in myfields])
     try:
         for throughFieldName, relName, relVerboseName in settingsForModel(settings.XGDS_DATA_EXPAND_RELATED, model):
-            myfields = myfields + [xgds_data.models.VirtualIncludedField(model, throughFieldName, relName, relVerboseName)]
+            try:
+                if throughFieldName is not None:
+                    throughField = nameToField[throughFieldName]
+                myfields.append(xgds_data.models.VirtualIncludedField(model, throughFieldName, relName, relVerboseName))
+            except KeyError:
+                print("Error- VirtualField {0} on {1} references nonexistent field {2}".format(relVerboseName, modelName(model), throughFieldName))
     except AttributeError:
         pass
 
@@ -212,14 +218,14 @@ def ordinalField(model, field):
         return False
 
 
-def concreteDescendents(model):
+def concreteDescendants(model):
     """
     Get non-abstract descendants of this class. Does not check subclasses on concrete descendants.
     """
     if isAbstract(model):
         submodels = []
         for sub in model.__subclasses__():
-            submodels = submodels + concreteDescendents(sub)
+            submodels = submodels + concreteDescendants(sub)
         return submodels
     else:
         return [model]
@@ -230,16 +236,6 @@ def concrete_model(model):
     Get the concrete model
     """
     return model._meta.concrete_model
-
-
-def isgeneric(field):
-    """
-    Is this a generic pointer?
-    """
-    try:
-        return field.isgeneric()
-    except AttributeError:
-        return False
 
 
 def fullid(record):

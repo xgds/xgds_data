@@ -131,7 +131,7 @@ def valueFormField(mymodel, field, widget, allowMultiple=True, label=None):
     elif isinstance(field, (models.AutoField, models.IntegerField)):
         return forms.IntegerField(required=False,label=label)
     elif isinstance(field, (models.BooleanField, models.NullBooleanField)):
-        return forms.ChoiceField(choices=((None, '<Any>'),
+        return forms.ChoiceField(choices=(("", '<Any>'),
                                        (True, True),
                                        (False, False)),
                                  required=False,
@@ -176,7 +176,6 @@ def fieldNameBase(field,name):
     Get the form field name
     """
     if isinstance(field, VirtualIncludedField):
-        ##return field.throughfield_name+'.'+name
         return name
     else:
         return name
