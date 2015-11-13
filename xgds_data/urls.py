@@ -14,6 +14,7 @@
 #specific language governing permissions and limitations under the License.
 # __END_LICENSE__
 
+from django.views.generic import TemplateView
 from django.conf.urls import url, patterns
 from django.conf import settings
 from xgds_data import views
@@ -67,6 +68,8 @@ urlpatterns = patterns(
         name='xgds_data_searchSimilar'),
 
     url(r'^replayRequest/(?P<rid>\d+)$', 'replayRequest', name='xgds_data_replayRequest'),
+    
+    url(r'^import/$', TemplateView.as_view(template_name='xgds_data/importData.html'), name='xgds_data_import'),
 )
 
 try:

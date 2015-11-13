@@ -1,0 +1,19 @@
+{% extends "base.html" %}
+{% load url from future %}
+
+{% block content %}
+Select what type of data to import:<br/>
+<select id="data_type">
+{% for key, value in settings.XGDS_DATA_IMPORTS.items %}
+    <option value="{{ value }}">{{ key }}</option>
+{% endfor %}
+</select>
+<button id="go_button" >Go</button>
+{% endblock content %}
+
+{% block jsInit %}
+ $("#go_button").click(function(event){
+ 	event.preventDefault();
+ 	window.location = $("#data_type").val();
+ });
+{% endblock jsInit %}

@@ -58,6 +58,9 @@ XGDS_DATA_TIME_FIELDS = (
     'timestamp',
 )
 
+# Include a dictionary of name to url for imports if you wish to include import functionality
+XGDS_DATA_IMPORTS = {}
+
 # include this in your siteSettings.py BOWER_INSTALLED_APPS
 XGDS_DATA_BOWER_INSTALLED_APPS = ('flot',
                                   'datatables-fixedcolumns'
