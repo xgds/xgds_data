@@ -2,13 +2,14 @@
 {% load url from future %}
 
 {% block content %}
+<strong>If your data is geolocated (has positions) from another source, please upload the GPS or track source first.</strong><br/>
 Select what type of data to import:<br/>
 <select id="data_type">
 {% for key, value in settings.XGDS_DATA_IMPORTS.items %}
     <option value="{{ value }}">{{ key }}</option>
 {% endfor %}
 </select>
-<button id="go_button" >Go</button>
+<button id="go_button" class="small">Go</button>
 {% endblock content %}
 
 {% block jsInit %}
