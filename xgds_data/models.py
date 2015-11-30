@@ -173,7 +173,7 @@ if logEnabled():
         user_agent = models.CharField(max_length=256, null=True, blank=True)
 
         def get_absolute_url(self):
-            return reverse('xgds_data_replayRequest', args=[self.id])
+            return reverse('xgds_data_replayRequest', args=[self.pk])
 
         def recreateRequest(self, request):
             reqargs = RequestArgument.objects.filter(request=self)
@@ -234,7 +234,7 @@ if logEnabled():
                 return cls(timestampSeconds=datetime.utcnow(), request=request, template=template)
 
         def __unicode__(self):
-            return 'Response %s:%s' % (self.id, self.template)
+            return 'Response %s:%s' % (self.pk, self.template)
 
     class ResponseArgument(models.Model):
         response = models.ForeignKey(ResponseLog, null=False, blank=False)
