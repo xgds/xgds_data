@@ -9,3 +9,4 @@
 /static/css/*.r*.css
 /xgds_data/build
 migrations/
+/docs/_build
