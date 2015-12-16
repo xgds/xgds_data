@@ -31,7 +31,7 @@ except ImportError:
 
 from string import capwords
 
-from xgds_data.models import VirtualIncludedField
+from xgds_data.models import VirtualIncludedField, Collection
 from xgds_data.introspection import pkValue
 from xgds_data.introspection import modelName as intmodelName
 from xgds_data.introspection import moduleName as intmoduleName
@@ -44,46 +44,47 @@ register = template.Library()
 register.filter('pkValue', pkValue)
 
 # http://stackoverflow.com/questions/844746/performing-a-getattr-style-lookup-in-a-django-template
-def getattribute(value, arg):
+def getattribute(obj, attr):
     """Gets an attribute of an object dynamically from a string name"""
+
     try:
-        return getattr(value, arg)
+        return getattr(obj, attr)
     except (TypeError, AttributeError):
         pass
     
     try:
-        return value[arg]
+        return obj[attr]
     except (TypeError, AttributeError, KeyError):
         pass
 
-    if integer_test.match(str(arg)) and len(value) > int(arg):
-        v = value[int(arg)]
-    elif isinstance(arg, VirtualIncludedField):
+    if integer_test.match(str(attr)) and len(obj) > int(attr):
+        v = obj[int(attr)]
+    elif isinstance(attr, VirtualIncludedField):
         try:
-            #throughInstance = arg.throughfield.__get__(value);
-            if arg.throughfield_name is None:
-                throughInstance = value
+            #throughInstance = attr.throughfield.__get__(obj);
+            if attr.throughfield_name is None:
+                throughInstance = obj
             else:
-                throughInstance = getattr(value, arg.throughfield_name)
+                throughInstance = getattr(obj, attr.throughfield_name)
             if throughInstance is not None:
-                v = getattr(throughInstance, arg.name)
+                v = getattr(throughInstance, attr.name)
             else:
                 v = None
         except AttributeError as inst:
             print(inst)
-            print('Error on ', value, arg)
+            print('Error on ', obj, attr)
             v = None
-    elif isinstance(arg, models.Field):
+    elif isinstance(attr, models.Field):
         try:
-            v = getattr(value, arg.name)
+            v = getattr(obj, attr.name)
         except (ObjectDoesNotExist, OperationalError, DatabaseError, IntegrityError) as expt:
             # can happen with an inconsistent database, as in plrp
-            print(value,arg.name)
+            print(obj,attr.name)
             print(expt)
             # No problem, we love dirty data!
             v = None
-    elif isinstance(arg, generic.GenericForeignKey):
-        v = getattr(value, arg.name , None)
+    elif isinstance(attr, generic.GenericForeignKey):
+        v = getattr(obj, attr.name , None)
     else:
         v = settings.TEMPLATE_STRING_IF_INVALID
     if (isinstance(v, models.Manager)):
@@ -106,8 +107,7 @@ def moduleName(instance):
 register.filter('moduleName', moduleName)
 
 
-## TODO: We don't need to pass field
-def displayLinkedData(field, value):
+def displayLinkedData(value):
     if value is None:
         return None
     else:
@@ -166,10 +166,10 @@ def display(field, value):
                 except NameError:
                     return mark_safe('<A HREF="' + field.storage.url(value) + '"><IMG SRC="' + field.storage.url(value) + '" WIDTH="100"></A>')
         elif isinstance(field, (models.ForeignKey, models.OneToOneField)):
-            return displayLinkedData(field,value)
+            return displayLinkedData(value)
         elif isinstance(field, generic.GenericForeignKey):
             if value is not None:
-                return displayLinkedData(field,value)
+                return displayLinkedData(value)
             else:
                 return value
         # elif isinstance(field, models.ManyToManyField):
@@ -201,21 +201,27 @@ def display(field, value):
         else:
             try:
                 results = []
-                if (len(value) > 100):
+                try:
+                    cnt = value.count()
+                except (TypeError, AttributeError):
+                    cnt = len(value)
+                if (cnt > 100):
                     for v in value[0:4]:
-                        results.append(displayLinkedData(field,v))
+                        results.append(displayLinkedData(v))
                     results.append("...")
-                    for v in value[len(results)-4:len(results)]:
-                        results.append(displayLinkedData(field,v))
+#                    for v in value[len(results)-4:len(results)]:
+#                       results.append(displayLinkedData(v))
 
                     results.append("("+str(len(value))+" records)")
                 else:
                     for v in value:
-                        results.append(displayLinkedData(field,v))
+                        results.append(displayLinkedData(v))
                 return mark_safe(','.join(results))   
-                # ##foo = ', '.join([displayLinkedData(field,v) for v in value])
+                # ##foo = ', '.join([displayLinkedData(v) for v in value])
                 # foo = stringifyList(field,value)
                 # return mark_safe(foo)
+            except AttributeError:
+                return "Error"
             except TypeError:
                 return value
             except ValueError:
@@ -234,7 +240,11 @@ register.filter('modulo', modulo)
 
 def isNumeric(value):
     """tests to see if this is a number or not"""
-    return numeric_test.match(str(value))
+    try:
+        value.__iter__
+        return False
+    except AttributeError:
+        return numeric_test.match(str(value))
 
 register.filter('isNumeric', isNumeric)
 

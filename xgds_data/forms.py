@@ -18,13 +18,13 @@ from django import forms
 from django.db import models
 from django.utils.safestring import mark_safe
 from django.db.models import fields
-from django.forms.widgets import RadioSelect, TextInput
+#from django.forms.widgets import RadioSelect, TextInput
 from django.contrib.contenttypes.generic import GenericForeignKey
 from django.contrib.auth.models import User
 
 from django.conf import settings
 from xgds_data.models import VirtualIncludedField
-from xgds_data.introspection import (modelFields, maskField, isOrdinalOveridden, isAbstract, pk, ordinalField, modelName)
+from xgds_data.introspection import (modelFields, maskField, isOrdinalOveridden, isAbstract, pk, ordinalField, modelName, settingsForModel)
 from xgds_data.DataStatistics import tableSize, fieldSize
 from xgds_data.utils import label
 # pylint: disable=R0924
@@ -43,20 +43,25 @@ class specialModelChoiceField(forms.ModelChoiceField):
         return label(obj)
 
 
-def estimateFieldCount(field, itemCount, maxItemCount, maxFieldCount):
-    """
-    How many values occur for this field?
-    """
-    estCount = None
-    try:
-        estCount = tableSize(field.rel.to)
-    except AttributeError:
-        if (itemCount < maxItemCount):
-            estCount = itemCount
-        elif (itemCount < maxFieldCount):
-            estCount = field.model.objects.values(field.name).order_by().distinct().count()
+# eh, is no one using this?
+# def estimateFieldCount(field, itemCount, maxItemCount, maxFieldCount,
+#                        queryGenerator=None):
+#     """
+#     How many values occur for this field?
+#     """
+#     estCount = None
+#     try:
+#         estCount = tableSize(field.rel.to)
+#     except AttributeError:
+#         if (itemCount < maxItemCount):
+#             estCount = itemCount
+#         elif (itemCount < maxFieldCount):
+#             if queryGenerator:
+#                 qset = queryGenerator(field.model).values(field.name).order_by().distinct().count()
+#             else:
+#                 estCount = field.model.objects.values(field.name).order_by().distinct().count()
 
-    return estCount
+#     return estCount
 
 
 def specialWidget(mymodel, field, enumerableFields):
@@ -116,7 +121,33 @@ def operatorFormField(mymodel, field, widget):
         return None
 
 
-def valueFormField(mymodel, field, widget, allowMultiple=True, label=None):
+def toFieldName(model):
+    """
+    """
+    ## the to_field is a difficult problem
+    ## it controls what the options are to be selected
+    ## ideally that would be the same as what the user sees
+    ## but that is __unicode__(). So potentially there is
+    ## a mismatch.
+    ## If the __unicode__ is just a particular field, we can
+    ## make it work. Below it is hardcoded if the model has
+    ## a field "name" (cheesy), otherwise defaults to pk
+    try:
+        to_field_name = settingsForModel(settings.XGDS_DATA_TO_FIELD_NAME, model)[0]
+    except (AttributeError, IndexError):
+        to_field_name = None
+
+    if not to_field_name:
+        fieldnames = [x.name for x in modelFields(model)]
+        if 'name' in fieldnames:
+            return 'name'
+        else:
+            to_field_name = None # pk(field.rel.to).name
+    return to_field_name
+
+
+def valueFormField(mymodel, field, widget, allowMultiple=True, label=None,
+                   queryGenerator=None):
     """
     Returns form field to provide a value appropriate for this model field
     """
@@ -135,52 +166,54 @@ def valueFormField(mymodel, field, widget, allowMultiple=True, label=None):
                                        (True, True),
                                        (False, False)),
                                  required=False,
-                                 label=label)   
+                                 label=label)
     elif isinstance(field, (models.ForeignKey,models.ManyToManyField,models.OneToOneField)):
+        to_field_name = toFieldName(field.rel.to)
+
+        if queryGenerator:
+            qset = queryGenerator(field.related.parent_model)
+        else:
+            qset = field.related.parent_model.objects.all()
         if widget is 'pulldown':
             # can't use as queryset arg because it needs a queryset, not a list
             # foreigners = sorted(field.related.parent_model.objects.all(), key=lambda x: unicode(x))
-            qset = field.related.parent_model.objects.all()
             if (field.related.parent_model == User):
                 qset = qset.order_by('last_name')
             if isinstance(field, models.ManyToManyField) and allowMultiple:
                 return forms.ModelMultipleChoiceField(queryset=qset,
+                                                      to_field_name=to_field_name,
                                                       required=False,
                                                       label=label)
             else:
                 return specialModelChoiceField(queryset=qset,
-                                               # initial=qset,
                                                # order_by('name'),
                                                empty_label="<Any>",
                                                required=False,
                                                label=label)
-        elif widget is 'textbox':
-            qset = field.related.parent_model.objects.all()
-            try:
-                to_field = [x for x in modelFields(field.rel.to) if x.name == 'name'][0]
-            except IndexError:
-                to_field = pk(field.rel.to)
-            return forms.ModelChoiceField(queryset=qset,
-                                          to_field_name=to_field.name,
-                                          initial=None,
-                                          widget=TextInput,
-                                          required=False,
-                                          label=label)
-            # self.fields[field.name] = forms.CharField(required=False)
+        else:
+            return forms.CharField(required=False,label=label)
+            # return forms.ModelChoiceField(queryset=qset,
+            #                               to_field_name=to_field_name,
+            #                               initial=None,
+            #                               widget=forms.TextInput,
+            #                               required=False,
+            #                               label=label)
     else:
         return None
 
 
-def fieldNameBase(field,name):
-    """
-    Get the form field name
-    """
-    if isinstance(field, VirtualIncludedField):
-        return name
-    else:
-        return name
+# doesn't do anything useful anymore
+# def fieldNameBase(field,name):
+#     """
+#     Get the form field name
+#     """
+#     if isinstance(field, VirtualIncludedField):
+#         return name
+#     else:
+#         return name
 
-def searchFormFields(mymodel, field, enumerableFields):
+def searchFormFields(mymodel, field, enumerableFields,
+                     queryGenerator=None):
     """
     Returns a dict of Form fields to add to a search form, based on the model field
     """
@@ -193,8 +226,8 @@ def searchFormFields(mymodel, field, enumerableFields):
             #  need to assume all are the same, so just use the first one
             #print(searchFormFields(tmfs[0].model, tmfs[0], enumerableFields))
             vfields = dict()
-            for name,ff in searchFormFields(tmfs[0].model, tmfs[0], enumerableFields).iteritems():
-                vfields[fieldNameBase(field,name)] = ff
+            for name,ff in searchFormFields(tmfs[0].model, tmfs[0], enumerableFields, queryGenerator=queryGenerator).iteritems():
+                vfields[name] = ff
             formfields.update(vfields)
     else:
         widget = specialWidget(mymodel, field, enumerableFields)
@@ -205,14 +238,19 @@ def searchFormFields(mymodel, field, enumerableFields):
                                  field.__class__.__name__])
             print("SearchForm forms doesn't deal with %s yet" % longname)
         else:
-            ##fieldnamebase = modelName(mymodel)+'.'+field.name
-            fieldnamebase = fieldNameBase(field,field.name)
-            formfields[fieldnamebase + '_operator'] = opField
+            formfieldname = field.name
             if ordinalField(mymodel, field):
-                formfields[fieldnamebase + '_lo'] = valueFormField(mymodel, field, widget)
-                formfields[fieldnamebase + '_hi'] = valueFormField(mymodel, field, widget)
+                formfields[formfieldname + '_lo'] = valueFormField(mymodel, field, widget, queryGenerator=queryGenerator)
+                formfields[formfieldname + '_hi'] = valueFormField(mymodel, field, widget, queryGenerator=queryGenerator)
             else:
-                formfields[fieldnamebase] = valueFormField(mymodel, field, widget, allowMultiple=False)
+                vff = valueFormField(mymodel, field, widget, allowMultiple=False, queryGenerator=queryGenerator)
+                if (widget != 'pulldown') and (isinstance(field, fields.related.RelatedField)):
+                    to_field_name = toFieldName(field.rel.to)
+                    if to_field_name is None:
+                        to_field_name = pk(field.rel.to).name
+                    formfieldname = '__'.join([formfieldname, to_field_name])
+                formfields[formfieldname] = vff
+            formfields[formfieldname + '_operator'] = opField
 
     return formfields
 
@@ -223,33 +261,34 @@ class SearchForm(forms.Form):
     """
     def __init__(self, mymodel, *args, **kwargs):
         enumerableFields = kwargs.pop('enumerableFields', None)
+        queryGenerator = kwargs.pop('queryGenerator', None)
         forms.Form.__init__(self, *args, **kwargs)
         self.model = mymodel
 
         for field in modelFields(mymodel):
-            self.fields.update(searchFormFields(mymodel, field, enumerableFields))
+            self.fields.update(searchFormFields(mymodel, field, enumerableFields, queryGenerator=queryGenerator))
 
-    def as_table(self):
+    def as_table(self, expert=False):
         output = []
 
-        for mfield in modelFields(self.model):
-            # self.model._meta.fields:
-            # n = mfield.name
-            fieldname = fieldNameBase(mfield,mfield.name)
-            # if (isinstance(mfield, VirtualIncludedField)):
-            #    fieldname = mfield.compound_name()
-            if (fieldname in self.fields or
-                ((fieldname + '_lo') in self.fields and
-                 (fieldname + '_hi') in self.fields)):
-                ofieldname = fieldname + '_operator'
-                ofield = forms.forms.BoundField(self, self.fields[ofieldname], ofieldname)
-                if ordinalField(self.model, mfield):
-                    loname, hiname = fieldname + '_lo', fieldname + '_hi'
+        fieldmap = dict([(f.name, f) for f in modelFields(self.model)])
+        for ffield in self.fields:
+            if ffield.endswith('_operator'):
+                basename = ffield[:-(len('_operator'))]
+                loname = basename + '_lo'
+                hiname = basename + '_hi'
+                mfield = fieldmap[basename.split('__')[0]]
+                ofield = forms.forms.BoundField(self, self.fields[ffield], ffield)
+                if not expert:
+                    ofield = ofield.as_hidden()
+
+                if (loname in self.fields) and (hiname in self.fields):
                     fieldlo = forms.forms.BoundField(self, self.fields[loname], loname)
                     fieldhi = forms.forms.BoundField(self, self.fields[hiname], hiname)
                     row = (u'<tr><td style="text-align:right;"><label for="%(fieldid)s">%(label)s</label></td><td>%(ofield)s</td>' %
                            {'label': unicode(mfield.verbose_name),
-                            'ofield': unicode(ofield.as_hidden()),
+                               #'label': unicode(basename),
+                            'ofield': unicode(ofield),
                             'fieldid': unicode(fieldlo.auto_id)
                             })
                     row = (row + u'<td>%(fieldlo)s</td><td><label for="%(fieldhi_id)s">up to</label></td><td>%(fieldhi)s</td>' %
@@ -257,18 +296,19 @@ class SearchForm(forms.Form):
                             'fieldhi': unicode(fieldhi),
                             'fieldhi_id': unicode(fieldhi.auto_id)})
                 else:
+                    bfield = forms.forms.BoundField(self,
+                                                    self.fields[basename],
+                                                   basename)
+
                     row = (u'<tr><td style="text-align:right;"><label for="%(fieldid)s">%(label)s</label></td><td>%(ofield)s</td>' %
                            {'label': unicode(mfield.verbose_name),
-                            'ofield': unicode(ofield.as_hidden()),
-                            'fieldid': unicode(ofield.auto_id[:-9])
+                            #   'label': unicode(basename),
+                            'ofield': unicode(ofield),
+#                            'fieldid': unicode(ofield.auto_id[:-9])
+                            'fieldid': unicode(bfield.auto_id)
                             })
-                    try:
-                        bfield = forms.forms.BoundField(self, self.fields[fieldname],
-                                                        fieldname)
-                        row = (row + u'<td colspan=3>%(field)s</td>' %
-                               {'field': unicode(bfield)})
-                    except AttributeError:
-                        row = None ### HERE
+                    row = (row + u'<td colspan=3>%(field)s</td>' %
+                           {'field': unicode(bfield)})
                 if row is not None:
                     row = row + u'</tr>'
                     output.append(row)
@@ -276,40 +316,7 @@ class SearchForm(forms.Form):
         return mark_safe(u'\n'.join(output))
 
     def as_expert_table(self):
-        output = []
-
-        for mfield in modelFields(self.model):
-            n = mfield.name
-            if (n in self.fields or
-                ((n + '_lo') in self.fields and
-                 (n + '_hi') in self.fields)):
-                ofieldname = n + '_operator'
-                ofield = forms.forms.BoundField(self, self.fields[ofieldname], ofieldname)
-
-                if ordinalField(self.model, mfield):
-                    loname, hiname = mfield.name + '_lo', mfield.name + '_hi'
-                    fieldlo = forms.forms.BoundField(self, self.fields[loname], loname)
-                    fieldhi = forms.forms.BoundField(self, self.fields[hiname], hiname)
-                    row = (u'<tr><td style="text-align:right;"><label for="%(fieldid)s">%(label)s</label></td><td>%(ofield)s</td>' %
-                           {'label': unicode(mfield.verbose_name),
-                            'ofield': unicode(ofield),
-                            'fieldid': unicode(fieldlo.auto_id)})
-                    row = (row + u'<td>%(fieldlo)s</td><td><label for="%(fieldhi_id)s">up to</label></td><td>%(fieldhi)s</td>' %
-                           {'fieldlo': unicode(fieldlo),
-                            'fieldhi': unicode(fieldhi),
-                            'fieldhi_id': unicode(fieldhi.auto_id)})
-                else:
-                    row = (u'<tr><td style="text-align:right;"><label for="%(fieldid)s">%(label)s</label></td><td>%(ofield)s</td>' %
-                           {'label': unicode(mfield.verbose_name),
-                            'ofield': unicode(ofield),
-                            'fieldid': unicode(ofield.auto_id[:-9])})
-                    bfield = forms.forms.BoundField(self, self.fields[mfield.name], mfield.name)
-                    row = (row + u'<td colspan=3>%(field)s</td>' %
-                           {'field': unicode(bfield)})
-
-                row = row + u'</tr>'
-                output.append(row)
-        return mark_safe(u'\n'.join(output))
+        return self.as_table(expert=True)
 
     def modelVerboseName(self):
         return self.model._meta.verbose_name
@@ -362,8 +369,18 @@ class SortForm(forms.Form):
     Dynamically creates a form to sort over the given class
     """
     def __init__(self, mymodel, *args, **kwargs):
+        try:
+            numorder = kwargs['num']
+            del kwargs['num']
+        except KeyError:
+            numorder = 5
+        try:
+            directionWidget = kwargs['dwidget']
+            del kwargs['dwidget']
+        except KeyError:
+            directionWidget = forms.RadioSelect
+
         forms.Form.__init__(self, *args, **kwargs)
-        numorder = 5  # should be a passed in parameter
         self.model = mymodel
         sortingfields = []
         for x in modelFields(mymodel):
@@ -382,12 +399,30 @@ class SortForm(forms.Form):
                                                                       required=True)
                 self.fields['direction' + str(order)] = forms.ChoiceField(choices=(('ASC', 'Ascending'),
                                                                                    ('DESC', 'Descending')),
-                                                                          widget=RadioSelect(),
+                                                                          widget=directionWidget,
                                                                           initial='ASC',
                                                                           required=True)
 
+    def orders(self):
+        myorders = []
+        x = 1
+        good = True
+        while good:
+            try:
+                order = 'order'+str(x)
+                direction = 'direction'+str(x)
+                if (self.cleaned_data[order] != 'None'):
+                    if (self.cleaned_data[direction] == 'DESC'):
+                        myorders.append('-'+self.cleaned_data[order])
+                    else:
+                        myorders.append(self.cleaned_data[order])
+                x = x + 1
+            except KeyError:
+                good = False
+        return myorders
 
-def SpecializedForm(formModel, myModel):
+
+def SpecializedForm(formModel, myModel, queryGenerator=None):
     """
     Returns form class using the given model, so you don't have to pass the model to the constructor. Helps with formsets
     """
@@ -401,6 +436,8 @@ def SpecializedForm(formModel, myModel):
     tmpFormClass = type('tmpForm', (formModel,), dict())
 
     def initMethod(self, *args, **kwargs):
+        if queryGenerator:
+            kwargs['queryGenerator'] = queryGenerator
         formModel.__init__(self, myModel, *args, **kwargs)
 
     tmpFormClass.__init__ = initMethod

@@ -19,8 +19,7 @@ try:
 except ImportError:
     pass
 
-from django.db.models import get_app
-from django.db.models import fields
+from django.db.models import (get_app, fields)
 from django.conf import settings
 #from xgds_data.models import VirtualIncludedField
 import xgds_data.models
@@ -40,19 +39,39 @@ def settingsForModel(settng, model):
     return mysettings
 
 
+def accessorDict(model):
+    """
+    returns a dict of accessor, base relation parts that can be used on this model
+    """
+    ad = dict([(x.name, x) for x in model._meta.fields])
+    ad.update(dict([(x.name, x) for x in model._meta.many_to_many]))
+    ## do we need virtual_fields? Not sure what those are
+    ad.update(dict([(x.get_accessor_name(), x) for x in model._meta.get_all_related_objects()]))
+    ad.update(dict([(x.get_accessor_name(), x) for x in model._meta.get_all_related_many_to_many_objects()]))
+
+    return ad
+
+
 def modelFields(model):
     """
     Retrieve the fields associated with the given model
     """
     myfields = model._meta.fields + model._meta.many_to_many + model._meta.virtual_fields
-    nameToField = dict([(x.name,x) for x in myfields])
+    # nameToField = dict([(x.name,x) for x in myfields])
+    fieldNames = [x.name for x in myfields]
+    for x in dir(model):
+        try:
+            if isinstance(getattr(model, x), fields.related.ForeignRelatedObjectsDescriptor):
+                fieldNames.append(x )
+        except AttributeError:
+            ## django may though AttributeError even for things listed by dir
+            pass
     try:
         for throughFieldName, relName, relVerboseName in settingsForModel(settings.XGDS_DATA_EXPAND_RELATED, model):
-            try:
-                if throughFieldName is not None:
-                    throughField = nameToField[throughFieldName]
+            if (throughFieldName is not None) and (throughFieldName in fieldNames):
+                # throughField = nameToField[throughFieldName]
                 myfields.append(xgds_data.models.VirtualIncludedField(model, throughFieldName, relName, relVerboseName))
-            except KeyError:
+            else:
                 print("Error- VirtualField {0} on {1} references nonexistent field {2}".format(relVerboseName, modelName(model), throughFieldName))
     except AttributeError:
         pass
@@ -65,7 +84,7 @@ def isAbstract(model):
     Check if model is abstract. Might be a better way to do this, but I didn't find it.
     """
     return model._meta.abstract
-        
+
 
 def pk(model):
     """
@@ -95,6 +114,13 @@ def modelName(model):
     return concrete_model(model)._meta.object_name
 
 
+def qualifiedModelName(model):
+    """
+    Return the long model name with the module included
+    """
+    return '.'.join([model.__module__,modelName(model)])
+
+
 def moduleName(model):
     """
     return the short name of the module (or of the instance's module)
@@ -106,8 +132,15 @@ def verbose_name(model):
     """
     return the verbose name of the model
     """
-    return model._meta.verbose_name_raw
-    ## return model._meta.verbose_name
+    ## return model._meta.verbose_name_raw
+    return model._meta.verbose_name.title()
+
+
+def verbose_name_plural(model):
+    """
+    return the verbose name of the model
+    """
+    return model._meta.verbose_name_plural.title()
 
 
 def db_table(model):
@@ -165,6 +198,9 @@ def maskField(field):
     except AttributeError:
         pass
 
+    if field.name.startswith("_") and not field.name.startswith("__"):
+        return True
+
     return False
 
 
@@ -178,12 +214,27 @@ def isOrdinalOveridden(model, field):
         return False
 
 
+def isNumeric(model, field):
+    """
+    Is this a number field? Some aren't handled, though
+    """
+    return (isinstance(field, (fields.AutoField,
+                               fields.BigIntegerField,
+                               fields.DecimalField,
+                               fields.FloatField,
+                               fields.IntegerField,
+                               fields.PositiveIntegerField,
+                               fields.PositiveSmallIntegerField,
+                               fields.SmallIntegerField))
+            and not isOrdinalOveridden(model, field))
+
+
 def fieldModel(field):
     """
     Return the model that stores this field data
     """
     try:
-        return field.targetFields()[0];
+        return fieldModel(field.targetFields()[0])
     except (IndexError, AttributeError):
         return field.model
 
@@ -203,10 +254,14 @@ def ordinalField(model, field):
     if isOrdinalOveridden(model, field):
         return False
     elif isinstance(field, xgds_data.models.VirtualIncludedField):
-        for tmf in field.targetFields():
-            if not ordinalField(tmf.model, tmf):
-                return False
-        return True
+        if len(field.targetFields()):
+            for tmf in field.targetFields():
+                if not ordinalField(tmf.model, tmf):
+                    return False
+            return True
+        else:
+            ## I think we missed it
+            return False;
     elif isinstance(field, (fields.AutoField,
                             fields.DateTimeField,
                             fields.DecimalField,

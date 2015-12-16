@@ -1,4 +1,4 @@
-{% extends "base.html" %}
+{% extends base %}
 {% load xgds_data_extras %}
 
 {% load url from future %}
@@ -25,7 +25,7 @@
   {{ block.super }}
 {% if standalone %}
   <script language="javascript" type="text/javascript"
-  	src="{{ STATIC_URL }}/external/js/jquery/jquery-ui.min.js"></script>
+  	src="{{ STATIC_URL }}external/js/jquery/jquery-ui.min.js"></script>
   <script language="javascript" type="text/javascript"
   	src="{{ STATIC_URL }}external/js/jquery/jquery-ui-timepicker-addon.js"></script>
   <script language="javascript" type="text/javascript"
@@ -34,7 +34,7 @@
 	  src="{{ STATIC_URL }}external/js/DataTables/dataTables.fixedColumns.min.js"></script>
 {% else %}
   <script language="javascript" type="text/javascript" src="{{ EXTERNAL_URL }}jquery-ui/jquery-ui.min.js"></script>
-  <script language="javascript" type="text/javascript" src="{{ EXTERNAL_URL }}jqueryui-timepicker-addon/dist/jquery-ui-timepicker-addon.min.js"></script>
+  <script language="javascript" type="text/javascript" src="{{ EXTERNAL_URL }}jQuery-Timepicker-Addon/dist/jquery-ui-timepicker-addon.min.js"></script>
   <script language="javascript" type="text/javascript" src="{{ EXTERNAL_URL }}datatables/media/js/jquery.dataTables.min.js"></script>
   <script language="javascript" type="text/javascript" src="{{ EXTERNAL_URL }}datatables-fixedcolumns/js/dataTables.fixedColumns.js"></script>
 {% endif %}
@@ -44,14 +44,14 @@
 	  while (string.length < width) {
 		  string = "0"+string;
 	  }
-	  
+
 	  return string;
   }
-  
+
   function convertToUTC(string) {
 	  var months = ['Jan','Feb','Mar','Apr','May','June',
 	                'Jul','Aug','Sep','Oct','Nov','Dec'];
-	  
+
 	  var d = new Date(string);
 	  var mo = zeroPad((1+d.getUTCMonth()),2);
 	  var date = zeroPad(d.getUTCDate(),2);
@@ -66,11 +66,16 @@
  	     return mo+'/'+date+'/'+year+' '+hours+':'+minutes+':'+seconds;
           }
   }
-  
+
 {% block submitURL %}
-var submitURL="{% url 'xgds_data_searchChosenModel' module model %}"
-var submitExpertURL="{% url 'xgds_data_searchChosenModel' module model 'expert' %}"
+var submitURL="{% url 'xgds_data_searchChosenModel' module model %}";
+var submitExpertURL="{% url 'xgds_data_searchChosenModel' module model 'expert' %}";
 {% endblock submitURL %}
+
+{% block plotURL %}
+var plotURL="{% url 'xgds_data_searchPlotQueryResults' module model %}";
+var plotExactURL="{% url 'xgds_data_searchPlotQueryResults' module model 'exact'%}";
+{% endblock plotURL %}
 
   function submitform(fnctn,pageno)
   {
@@ -79,7 +84,7 @@ var submitExpertURL="{% url 'xgds_data_searchChosenModel' module model 'expert' 
 	} else {
 		document.QueryForm.action = submitExpertURL;
 	}
-	try { 
+	try {
 	{% for f in datetimefields %}
 	var timeLo = $('#id_{{f}}_lo').val();
 	var timeHi = $('#id_{{f}}_hi').val();
@@ -93,17 +98,17 @@ var submitExpertURL="{% url 'xgds_data_searchChosenModel' module model 'expert' 
 	}
 	{% endfor %}
 	} catch (err) {
-		
+
 		alert(err)
 	}
 	document.QueryForm["fnctn"].value = fnctn;
-    $("#id_pageno").val(pageno); 
+    $("#id_pageno").val(pageno);
     {% block submitPostProcess %}
     {% endblock submitPostProcess %}
     document.QueryForm.submit();
     return false;
   }
-  
+
   function changemode(isExpert)
   {
 	if (!isExpert) {
@@ -116,7 +121,7 @@ var submitExpertURL="{% url 'xgds_data_searchChosenModel' module model 'expert' 
 		document.QueryForm.action = submitExpertURL;
 	}
     document.QueryForm["fnctn"].value = 'change';
-    $("#id_pageno").val(1); 
+    $("#id_pageno").val(1);
     document.QueryForm.submit();
   }
 
@@ -125,33 +130,63 @@ var submitExpertURL="{% url 'xgds_data_searchChosenModel' module model 'expert' 
 		//document.QueryForm["fnctn"].value = 'query';
 		submitform('query',page);
 	}
-  
+
 
   var oTable;
-  
-  function syncFramesize() {
-		  var nheight = $(window).height(); // New height
-		  var nwidth = $(window).width(); // New width
+  // must calculate once, on startup,
+  var headroom; // height of nonresult stuff
 
-		  //$("#outerresults").height(nheight - 50);
-		  $("#outerresults").width(nwidth - 50);
-	      //$('div.dataTables_scrollBody').css('height',(nheight - 75)+'px');
-	      //$('div.DTFC_LeftBodyWrapper').css('height',(nheight - 75)+'px');
-	      //oTable.fnAdjustColumnSizing();
-		}
-  
-  var calcDataTableHeight = function() {
-      return '500px';
-      //TODO if we know how much room the search takes up we can be smart about how tall to make the results.
-/* 	    var h = Math.floor($(window).height()*65/100);
-	    return h + 'px';
- */	};
+  // this is how much space we have for the datatable
+  function calcOuterResultsHeight(occupied) {
+    if (headroom == undefined) {
+        headroom = $(document).height() - $("#outerresults").height();
+        // headroom = Math.min($(document).height(),$("html").height()) - $("#outerresults").height();
+    }
+      var px = $(window).height() - headroom;
+      var error = 30; // there's a small amount of error, perhaps dropshadow?
+      var contentHeight = $('#tableresults').height()+ error + $(".dataTables_scrollHead").height() + occupied;
+
+      return Math.min(px, contentHeight);
+   }
+
+  function syncFramesize() {
+      // occupied is other stuff also in outterresults (i.e, not the datatable)
+      var occupied = -$("#tableresults_wrapper").height();
+      var offspring = $("#outerresults").children();
+      offspring.each(function() { occupied = occupied + $(this).height(); });
+
+      var desired = calcOuterResultsHeight(occupied);
+      // we want outterresults height to be the data table height
+
+      var tableFixedLeft = $('.DTFC_LeftBodyWrapper');
+      var tableRight = $('#tableresults').parent();
+      var tableHead = $(".dataTables_scrollHead");
+      // aka DTFC_ScrollWrapper
+      var tableAll = $('#tableresults').parent().parent().parent();
+
+      var excess = $("#outerresults").height() - desired;
+      var tableBodyHeight = tableRight.height() - excess;
+      var tableHeight = tableAll.height() - excess;
+
+      tableFixedLeft.height(tableBodyHeight+'px');
+      tableRight.height(tableBodyHeight+'px');
+      tableAll.height(tableHeight+'px');
+
+      var padding = $('body').outerHeight(true) - $('window').height();
+      if (padding > 0) {
+          $('body').outerHeight($('body').outerHeight()-padding);
+      }
+   }
 
   function initDataFrame() {
-      $('#page').height(1200);
-      $('#page-content').height(1100);
+		{% if standalone %}
+		{% else %}
+//      $('#page').height(1200);
+//      $('#page-content').height(1100);
+	    {% endif %}
     var options = {
-    	    "sScrollY": calcDataTableHeight(),
+	"initComplete": function(settings, json) { syncFramesize(); },
+    		"sScrollY": "100%", // calcOuterResultsHeight(),
     		"sScrollX": "100%",
             "bFilter": false,
             "bInfo": false,
@@ -166,26 +201,29 @@ var submitExpertURL="{% url 'xgds_data_searchChosenModel' module model 'expert' 
 	oTable = $('#tableresults').DataTable(options);
 	{% if checkable %}
 	{% if standalone %}
+	new $.fn.dataTable.FixedColumns( oTable, { leftColumns: 2 } );
 	{% else %}
 	new $.fn.dataTable.FixedColumns( oTable, { leftColumns: 2, leftWidth: 115 } );
 	{% endif %}
 	{% else %}
-	{% if standalone %}
-	// new FixedColumns( oTable, { "iLeftColumns": 1 } );
-	new $.fn.dataTable.FixedColumns( oTable, { leftColumns: 1 } );
-	{% else %}
 	new $.fn.dataTable.FixedColumns( oTable, { leftColumns: 1 } );
 	{% endif %}
-	{% endif %}
+    // syncFramesize();
+        // $(".DTFC_LeftWrapper")[0].style.width = 0;
 	// positionFooter();
+
+	// it appears DataTables was setting this height, but that
+	// messes up resizing
+	$('#tableresults').parent().parent().parent().parent()[0].style.height = "";
 }
 
 if ($('#tableresults').length) {
-	// $(document).ready(initDataFrame);
+	$(document).ready(initDataFrame);
 	$(window).resize(syncFramesize);
 }
 
-window.onload = initDataFrame;
+// window.onload = initDataFrame;
+// initDataFrame();
 
 {% for f in datetimefields %}
 var timeFormat = '{{ timeformat }}'
@@ -215,11 +253,11 @@ $("#expert").click(function() {
 	changemode(true);
 });
 $("#plot").click(function() {
-	document.QueryForm.action = "{% url 'xgds_data_searchPlotQueryResults' module model %}";
+	document.QueryForm.action = plotURL;
 	document.QueryForm.submit();
 });
 $("#plothard").click(function() {
-	document.QueryForm.action = "{% url 'xgds_data_searchPlotQueryResults' module model 'exact' %}";
+	document.QueryForm.action = plotExactURL;
 	document.QueryForm.submit();
 });
 $("#prevpage").click(function() {
@@ -230,16 +268,29 @@ $("#nextpage").click(function() {
 	var page = parseInt($("#id_pageno").val()) + 1;
 	gotoPage(page);
 });
-$("#query-open").click(function() {
-	$("#query-close").css("display","block");
-	$("#query-open").css("display","none");
-	$("#query-section").css("display","none");
+$("#query-toggle").click(function() {
+       if ($("#query-section").css("display") == "none") {
+            $("#query-close").css("display","none");
+	    $("#query-open").css("display","block");
+	    $("#query-section").css("display","block");
+       } else {
+            $("#query-close").css("display","block");
+	    $("#query-open").css("display","none");
+	    $("#query-section").css("display","none");
+       }
 });
-$("#query-close").click(function() {
-	$("#query-close").css("display","none");
-	$("#query-open").css("display","block");
-	$("#query-section").css("display","block");
+$("#results-toggle").click(function() {
+      if ($("#outerresults").css("display") == "none") {
+	$("#results-close").css("display","none");
+	$("#results-open").css("display","block");
+	$("#outerresults").css("display","block");
+      } else {
+	$("#results-close").css("display","block");
+	$("#results-open").css("display","none");
+	$("#outerresults").css("display","none");
+      }
 });
+/*
 $("#results-open").click(function() {
 	$("#results-close").css("display","block");
 	$("#results-open").css("display","none");
@@ -250,39 +301,56 @@ $("#results-close").click(function() {
 	$("#results-open").css("display","block");
 	$("#outerresults").css("display","block");
 });
+*/
 
 {% if checkable  %}
-$('#pmaster').change(function() {                                           
-	var checked = $( "input:checked[id=pmaster]").length;
-	    // alert('you clicked me!');
+{% comment %}
+DataTables duplicates cells which complicates this logic.
+We have duplicate checkboxes which we can't see and don't want to use.
+To avoid them, only use those contained in the DTFC_Cloned class element.
+This may not work in future versions of DataTables.
+Tested with DataTables 1.9.4
+{% endcomment %}
+$('#pmaster').change(function() {
+	var checked = $( ".DTFC_Cloned input:checked[id=pmaster]").length;
+	var addin;
 	if (checked) {
 	    //alert('check!');
-	     $( "input:not(:checked)[id^=pick]").prop('checked',true)
+	     var affected = $( ".DTFC_Cloned input:not(:checked)[id^=pick]");
+	     addin = affected.length;
+	     affected.prop('checked',true)
 	} else {
 	    //alert('uncheck!');
-	     $( "input:checked[id^=pick]").prop('checked',false)
+	     var affected = $( ".DTFC_Cloned input:checked[id^=pick]");
+	     addin = -affected.length;
+	     affected.prop('checked',false)
 	}
+	$("#pickscount").html(addin+parseInt($("#pickscount").html()));
 });
 
 $('input[id^=pick]').change(function(event) {
-	var pickcount = $( "input[id^=pick]").length;
-	var checkpickcount = $( "input:checked[id^=pick]").length
+	var addin = -1;
+	if (this.checked) {
+	  addin = 1;
+	}
+	$("#pickscount").html(addin+parseInt($("#pickscount").html()));
+	var pickcount = $( ".DTFC_Cloned input[id^=pick]").length;
+	var checkpickcount = $( ".DTFC_Cloned input:checked[id^=pick]").length
 	if (pickcount == checkpickcount) {
-
 	    //$('#pmaster').prop('checked',true);
-	     $('input:not(:checked)[id=pmaster]').prop('checked',true)
+	     $('.DTFC_Cloned input:not(:checked)[id=pmaster]').prop('checked',true)
 	} else {
 
-	     $('input:checked[id=pmaster]').prop('checked',false)
+	     $('.DTFC_Cloned input:checked[id=pmaster]').prop('checked',false)
 	    // $('#pmaster').prop('checked',false);
 	}
 });
 
 {% endif %}
 
-function resetResults() { 
-//	$('#results').html(""); 
-	$("#id_pageno").val(1); 
+function resetResults() {
+//	$('#results').html("");
+	$("#id_pageno").val(1);
 }
 
 $('input[id$="control"]').change(resetResults);
@@ -290,14 +358,16 @@ $('input[type=text][id$="_lo"]').change(resetResults);
 $('input[type=text][id$="_hi"]').change(resetResults);
 $('select').change(resetResults);
 
+{% comment %}
 $(function () {
     if ({{ autoSubmit }}) {
         $('#query').click();
     }
 });
+{% endcomment %}
 
   </script>
-  
+
 {% if standalone %}
   <script language="javascript" type="text/javascript"
 	  src="{{ STATIC_URL }}external/js/jquery/jquery.flot.min.js"></script>
@@ -313,7 +383,11 @@ $(function () {
 {% endblock scripts %}
 
 {% block contents  %}
-{% block query %}	
+  <form name="QueryForm" action="" method="post">
+  <input type="hidden" name="fnctn" value="query">
+{{ formset.management_form }}
+{% block query %}
+<div id='query-div'>
 <div style="float:right;text-align:right;">
 {% if expert %}
 	<A id="simple" class="mybutton">Simple Search</A>
@@ -321,33 +395,32 @@ $(function () {
 	<A id="expert" class="mybutton">Advanced Search</A>
 {% endif %}
 </div>
+<span id="query-toggle">
 <span class="ui-accordion-header-icon ui-icon ui-icon-triangle-1-s" style="float:left;{% if count %} display:none;{% endif %}" id="query-open"></span>
 <span class="ui-accordion-header-icon ui-icon ui-icon-triangle-1-e" style="float:left;{% if not count %} display:none;{% endif %}" id="query-close"></span>
-<h2>{{ title }}</h2>
+<h2>{{ title }}</h2></span>
+  <input type="hidden" name="pageno" id="id_pageno" value={{ page }}>
+
 <div id="query-section" {% if count %}style="display:none;"{% endif %}>
 {% for d in debug %}
 	<span>{{ d }}</span>
 {% endfor %}
-  <form name="QueryForm" action="" method="post">
-  <input type="hidden" name="fnctn" value="query">
-  <input type="hidden" name="pageno" id="id_pageno" value={{ page }}>
-  
+
 {% if axesform %}
     {% for field in axesform %}
-          {{ field.as_hidden }} 
+          {{ field.as_hidden }}
   {% endfor %}
 {% endif %}
 
-{{ formset.management_form }}
 <table>
-    
+
 {% for form in formset %}
     {% if expert %}
 		{{ form.as_expert_table }}
 	{% else %}
 		{{ form.as_table }}
 	{% endif %}
-    
+
 {% endfor %}
 
 	<tr>
@@ -355,21 +428,24 @@ $(function () {
 	</tr>
 
 </table>
- 
+
 {% if expert %}
 	{% if 'this code' == 'is no longer broken' %}
-	<input type="submit" value="Add Disjunction" id="addform" /> 
+	<input type="submit" value="Add Disjunction" id="addform" />
 	{% endif %}
 {% endif %}
 </div>
+</div>
 {% endblock query %}
 {% block results  %}
- <div id='results'>  
+ <div id='results'>
 {% if count %}
 
 	<HR>
 
 {% block count  %}
+{% spaceless %}
+<span id='results-toggle'>
 <span class="ui-accordion-header-icon ui-icon ui-icon-triangle-1-s" style="float:left;" id="results-open"></span>
 <span class="ui-accordion-header-icon ui-icon ui-icon-triangle-1-e" style="float:left; display:none;" id="results-close"></span>
 	{% if count == exactCount %}
@@ -389,13 +465,15 @@ $(function () {
 		{% endif %}
 	{% endif %}
 	in {{ duration|floatformat }} seconds.
+</span>
+{% endspaceless %}
 {% endblock count %}
 
     {% if count != exactCount %}
      <TABLE style="float: right; display: inline-block;">
     	{% if standalone %}
      		<TR><TH rowspan=2>Key</TH><TD class="mimicOddResultListExact">Exact</TD><TD class="mimicEvenResultListExact">Match</TD></TR>
-     		<TR><TD class="mimicOddResultListInexact">Close</TD><TD class="mimicEvenResultListInexact">Match</TD></TR>    	
+     		<TR><TD class="mimicOddResultListInexact">Close</TD><TD class="mimicEvenResultListInexact">Match</TD></TR>
     	{% else %}
      		<TR><TH rowspan=2>Key</TH><TD class="mimicOddGradeA">Exact</TD><TD class="mimicEvenGradeA">Match</TD></TR>
      		<TR><TD class="mimicOddGradeX">Close</TD><TD class="mimicEvenGradeX ">Match</TD></TR>
@@ -423,13 +501,13 @@ $(function () {
     {% if axesform %}
 	    {% if count != exactCount %}
 		    {% if count > 0 %}
-		    	<input type="submit" class="mybutton" value="Plot (All)" id="plot"/> 
+		    	<input type="submit" class="mybutton" value="Plot (All)" id="plot"/>
 		    {% else %}
-		    	<input type="submit" value="Plot (All)" id="plot" disabled /> 
+		    	<input type="submit" value="Plot (All)" id="plot" disabled />
 		    {% endif %}
 	    {% endif %}
 	    {% if exactCount > 0 %}
-	    	<input type="submit" class="mybutton" value="Plot (Exact)" id="plothard"/> 
+	    	<input type="submit" class="mybutton" value="Plot (Exact)" id="plothard"/>
 	    {% else %}
 	    	<input type="submit" value="Plot (Exact)" id="plothard" disabled />
 	    {% endif %}
@@ -442,7 +520,7 @@ $(function () {
 {% with divpage=1|divide:pageSize %}
 	{% with end_index=page|divide:divpage|floatformat:"0"  %}
 	{% with start_index=pageSize|divide:-1|add:end_index|add:1  %}
-	<div id="pager">
+	<div id="pager1">
 
 	<input type="hidden" name="start" id="id_start">
 	<input type="hidden" name="end"  id="id_end">
@@ -450,7 +528,7 @@ $(function () {
 		{% if end_index|add:"0" < count|add:"0" %}{{end_index}}{% else %}{{count}}{% endif %}
 		 out of {{ count }} records</span>
 	{% if checkable %}
-		({% if not allselected %}{{ picks|length }}{% else %}{{ notpicks|length|divide:-1|add:count }}{% endif %}
+		(<span id="pickscount">{% if not allselected %}{{ picks|length }}{% else %}{{ notpicks|length|divide:-1|add:count }}{% endif %}</span>
 selected - Select
 <a href="javascript:submitform('selectall',{{page}});"><span style="text-decoration: underline;">All</span></a>
 /
@@ -462,7 +540,7 @@ selected - Select
      <TABLE style="float: right;">
     	{% if standalone %}
      		<TR><TH rowspan=2>Key</TH><TD class="mimicOddResultListExact">Exact</TD><TD class="mimicEvenResultListExact">Match</TD></TR>
-     		<TR><TD class="mimicOddResultListInexact">Close</TD><TD class="mimicEvenResultListInexact">Match</TD></TR>    	
+     		<TR><TD class="mimicOddResultListInexact">Close</TD><TD class="mimicEvenResultListInexact">Match</TD></TR>
     	{% else %}
      		<TR><TH rowspan=2>Key</TH><TD class="mimicOddGradeA">Exact</TD><TD class="mimicEvenGradeA">Match</TD></TR>
      		<TR><TD class="mimicOddGradeX">Close</TD><TD class="mimicEvenGradeX ">Match</TD></TR>
@@ -498,7 +576,7 @@ selected - Select
 	  <tbody>
 	{% for result in results %}
 		    {% with myscore=result|getattribute:'score' %}
-				{% if myscore >= 1 %}
+				{% if myscore|addfloat:"1E-12" >= 1 %}
 					{% if standalone %}
 						<tr class="ResultListExact">
 					{% else %}
@@ -510,7 +588,7 @@ selected - Select
 					{% else %}
 						<tr class="gradeX">
 					{% endif %}
-				{% endif %}			
+				{% endif %}
 		    {% endwith %}
 
 	   {% block datarow %}
@@ -552,7 +630,6 @@ selected - Select
 	   {% endblock datarow %}
 	</tr>
 
-	
 	{% endfor %}
 		</tbody>
 	</table>
@@ -587,7 +664,7 @@ selected - Select
 	{% with divpage=1|divide:pageSize %}
 	{% with end_index=page|divide:divpage|floatformat:"0"  %}
 	{% with start_index=pageSize|divide:-1|add:end_index|add:1  %}
-	<div id="pager">
+	<div id="pager2">
 	<input type="hidden" name="start" id="id_start">
 	<input type="hidden" name="end"  id="id_end">
 		<span class="counts">Displaying {{start_index}}-
@@ -604,13 +681,11 @@ selected - Select
 </div>
 {% elif count == 0 %}
 	<HR>
-	No records match 
+	No records match
 {% endif %}
 
 </div>
-</form>
-
 {% endblock results %}
-
+</form>
 {% endblock contents %}
 

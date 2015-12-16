@@ -20,7 +20,7 @@ from django.db import models
 from django.contrib.auth.models import User
 from django.http import HttpRequest
 from django.contrib.contenttypes.models import ContentType
-from django.contrib.contenttypes import generic                                 
+from django.contrib.contenttypes import generic
 from django.core.urlresolvers import reverse
 
 from django.conf import settings
@@ -43,9 +43,99 @@ def truncate(val, limit):
     else:
         return val[0:(limit - 2)]  # save an extra space because the db seems to want that
 
+class CollectionIterator:
+    """Iterate through a collection"""
+
+    def __init__(self, c):
+        self.collection = c
+        self.models = c.models()
+        self.buffer = None
+
+    def __iter__(self):
+        return self
+
+    def __next__(self):
+        try:
+            nextItem = None
+            while (nextItem is None):
+                try:
+                    nextItem = self.buffer[self.index]
+                    self.index = self.index + 1
+                except (TypeError, IndexError, AttributeError):
+                    # buffer exhausted or unset
+                    m = self.models.pop()
+                    self.buffer = list(self.collection.resolvedModelContents(m))
+                    self.index = 0
+            return nextItem
+        except IndexError:
+            # we've gone through all models
+            raise StopIteration
+
+    def next(self):
+        return self.__next__()
+
+class CollectionContainer:
+    """Really simple container for Collections"""
+
+    def __init__(self, c):
+        self.collection = c
+        self.len = None
+        self.counts = dict()
+
+    def count(self, m):
+        if m not in self.counts:
+            self.counts[m] = self.collection.resolvedModelCount(m)
+        return self.counts[m]
+
+
+    def __len__(self):
+        return self.collection.count()
+
+    def __iter__(self):
+        return CollectionIterator(self.collection)
+
+    def __getitem__(self, index):
+        buf = list()
+        try:
+            # maybe it's a slice
+            minindex = index.start
+            maxindex = index.stop
+        except AttributeError:
+            minindex = index
+            maxindex = index+1
+        if (minindex == maxindex - 1):
+            singleton = True
+        else:
+            singleton = False
+
+        for m in self.collection.models():
+            c = self.count(m)
+
+            if (minindex > c):
+                ## keep going
+                pass
+            else:
+                buf.extend(self.collection.resolvedModelContents(m,
+                                                                 slice(minindex,maxindex)))
+
+            minindex = max(0,minindex-c)
+            maxindex = maxindex - c
+            if (maxindex < 1):
+                ## we are done
+                if singleton:
+                    return buf[0]
+                else:
+                    return buf
+        if singleton:
+            raise IndexError # went through all models, not found
+        else:
+            # did not get all data requested but not an error here
+            return buf
+
 class Collection(models.Model):
     name = models.CharField(max_length=64)
     description = models.CharField(max_length=1024)
+    ## defined on GenericLink
 ##    contents = models.ManyToManyField(GenericLink)
 
     def get_edit_url(self):
@@ -53,30 +143,42 @@ class Collection(models.Model):
                        args=[xgds_data.introspection.pkValue(self)])
 
     def contentTypes(self):
-        return [ContentType.objects.get_for_id(mid) for mid in set(self.contents.all().values_list('linkType',flat=True))]
+        ## return [ContentType.objects.get_for_id(mid) for mid in set(self.contents.all().values_list('linkType',flat=True))]
+        return [ContentType.objects.get_for_id(mid) for mid in self.contents.all().values_list('linkType',flat=True).distinct()]
 
     def models(self):
         return [ct.model_class() for ct in self.contentTypes()]
 
+    def resolvedModelCount(self, model, slce = None):
+        ct = ContentType.objects.get_for_model(model)
+        if slce:
+            return self.contents.filter(linkType=ct)[slce].count()
+        else:
+            return self.contents.filter(linkType=ct).count()
+
+    def resolvedModelContents(self, model, slce = None):
+        ct = ContentType.objects.get_for_model(model)
+        if slce:
+            return model.objects.filter(pk__in=self.contents.filter(linkType=ct).values_list('linkId',flat=True)[slce])
+        else:
+            return model.objects.filter(pk__in=self.contents.filter(linkType=ct).values_list('linkId',flat=True))
+
+
+    def count(self):
+        return self.contents.count()
+
     @property
     def resolvedContents(self):
-        ctypes =[ContentType.objects.get_for_id(mid) for mid in set(self.contents.all().values_list('linkType',flat=True))]
-        rcontents = []
-        for ct in ctypes:
-            rcontents.extend(ct.model_class().objects.filter(pk__in=self.contents.filter(linkType=ct.id).values_list('linkId',flat=True)))
-        return rcontents
-
-    def limitedContents(self, maxSize):
-        ctypes =[ContentType.objects.get_for_id(mid) for mid in set(self.contents.all().values_list('linkType',flat=True))]
-        rcontents = []
-        for ct in ctypes:
-            need = maxSize - len(rcontents)
-            if need > 0:
-                rcontents.extend(ct.model_class().objects.filter(pk__in=self.contents.filter(linkType=ct.id).values_list('linkId',flat=True))[0:maxSize])
-        return rcontents
+        return CollectionContainer(self)
 
     def add(self, something):
         return GenericLink.objects.create(link=something,collection=self)
+
+    def addBulk(self, many):
+        newobjs = []
+        for x in many:
+            newobjs.append(GenericLink(link=x,collection=self))
+        GenericLink.objects.bulk_create(newobjs)
 
     def __unicode__(self):
         try:
@@ -88,7 +190,7 @@ class Collection(models.Model):
 class GenericLink(models.Model):
     linkType = models.ForeignKey(ContentType, null=True, blank=True)
     linkId = models.PositiveIntegerField(null=True, blank=True)
-    link = generic.GenericForeignKey('linkType', 'linkId') 
+    link = generic.GenericForeignKey('linkType', 'linkId')
     collection = models.ForeignKey(Collection, related_name='contents', null=True)
 
     def get_absolute_url(self):
@@ -269,6 +371,6 @@ if cacheStatistics():
     class ModelStatistic(models.Model):
         recorded = models.DateTimeField(blank=False, default=datetime.utcnow())
         model = models.CharField(max_length=256, db_index=True, blank=False)
-        field = models.CharField(max_length=256, db_index=True, blank=False)
+        field = models.CharField(max_length=256, db_index=True, blank=True)
         statistic = models.CharField(max_length=256, db_index=True, blank=False)
         value = models.FloatField(blank=False)

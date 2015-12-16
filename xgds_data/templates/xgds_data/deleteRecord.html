@@ -6,10 +6,23 @@
 {% block siteSection %}{{ title }}{% endblock siteSection %}
 
 {% block contents %}
-<form name='DeleteForm' action="{% url 'xgds_data_deleteRecord' module model record|pkValue %}" method="post">
-
-Really delete <B>{{ verbose_model }} {{ record }}</B>?
+Really delete
+{% if records|length = 1 %}
+<B>{{ verbose_model }} {{ records.0 }}</B>
+{% else %}
+<B>{{ records|length }} {{ verbose_model_plural }} </B>
+{% endif %}
+?
 <BR />
+
+<form name='DeleteForm' action="{% url 'xgds_data_deleteRecord' module model %}" method="post">
+
+{% spaceless %}
+{% for rfi in recordfullids %}
+<input type="hidden" id="pick_{{rfi}}" name="picks" value="{{rfi}}" >
+{% endfor %}
+{% endspaceless %}
+
 <input type="submit" class="mybutton" value="Delete" name="action" />
 <input type="submit" class="mybutton" value="Cancel" name="action" />
 </form>

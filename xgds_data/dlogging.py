@@ -16,14 +16,14 @@
 
 # this has been renamed to dlogging as logging was causing a very confusing name conflict
 
-from math import floor, log
+from math import (floor, log)
 
 from django import forms
 from django.shortcuts import render
 
 from django.conf import settings
 from xgds_data.logconfig import logEnabled
-from xgds_data.introspection import pk, pkValue
+from xgds_data.introspection import (pk, pkValue, concrete_model)
 
 if logEnabled():
     from xgds_data.models import (RequestLog,
@@ -43,7 +43,7 @@ def recordRequest(request):
         reqlog.save()
         args = []
         for a in data.keys():
-            args = args + [RequestArgument(request=reqlog, name=a, value=v) for v in data.getlist(a) if v.strip() != '']
+            args = args + [RequestArgument(request=reqlog, name=a, value=v.decode('utf-8', errors='ignore')) for v in data.getlist(a) if v.strip() != '']
 
         RequestArgument.objects.bulk_create(args)
 
@@ -52,24 +52,24 @@ def recordRequest(request):
         return None
 
 
-def getListItemProperty(obj, prop):
-    """
-    Record list might get either instances or dicts with instance contents, so use this
-    """
-    try:
-        return obj[prop]
-    except TypeError:
-        return getattr(obj, prop)
-
-
-def getFid(item, classpk):
-    """
-    Returns the id to store in the log
-    """
-    try:
-        return pkValue(item)
-    except AttributeError: # its a dict, apparently. Suspect this is no longer happens
-        return getListItemProperty(item, classpk.name)
+#def getListItemProperty(obj, prop):
+#    """
+#    Record list might get either instances or dicts with instance contents, so use this
+#    """
+#    try:
+#        return obj[prop]
+#    except TypeError:
+#        return getattr(obj, prop)
+#
+#
+#def getFid(item, classpk):
+#    """
+#    Returns the id to store in the log
+#    """
+#    try:
+#        return pkValue(item)
+#    except AttributeError: # its a dict, apparently. Suspect this is no longer happens
+#        return getListItemProperty(item, classpk.name)
 
 
 def recordList(reslog, results):
@@ -83,17 +83,17 @@ def recordList(reslog, results):
             ranks.append(len(results))
             items = [ResponseList(response=reslog,
                                   rank=r,
-                                  # fclass=str(results[r - 1]['__class__']),
-                                  # fid=results[r - 1][  results[r - 1]['__class__']._meta.pk.name ] )
-                                  fclass=str(getListItemProperty(results[r - 1], '__class__')),
-                                  #fid=getListItemProperty(results[r - 1], getListItemProperty(results[r - 1], '__class__')._meta.pk.name))
-                                  fid=getFid(results[r - 1],  pk(getListItemProperty(results[r - 1], '__class__')))
+#                                  fclass=str(getListItemProperty(results[r - 1], '__class__')),
+                                  fclass=str(concrete_model(results[r - 1])),
+#                                  fid=getFid(results[r - 1],  pk(getListItemProperty(results[r - 1], '__class__')))
+                                  fid=pkValue(results[r - 1])
                                   )
                      for r in ranks]
             try:
                 ResponseList.objects.bulk_create(items)
             except TypeError as e:
-                print('dlogging.py is confused by {0}'.format(getListItemProperty(results[r - 1], '__class__')))
+#                print('dlogging.py is confused by {0}'.format(getListItemProperty(results[r - 1], '__class__')))
+                print('dlogging.py is confused by {0} instance'.format(concrete_model(results[r - 1])))
             except ValueError as e:
                 print(e)
 
@@ -115,11 +115,11 @@ def logstuff(reqlog, template, rendargs, nolog=None, listing=None):
                     # check if an object is a list or tuple (but not string)
                     # http://stackoverflow.com/questions/1835018/python-check-if-an-object-is-a-list-or-tuple-but-not-string
                     assert not isinstance(rendargs.get(key), basestring)
-                    args = args + [ResponseArgument(response=reslog, name=key, value=str(v)[:1024]) 
+                    args = args + [ResponseArgument(response=reslog, name=key, value=str(v).decode('utf-8', errors='ignore')[:1024])
                                    for v in rendargs.get(key) if not isinstance(v,(forms.Form,forms.formsets.BaseFormSet))]
                 except (TypeError, AssertionError):
                     # not iterable
-                    args = args + [ResponseArgument(response=reslog, name=key, value=str(rendargs.get(key))[:1024])]
+                    args = args + [ResponseArgument(response=reslog, name=key, value=str(rendargs.get(key)).decode('utf-8', errors='ignore')[:1024])]
 
         ResponseArgument.objects.bulk_create(args)
         if listing:

@@ -38,6 +38,7 @@ $("#next").click(function() {
 	submitform({{ start|add:"10000" }},{{ end|add:"10000" }});
 });
 
+var urg;
 function update() {
 	var xaxis = $('select[name|="xaxis"]').val();
 	var yaxis = $('select[name|="yaxis"]').val();
@@ -51,9 +52,9 @@ function update() {
 	} else {
 		sdata = alldata[series];
 	}
-	
 
-/* 
+
+/*
 	var xdata = {};
 	var ydata = {};
 	var sdata = {};
@@ -70,18 +71,21 @@ function update() {
 	}
  */
     if (alldata.Name == undefined) {
+    	alldata.Name = {}
         requestData(0, update); // weird semantics that gets name and rank metadata
  	} else if (xdata == undefined) {
-                alldata[xaxis] = {};
+        alldata[xaxis] = {};
  		requestData(xaxis, update);
  	} else if (ydata == undefined) {
-                alldata[yaxis] = {};
+        alldata[yaxis] = {};
  		requestData(yaxis, update);
  	} else if (sdata == undefined) {
-                alldata[series] = {};
+        alldata[series] = {};
  		requestData(series, update);
  	} else {
- 		makePlot(xdata,ydata,sdata);
+ 		if (Object.keys(xdata).length) {
+ 			makePlot(xdata,ydata,sdata);
+ 		}
  	}
 }
 
@@ -100,10 +104,10 @@ function makePlot(xdata,ydata,series) {
 	} else {
 		series = $('input[name|="series"]')[0].value;
 	}
- */	
+ */
 	var plotData = {};
     seriesToPk = {};
-    
+
     for (var id in xdata) {
     	var x = xdata[id];
     	var y = ydata[id];
@@ -112,12 +116,12 @@ function makePlot(xdata,ydata,series) {
 			// presumably this is when no series has been chosen
 			s  = '<i>unspecified</i>';
 		}
-    	
+
     	var seriesdata = plotData[s];
     	if (seriesdata == undefined) {
     		seriesdata = {
     				label : ''+s,
-    				lines : { show : false }, 
+    				lines : { show : false },
     				points : { radius: 3, show : true, fill : true },
     				data : []
     			};
@@ -137,7 +141,7 @@ function makePlot(xdata,ydata,series) {
 		if (plotData[s] == undefined) {
 			plotData[s] = {
 				label : ''+s,
-				lines : { show : false }, 
+				lines : { show : false },
 				points : { radius: 3, show : true, fill : true },
 				data : []
 			};
@@ -162,7 +166,7 @@ function makePlot(xdata,ydata,series) {
 	for (s in plotData) {
 		plotArray.push(plotData[s]);
 	}
-	
+
 	  var xmode = null;
 	  var ymode = null;
           var xaxis = $('select[name|="xaxis"]').val();
@@ -192,7 +196,7 @@ function makePlot(xdata,ydata,series) {
 				legend : {
 					show : (series != '') && (series != 'None'),
 					container: $("#legend"),
-					noColumns : 5,
+					noColumns : 10,
 					sorted: true,
 					backgroundOpacity : 0
 				}
@@ -236,7 +240,7 @@ var alldata = {};
 var ajaxData = {
                 'fields': [],
 		{% for field in formset.management_form %}                   "form-{{ field.name }}": "{{ field.value }}",
-		{% endfor %} 
+		{% endfor %}
 		{% for form in formset %}{% for field in form %}{% if field.value == None or field.value == '' %}{% else %}                   "form-0-{{ field.name }}": "{{ field.value }}"{% if not forloop.last %},{% endif %}
 		{% endif %}{% endfor %}{% endfor %}
 		};
@@ -245,6 +249,10 @@ var ajaxData = {
 // console.log($('select[name|="series"]').val());
 
 //requestData(0); // weird semantics that gets name and rank metadata
+
+{% block ajaxUrl %}
+var ajaxUrl = "{% url 'xgds_data_getFieldValues' module model ''%}";
+{% endblock ajaxUrl %}
 
 function requestData(field, callback) {
 
@@ -260,9 +268,9 @@ function requestData(field, callback) {
 
                $.ajax({
                        type: "POST",
-                       url: "{% url 'xgds_data_getFieldValues' module model ''%}" + field,
+                       url: ajaxUrl + field{% if not soft %} + "/exact"{% endif %},
                        data: ajaxData,
-                       success: function(data) { 
+                       success: function(data) {
 				data.forEach(function(values) {
 					var id = values['{{pk}}'];
 					for (var k in values) {
@@ -272,26 +280,26 @@ function requestData(field, callback) {
 								fieldvals = {};
 								alldata[k] = fieldvals;
 							}
-                                                        if (values[k] == "None") {
+                            if (values[k] == "None") {
 							    fieldvals[id] = "unspecified";
-                                                        } else if ($.type(values[k]) === "string") {
+                            } else if ($.type(values[k]) === "string") {
 							    fieldvals[id] = escapeHtml(values[k]);
-                                                        } else {
+                            } else {
 							    fieldvals[id] = values[k];
-                                                        }
+                            }
 						}
 					}
 				});
-                                clearInterval(loader);
-                                $("#hoverlabel").html('&nbsp;');
+                clearInterval(loader);
+                $("#hoverlabel").html('&nbsp;');
 				if (callback) {
 					callback();
 				}
          	},
-                       error: function(xhr, status, error) {
-                           clearInterval(loader);
-                           $("#hoverlabel").html('Error');
-                }
+            error: function(xhr, status, error) {
+                 clearInterval(loader);
+                 $("#hoverlabel").html('Error');
+            }
 });
 }
 
@@ -307,9 +315,9 @@ function cgiArgs(alist) {
 }
 
   var timeFields = {{ timeFields|safe }};
-  {% comment %}   var data = {{ plotData|safe }} ; 
-  var names = {{ labels|safe }} ; {% endcomment %} 
-  makePlot({},{},{});
+  {% comment %}   var data = {{ plotData|safe }} ;
+  var names = {{ labels|safe }} ; {% endcomment %}
+  //makePlot({},{},{});
   var plot = update();
 
 </script>
@@ -317,7 +325,7 @@ function cgiArgs(alist) {
 {% endblock %}
 
 
-{% block contents %}						
+{% block contents %}
 <h2>{{ title }}</h2>
 
 {% for d in debug %}
@@ -332,36 +340,39 @@ function cgiArgs(alist) {
     {{ formset.management_form }}
     {% for form in formset %}
 		{% for field in form %}
-        	{{ field.as_hidden }} 
+        	{{ field.as_hidden }}
 		{% endfor %}
     {% endfor %}
 
-<table>      
+<div style="margin:auto; width:95%; height:800px;">
+
+<table>
 <tr><th>{{ axesform.xaxis.label_tag }}: </th><td>{{ axesform.xaxis }}</td></tr>
 <tr><th>{{ axesform.yaxis.label_tag }}: </th><td>{{ axesform.yaxis }}</td></tr>
 {% if axesform.fields.series.choices|length == 1 %}
-	{% comment %} 
+	{% comment %}
 	There's probably a better way to do this but I couldn't find it.
 	We just want the displayed choice name, not the actual value.
 	There will be exactly one choice, so looping isn't necessary, but could not find an alternative.
-	{% endcomment %} 
+	{% endcomment %}
 	{% for value, displayName in axesform.fields.series.choices %}
-		<tr><th>{{ axesform.series.label_tag }}: </th><td>{{ axesform.series.as_hidden }}{{ displayName }}</td></tr>	
+		<tr><th>{{ axesform.series.label_tag }}: </th><td>{{ axesform.series.as_hidden }}{{ displayName }}</td></tr>
 	{% endfor %}
 {% else %}
 	<tr><th>{{ axesform.series.label_tag }}: </th><td>{{ axesform.series }}</td></tr>
 {% endif %}
-</table> 
+</table>
 
 {% if formset.cleaned_data %}
-	<div align="center" id="hoverlabel" style="width:800px">&nbsp;</div>
-	<div id="results_plot" style="width:800px;height:450px">Loading...<BR /><BR /><BR />
+	<div align="center" id="hoverlabel" style="margin:auto;">&nbsp;</div>
+	<div id="results_plot" style="height:80%;">Loading...<BR /><BR /><BR />
 	<span>(if this message doesn't go away, Javascript is probably disabled.)</span>
 	</div>
 	<div id="legend"></div>
 	<HR>
 	<div>Plotting <span id="count">0</span> records</div>
 {% endif %}
+</div>
 </form>
 
 {% endblock %}

@@ -1,0 +1,52 @@
+{% extends "xgds_data/searchChosenModelBase.html" %}
+{% load xgds_data_extras %}
+
+{% block submitURL %}
+var submitURL="{% url urlName module model %}";
+var submitExpertURL="{% url urlName module model 'expert' %}";
+{% endblock submitURL %}
+
+{% block scripts %}
+  {{ block.super }}
+<script language="javascript" type="text/javascript">
+$("#id_userAction").click(function() {
+	submitform('{{finalAction}}',1);
+});
+</script>
+{% endblock scripts %}
+
+{% block query %}
+{{ block.super }}
+{% endblock query %}
+
+{% block count  %}
+Really {{ finalAction }} {% if not allselected %}{{ picks|length }}{% else %}{{ notpicks|length|divide:-1|add:count }}{% endif %} records?
+{% endblock count  %}
+
+{% block download  %}
+<input type="submit" class="mybutton" value="{{ finalAction }}" name="userAction" id="id_userAction"/>
+{% endblock download  %}
+
+{% block plot  %}
+{% endblock plot  %}
+
+{% block listing  %}
+{% endblock listing  %}
+
+{% block postamble %}
+<input type="hidden" name="confirmed" id="id_confirmed" value=1>
+{% if allselected %}
+<input type="hidden" name="allselected" id="id_allselected" value=1>
+{% else %}
+<input type="hidden" name="allselected" id="id_allselected">
+{% endif %}
+
+{% for pid in picks %}
+<input type="hidden" id="pick_{{pid}}" name="picks" value="{{pid}}" >
+{% endfor %}
+
+{% for pid in notpicks %}
+<input type="hidden" id="notpick_{{pid}}" name="notpicks" value="{{pid}}" >
+{% endfor %}
+
+{% endblock postamble %}

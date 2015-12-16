@@ -22,23 +22,24 @@ import pytz
 from math import floor, log10, pow as mpow  # shadows built-in pow()
 from operator import itemgetter
 
-from django import forms
+#from django import forms
 from django.db import connection
-from django.db.models import Q, Field, fields
-from django.db.models.fields import PositiveIntegerField, PositiveSmallIntegerField
-from django.contrib.contenttypes.generic import GenericForeignKey
-from django.db.models import Min, Max, Count
+from django.db.models import (Q, Field, fields, StdDev)
+from django.db.models.fields import (PositiveIntegerField, PositiveSmallIntegerField)
+#from django.contrib.contenttypes.generic import GenericForeignKey
+from django.db.models import (Min, Max)
 from django.conf import settings
 from django.core.exceptions import ObjectDoesNotExist
 
 from xgds_data.introspection import (modelFields, resolveField, maskField,
-                                     isAbstract, concreteDescendants, 
-                                     pk, pkValue, db_table, fullid,
+                                     isAbstract, concreteDescendants,
+                                     pk, db_table, fullid, accessorDict,
                                      resolveModel, fieldModel, parentField)
-from xgds_data.models import cacheStatistics, VirtualIncludedField
+from xgds_data.models import (cacheStatistics, VirtualIncludedField)
 if cacheStatistics():
     from xgds_data.models import ModelStatistic
-from xgds_data.DataStatistics import tableSize, segmentBounds, nextPercentile
+from xgds_data.DataStatistics import (tableSize, segmentBounds, nextPercentile,
+                                      getStatistic)
 from xgds_data.utils import total_seconds
 
 sdCache = dict()
@@ -116,6 +117,34 @@ def virtualArguments(model, qdatas, soft=True):
     return(fdict)
 
 
+def queryArgChain(model, qcomplexarg):
+    """
+    """
+    qchain = []
+    for qa in qcomplexarg.split('__'):
+        ad = accessorDict(model)
+        ## "relation" because it's not necessarily field, could be inverse
+        ## also need to test with many to many fields
+        relation = ad[qa]
+        qchain.append(relation)
+        try:
+            model = relation.rel.to
+        except AttributeError:
+            model = relation.model
+
+    return qchain
+
+
+def takeOutFunnyCharacters(str):
+    """
+    Take out funny chars, if there are any
+    """
+    try:
+        return str.decode('utf-8', errors='ignore')
+    except AttributeError:
+        return str ## probably not a string
+
+
 ## TODO: does not appear to do anything with hard VirtualIncludedField
 ## constraints, maybe as they show up as generic
 def makeFilters(model, qdatas, soft=True):
@@ -128,87 +157,93 @@ def makeFilters(model, qdatas, soft=True):
     for qd in qdatas:
         subfilter = Q()
         for fieldname in qd:
-            fieldval = qd[fieldname]
-            fieldoperator = qd.get(fieldname + '_operator')
-            basename = fieldname
-            if (basename.endswith('_lo') or basename.endswith('_hi')):
-                basename = basename[:-3]
-            mf = mfields.get(basename)
-            if mf is None:
-                pass
-            else:
-                if isinstance(mf, VirtualIncludedField):
-                    fieldname = mf.throughfield_name + '__' + fieldname
-                elif (fieldval is not None):
-                    clause = None
-                    negate = False
-                    if fieldname.endswith('_operator'):
-                        pass
-                    elif (fieldname.endswith('_lo') or fieldname.endswith('_hi')):
-                        loval = qd[basename + '_lo']
-                        hival = qd[basename + '_hi']
-                        fieldoperator = qd[basename + '_operator']
-                        if isinstance(mf, VirtualIncludedField):
-                            basename = mf.throughfield_name + '__' + basename
-                        if soft and (fieldoperator == 'IN~'):
-                            ## this isn't a restriction, so ignore
+            if fieldname.endswith('_operator'):
+                basename = fieldname[:-(len('_operator'))]
+                qargs = queryArgChain(model, basename)
+                modelfieldname = qargs[0].name
+                mf = mfields.get(modelfieldname)
+                if mf is None:
+                    print("No match for ",modelfieldname)
+                else:
+                    operator = qd[basename + '_operator']
+                    try:
+                        loqval = takeOutFunnyCharacters(qd[basename + '_lo'])
+                        hiqval = takeOutFunnyCharacters(qd[basename + '_hi'])
+                        rangeQuery = True
+                    except KeyError:
+                        qval = takeOutFunnyCharacters(qd[basename])
+                        rangeQuery = False
+
+                    if isinstance(mf, VirtualIncludedField):
+                        fieldname = mf.throughfield_name + '__' + fieldname
+                        ## this branch looks broken - don't we need to do something?
+                    else:
+                        clause = None
+                        negate = False
+                        terminalfield = qargs[-1]
+
+                        if rangeQuery:
+                            if soft and (operator == 'IN~'):
+                                ## this isn't a restriction, so ignore
+                                pass
+                            else:
+                                negate = operator == 'NOT IN'
+                                if (loqval is not None and hiqval is not None):
+                                    if loqval > hiqval:
+                                        ## hi and lo are reversed, assume that is a mistake
+                                        swap = loqval
+                                        loqval = hiqval
+                                        hiqval = swap
+
+                                    ## these aren't simple Q objects so don't set clause variable
+                                    if negate:
+                                        negate = False # handle negation now
+                                        subfilter &= (Q(**{basename + '__lt': loqval}) |
+                                                      Q(**{basename + '__gt': hiqval}))
+                                    else:
+                                        subfilter &= (Q(**{basename + '__gte': loqval}) &
+                                                      Q(**{basename + '__lte': hiqval}))
+                                elif loqval is not None:
+                                    clause = Q(**{basename + '__gte': loqval})
+                                elif hiqval is not None:
+                                    clause = Q(**{basename + '__lte': hiqval})
+                                else:
+                                    pass # both are None, no restriction
+                        elif qval is None:
+                            pass
+                        elif isinstance(terminalfield, fields.related.ManyToManyField):
+                            negate = operator == 'NOT IN'
+                            try:
+                                assert isinstance(qval, (list, tuple))
+                                assert not isinstance(qval, basestring)
+                                clause = Q(**{basename + '__in': qval})
+                            except AssertionError:
+                                ## needs to be iterable
+                                clause = Q(**{basename + '__in': [qval]})
+                        elif isinstance(terminalfield, (fields.related.ForeignKey,
+                                                        fields.related.OneToOneField)):
+                            negate = operator == '!='
+                            clause = Q(**{basename + '__exact': qval})
+                        elif re.match("\s*$", qval) or (operator == '=~'):
+                            pass
+                        elif qval == 'None' and isinstance(terminalfield, fields.NullBooleanField):
                             pass
                         else:
-                            negate = fieldoperator == 'NOT IN'
-                            if (loval is not None and hival is not None):
-                                if loval > hival:
-                                    ## hi and lo are reversed, assume that is a mistake
-                                    swap = loval
-                                    loval = hival
-                                    hival = swap
-                                if fieldname.endswith('_lo'):
-                                    ## range query- handle on _lo to prevent from doing it twice
-                                    ## this aren't simple Q objects so don't set clause variable
-                                    if negate:
-                                        negate = False
-                                        subfilter &= (Q(**{basename + '__lt': loval}) |
-                                                      Q(**{basename + '__gt': hival}))
-                                    else:
-                                        subfilter &= (Q(**{basename + '__gte': loval}) &
-                                                      Q(**{basename + '__lte': hival}))
-                            elif loval is not None:
-                                clause = Q(**{basename + '__gte': loval})
-                            elif hival is not None:
-                                clause = Q(**{basename + '__lte': hival})
-                    elif isinstance(mf, fields.related.ManyToManyField):
-                        # isinstance(formfield, forms.ModelMultipleChoiceField):
-                        negate = fieldoperator == 'NOT IN'
-                        try:
-                            assert isinstance(fieldval, (list, tuple))
-                            assert not isinstance(fieldval, basestring)
-                            clause = Q(**{fieldname + '__in': fieldval})
-                        except AssertionError:
-                            ## needs to be iterable
-                            clause = Q(**{fieldname + '__in': [fieldval]})
-                    elif (isinstance(mf, fields.related.ForeignKey) or
-                          isinstance(mf, fields.related.OneToOneField)):
-                    ## elif isinstance(formfield, forms.ModelChoiceField):
-                        negate = fieldoperator == '!='
-                        clause = Q(**{fieldname + '__exact': fieldval})
-                    elif fieldval is None or re.match("\s*$", fieldval) or (fieldoperator == '=~'):
-                        pass
-                    elif fieldval == 'None' and isinstance(mf, fields.NullBooleanField):
-                        pass
-                    else:
-                        negate = (fieldoperator == '!=')
-                        if fieldval == 'True':
-                            ## True values appear to be represented as numbers greater than 0
-                            clause = Q(**{fieldname + '__gt': 0})
-                        elif fieldval == 'False':
-                            ## False values appear to be represented as 0
-                            clause = Q(**{fieldname + '__exact': 0})
-                        else:
-                            clause = Q(**{fieldname + '__icontains': fieldval})
-                    if clause:
-                        if negate:
-                            subfilter &= ~clause
-                        else:
-                            subfilter &= clause
+                            negate = (operator == '!=')
+                            if qval == 'True':
+                                ## True values appear to be represented as numbers greater than 0
+                                clause = Q(**{basename + '__gt': 0})
+                            elif qval == 'False':
+                                ## False values appear to be represented as 0
+                                clause = Q(**{basename + '__exact': 0})
+                            else:
+                                clause = Q(**{basename + '__icontains': qval})
+                        if clause:
+                            if negate:
+                                subfilter &= ~clause
+                            else:
+                                subfilter &= clause
+
         if filters:
             filters |= subfilter
         else:
@@ -444,6 +479,9 @@ def sdEval(model, expression, size):
     """
     Quick mysql-y way of estimating the median from a sample
     """
+    if cacheStatistics():
+        fn = lambda: model.objects.all().aggregate(StdDev(expression)).values()[0]
+        return getStatistic(model, expression, 'StdDev', fn)
     try:
         return sdCache[model][expression]
     except KeyError:
@@ -510,7 +548,7 @@ def scaleEval(model, field, lorange, hirange, size, fieldRef):
         #print(datamin, datamax, datamax - datamin, retv)
         return retv
     else:
-        return sdEval(model, fieldRef, size)
+        return sdEval(model, field.name, size)
         #return sdEval(model, baseScore(fieldRef, lorange, hirange), size)
 
 
@@ -525,11 +563,12 @@ def dbFieldRef(field):
     except (IndexError, AttributeError):
     ##else:
         tableName = db_table(field.model)
-        fieldName = field.attname
+        fieldName = field.column
     if isPostgres():
         ## not so sure about this... perhaps only sometimes?
         tableName = '"' + tableName + '"'
         fieldName = '"' + fieldName + '"'
+
     return tableName + '.' + fieldName
 
 
@@ -607,7 +646,15 @@ def desiredRanges(qdatas):
                 operator = qd[field]
                 if operator == 'IN~':
                     loval = qd[base + '_lo']
+                    try:
+                        loval = loval.decode('utf-8', errors='ignore')
+                    except AttributeError:
+                        pass
                     hival = qd[base + '_hi']
+                    try:
+                        hival = hival.decode('utf-8', errors='ignore')
+                    except AttributeError:
+                        pass
                     if loval in (None, 'None'):
                         loval = 'min'
                     if hival in (None, 'None'):
@@ -672,12 +719,12 @@ def sortFormulaRanges(model, desiderata):
             else:
                 scores[b] = scoreNumeric(model, field, desiderata[b][0], desiderata[b][1], tsize)
         if len(scores) == 0:
-            return None
+            return 1
         else:
             formula = ' + '.join([x for x in scores.itervalues()])
             return '({0})/{1} '.format(formula, len(scores))  # scale to have a max of 1
     else:
-        return None
+        return 1
 
 
 def sortThreshold():
@@ -695,46 +742,179 @@ def pageLimits(page, pageSize):
     return ((page - 1) * pageSize, page * pageSize)
 
 
-# def getCount(myModel, formset, soft):
-#     """
-#     Just the count
-#     """
-#     return getMatches(myModel, formset, soft, countOnly=True)
+def virtualProcessing(myModel, qdatas, query, gargs, threshold):
+    """
+    Querying on virtual included fields makes life difficult. Returns a list.
+    """
+    gweights = dict()
+    for gmodel, gfs in gargs.iteritems():
+        for gfield in gfs:
+            # print(gfield,gfield.throughModels(),gfield.targetFields(),gfield.model,gfield.throughfield_name,gfield.name,gfield.verbose_name)
+            gweights[gfield] = totalweight(gmodel, qdatas)
+
+    allthroughfields = set()
+    scales = dict()
+    hards = dict()
+    desiderata = desiredRanges(qdatas)
+    for gfs in gargs.values():
+        for gf in gfs:
+            allthroughfields.add(gf.throughfield_name)
+            gmodel = gf.throughModels()[0]
+            gfield = gf.targetFields()[0]
+            try:
+                loend, hiend = desiderata[gfield.name]
+                tsize = tableSize(gmodel)
+                scales[gfield.name] = scaleEval(gmodel, gfield, loend, hiend, tsize, dbFieldRef(gfield))
+            except KeyError:
+                # hard constraint- lame hack
+                for qd in qdatas:
+                    oper = qd[gfield.name+'_operator']
+                    try:
+                        loend = qd[gfield.name]
+                        hiend = qd[gfield.name]
+                    except KeyError:
+                        loend = qd[gfield.name+'_lo']
+                        hiend = qd[gfield.name+'_hi']
+                    hards[gf] = (oper, loend, hiend)
+    # also do it for non virtual fields
+    msize = tableSize(myModel)
+    for fname, frange in desiderata.iteritems():
+        if fname not in scales:
+            field = resolveField(myModel, fname)
+            scales[fname] = scaleEval(myModel, field, frange[0], frange[1], msize, dbFieldRef(field))
+
+    query = query.prefetch_related(*allthroughfields)
+
+    myweight = totalweight(myModel, qdatas)
+    rescore = dict()
+    for x in query:
+        ## not sure why, but this can come back as a Decimal or something odd
+        myscore = float(getattr(x, 'score'))
+        mysum = myweight * myscore
+        maxsum = myweight
+        valid = True
+        for tf in allthroughfields:
+            try:
+                instance = getattr(x,tf)
+                if instance is not None:
+                    gscore = instanceScore(instance, desiderata, scales=scales)
+                    for gfs in gargs.values():
+                        for gfield in gfs:
+                            if tf == gfield.throughfield_name:
+                                try:
+                                    oper, loend, hiend = hards[gfield]
+                                    gv = getattr(instance,gfield.name)
+                                    if ((oper == 'IN') and
+                                        ((gv < loend) or (gv > hiend))):
+                                        valid = False
+                                    elif ((oper == 'NOT IN') and
+                                          (gv >= loend) and (gv <= hiend)):
+                                        valid = False
+                                    elif ((oper == '=') and
+                                          (gv != loend)):
+                                        valid = False
+                                    elif ((oper == '!=') and
+                                          (gv != loend)):
+                                        valid = False
+                                except KeyError:
+                                    pass
+                                try:
+                                    gweight = gweights[gfield]
+                                    mysum = mysum + gweight * gscore
+                                    maxsum = maxsum + gweight
+                                except AttributeError:
+                                    valid = False
+                else:
+                    valid = False
+            except ObjectDoesNotExist: # dirty data!
+                valid = False
+
+        if not valid:
+            rescore[x] = 0
+        elif mysum == maxsum:
+            rescore[x] = 1
+        else:
+            rescore[x] = mysum / maxsum
+    query = [x[0] for x in sorted(rescore.iteritems(), key=itemgetter(1), reverse=True)]
+    results = []
+    for x in query:
+        setattr(x, 'score', rescore[x])
+        if rescore[x] >= threshold:
+            results.append(x)
+
+    return results
 
 
-def getMatches(myModel, qdatas, soft, queryStart=0, queryEnd=None, threshold=None, baseQuery=None):
+def getMatches(myModel, qdatas, threshold=0.0, orders=[], queryGenerator=None):
     """
     Get the query results
     """
+    soft = (threshold < 1.0)
+    threshold = threshold - 1E-12 # account for floating point errors
     #results = []
     #print(qdatas)
-    hardfilter = makeFilters(myModel, qdatas, False)
+    #hardfilter = makeFilters(myModel, qdatas, False)
     myfilter = makeFilters(myModel, qdatas, soft)
-    if baseQuery is None:
-        baseQuery = myModel.objects.all()
+
     if soft:
         scorer = sortFormula(myModel, qdatas)
     else:
-        scorer = None
+        scorer = 1
 
     if isAbstract(myModel):
         aggresults = []
-        aggcount = 0
-        agghardcount = 0
-        scores = dict()        
+        scores = dict()
         for subm in concreteDescendants(myModel):
-            subresults, subcount, subhardcount = getMatches(subm, qdatas, soft, queryStart=0, queryEnd=queryEnd, threshold=threshold)
-            aggcount = aggcount + subcount
-            agghardcount = agghardcount + subcount
+            subresults = getMatches(subm, qdatas,
+                                    threshold=threshold,
+                                    queryGenerator=queryGenerator)
             for x in subresults:
                 scores[x] = x.score
             aggresults = aggresults + [x for x in subresults]
-        # aggresults = sorted(aggresults, key=itemgetter('score'), reverse=True)
         aggresults = sorted(aggresults,key=lambda x: scores[x])
-        aggresults = aggresults[queryStart:]
 
-        return (aggresults, aggcount, agghardcount)
+        return aggresults
     else:
+        if queryGenerator is None:
+            baseQuery = myModel.objects.all()
+        else:
+            baseQuery = queryGenerator(myModel)
+
+        gargs = virtualArguments(myModel, qdatas, soft)
+        processVirtual = len(gargs.keys()) > 0
+
+        if (soft or processVirtual) and (threshold is None):
+            threshold = sortThreshold()
+
+        if myfilter:
+            query = baseQuery.filter(myfilter)
+        else:
+            query = baseQuery
+        if (scorer != 1):
+            ## this code may not be needed in some versions of Django
+            ## apparently count() gets confused when extra refers
+            ## to fields inherited from a non-abstract class
+            ## it doesn't include those (parent) table
+            ## same problem doesn't seem to occur on selection queries
+            ## we need to make the connection ourselves
+            ## WARNING: This probably will fail on grandparents, etc.
+            extramodels = [ ]
+            for b in desiredRanges(qdatas).keys():
+                try:
+                    fmodel = fieldModel(resolveField(myModel, b))
+                    if ((fmodel != myModel) and (fmodel not in extramodels)
+                        and issubclass(myModel, fmodel)):
+                        extramodels.append(fmodel)
+                except AttributeError:
+                    pass
+
+            extratables = [db_table(m) for m in extramodels]
+            extrawhere = [dbFieldRef(parentField(myModel,p))+" = "+dbFieldRef(pk(p)) for p in extramodels if parentField(myModel,p) is not None]
+            extrawhere.append('%s >= %s' % (scorer, threshold))
+            query = query.extra(tables=extratables, where=extrawhere)
+        orders = ['-score'] + orders + [pk(myModel).name]
+        query = query.extra(select={'score': scorer}).order_by(*orders)
+
         ## not retrieving GenericKey fields may just mean we end up
         ## loading them one at a time, later, so don't defer those
         ## This might be too loose (e.g., if the GenericKey is not used
@@ -747,236 +927,32 @@ def getMatches(myModel, qdatas, soft, queryStart=0, queryEnd=None, threshold=Non
             except AttributeError:
                 pass
         # deferFields = [x.name for x in modelFields(myModel) if maskField(x) and isinstance(x, Field) and x.name not in cantDefer]
+        ## including stuff like VirtualIncludedFields on reverse relations
+        ## blows up, so restrict only to things that have a column
+        ## may be overly restrictive
+        columnFields = [x.name for x in modelFields(myModel) if hasattr(x, 'column')]
         onlyFields = []
         for x in modelFields(myModel):
             if isinstance(x, Field) and (not maskField(x) or x.name in cantDefer) and (x.name not in cantOnly):
                 try:
-                    if (x.throughfield_name is not None) and (x.throughfield_name not in cantOnly):
-                        onlyFields.append(x.throughfield_name) 
+                    if (x.throughfield_name is not None) and (x.throughfield_name not in cantOnly) and (x.throughfield_name in columnFields):
+                        onlyFields.append(x.throughfield_name)
+                        # assert(hasattr(x.targetFields()[0], 'column'))
                 except AttributeError:
-                    onlyFields.append(x.name)
-        gargs = virtualArguments(myModel, qdatas, soft)
-        processVirtual = len(gargs.keys()) > 0
-        if processVirtual:
-            hardCount = 0  # we need to do the full query to get the count
-        else:
-            hardCount = baseQuery.filter(hardfilter).count()
-
-        if (scorer or processVirtual) and threshold is None:
-            threshold = sortThreshold()
-
-        if scorer and (processVirtual or (hardCount <= 100)):
-            query = baseQuery.filter(myfilter)
-
-            ## this code may not be needed in some version of Django
-            ## apparently count() gets confused when extra refers
-            ## to fields inherited from a non-abstract class
-            ## it doesn't include those (parent) table
-            ## same problem doesn't seem to occur on selection queries
-            ## we need to make the connection ourselves
-            ## WARNING: This probably will fail on grandparents, etc.
-            extramodels = [ ]
-            for b in desiredRanges(qdatas).keys():
-                try:
-                    fmodel = fieldModel(resolveField(myModel, b))
-                    if ((fmodel != myModel) and (fmodel not in extramodels)):
-                        extramodels.append(fmodel)
-                except AttributeError:
-                    pass
-
-            extratables = [db_table(m) for m in extramodels]
-            extrawhere = [dbFieldRef(parentField(myModel,p))+" = "+dbFieldRef(pk(p)) for p in extramodels if parentField(myModel,p) is not None]
-            extrawhere.append('%s >= %s' % (scorer, threshold))
-            query = query.extra(tables=extratables, where=extrawhere)
-            totalCount = query.count()
-            query = query.extra(select={'score': scorer}, order_by=['-score',dbFieldRef(pk(myModel))])
-        else:
-            totalCount = hardCount
-            query = baseQuery.filter(hardfilter)
-            query = query.extra(select={'score': 1})
+                    if x.name in columnFields:
+                        onlyFields.append(x.name)
         ## defer isnt' working right on inherited models in Django 1.5
         ## only does, however
         ##query = query.defer(*deferFields)
         query = query.only(*onlyFields)
-    
+
         if processVirtual:
-            gweights = dict()
-            for gmodel, gfs in gargs.iteritems():
-                for gfield in gfs:
-                    # print(gfield,gfield.throughModels(),gfield.targetFields(),gfield.model,gfield.throughfield_name,gfield.name,gfield.verbose_name)
-                    gweights[gfield] = totalweight(gmodel, qdatas)
-
-            allthroughfields = set()
-            scales = dict()
-            hards = dict()
-            desiderata = desiredRanges(qdatas)
-            for gfs in gargs.values():
-                for gf in gfs:
-                    allthroughfields.add(gf.throughfield_name)
-                    gmodel = gf.throughModels()[0]
-                    gfield = gf.targetFields()[0]
-                    try:
-                        loend, hiend = desiderata[gfield.name]
-                        tsize = tableSize(gmodel)
-                        scales[gfield.name] = scaleEval(gmodel, gfield, loend, hiend, tsize, dbFieldRef(gfield))
-                    except KeyError:
-                        # hard constraint- lame hack
-                        for qd in qdatas:
-                            oper = qd[gfield.name+'_operator']
-                            try:
-                                loend = qd[gfield.name]
-                                hiend = qd[gfield.name]
-                            except KeyError:
-                                loend = qd[gfield.name+'_lo']
-                                hiend = qd[gfield.name+'_hi']
-                            hards[gf] = (oper, loend, hiend)
-            query = query.prefetch_related(*allthroughfields)
-
-            myweight = totalweight(myModel, qdatas)
-            rescore = dict()
-            for x in query:
-                myscore = getattr(x, 'score')
-                mysum = myweight * myscore
-                maxsum = myweight
-                valid = True
-                for tf in allthroughfields:
-                    try:
-                        instance = getattr(x,tf)
-                        if instance is not None:
-                            gscore = instanceScore(instance, desiderata, scales=scales)
-                            for gfs in gargs.values():
-                                for gfield in gfs:
-                                    if tf == gfield.throughfield_name:
-                                        try:
-                                            oper, loend, hiend = hards[gfield]
-                                            gv = getattr(instance,gfield.name)
-                                            if ((oper == 'IN') and
-                                                ((gv < loend) or (gv > hiend))):
-                                                valid = False
-                                            elif ((oper == 'NOT IN') and
-                                                  (gv >= loend) and (gv <= hiend)):
-                                                valid = False
-                                            elif ((oper == '=') and
-                                                  (gv != loend)):
-                                                valid = False
-                                            elif ((oper == '!=') and
-                                                  (gv != loend)):
-                                                valid = False
-                                        except KeyError:
-                                            pass
-                                        try:
-                                            gweight = gweights[gfield]
-                                            mysum = mysum + gweight * gscore
-                                            maxsum = maxsum + gweight
-                                        except AttributeError:
-                                            valid = False
-                        else:
-                            valid = False
-                    except ObjectDoesNotExist: # dirty data!
-                        valid = False
-
-                if not valid:
-                    rescore[x] = 0
-                elif mysum == maxsum:
-                    rescore[x] = 1
-                else:
-                    rescore[x] = mysum / maxsum
-            query = [x[0] for x in sorted(rescore.iteritems(), key=itemgetter(1), reverse=True)]
-            newquery = []
-            for x in query:
-                setattr(x, 'score', rescore[x])
-                if rescore[x] >= threshold:
-                    newquery.append(x)
-                    if rescore[x] == 1:
-                        hardCount = hardCount + 1
-            query = newquery
-            #query = [x for x in query if getattr(x, 'score') >= threshold]
-            totalCount = len(query)
-
-
-
-
-
-            # gmatches = dict()
-            # gweights = dict()
-            # for gmodel, gfs in gargs.iteritems():
-            #     gids = []
-            #     for x in query:
-            #         try:
-            #             gid = getattr(x,list(gfs)[0].throughfield_name)
-            #             if gid is not None:
-            #                 gids.append(gid)
-            #         except ObjectDoesNotExist: # dirty data!
-            #             pass
-            #     print(len(gids))
-            #     gresults = dict()
-            #     print(qdatas)
-            #     gquery, gtotalCount, ghardCount = getMatches(gmodel, qdatas, soft, threshold=0)
-            #     print(gfs, type(gquery),type(gtotalCount),type(ghardCount))
-            #     for m in gquery:
-            #         gresults[m.pk] = m.score
-            #     for gfield in gfs:
-            #         print(gfield,gfield.throughModels(),gfield.targetFields(),gfield.model,gfield.throughfield_name,gfield.name,gfield.verbose_name)
-            #         gmatches[gfield] = gresults
-            #         gweights[gfield] = totalweight(gmodel, qdatas)
-            #         #print(gmodel, soft, countOnly, len(gresults.keys()))
-
-            # myweight = totalweight(myModel, qdatas)
-            # rescore = dict()
-            # for x in query:
-            #     myscore = getattr(x, 'score')
-            #     mysum = myweight * myscore
-            #     maxsum = myweight
-            #     valid = True
-            #     for gfield, gresults in gmatches.iteritems():
-            #         try:
-            #             gid = getattr(x, gfield.throughfield_name, None).pk
-            #             gweight = gweights[gfield]
-            #             gscore = gresults.get(gid)
-            #             if gscore is not None:
-            #                 mysum = mysum + gweight * gscore
-            #                 maxsum = maxsum + gweight
-            #             else:
-            #                 valid = False
-            #         except AttributeError:
-            #             valid = False
-            #         except ObjectDoesNotExist: # dirty data!
-            #             valid = False
-            #     if not valid:
-            #         rescore[x] = 0
-            #     elif mysum == maxsum:
-            #         rescore[x] = 1
-            #     else:
-            #         rescore[x] = mysum / maxsum
-            # query = [x[0] for x in sorted(rescore.iteritems(), key=itemgetter(1), reverse=True)]
-            # newquery = []
-            # for x in query:
-            #     setattr(x, 'score', rescore[x])
-            #     if rescore[x] >= threshold:
-            #         newquery.append(x)
-            #         if rescore[x] == 1:
-            #             hardCount = hardCount + 1
-            # query = newquery
-            # #query = [x for x in query if getattr(x, 'score') >= threshold]
-            # totalCount = len(query)
-
-        if not queryEnd or queryEnd > totalCount:
-            queryEnd = totalCount
-        ## note totalCount does not necessarily equal len(query)
-        if (queryStart == 0) and (queryEnd == totalCount):
-            ## and (totalCount == len(query)):
-            ## don't truncate unnecessarily, as it would mess up a delete
-            ## if we have such
-            pass
+            return virtualProcessing(myModel, qdatas, query, gargs, threshold)
         else:
-            query = query[queryStart:queryEnd]
-
-#        print(query.query)
-#        print(totalCount, hardCount)
-        return (query, totalCount, hardCount)
+            return query
 
 
-def retrieve(fullids):
+def retrieve(fullids, flat=True):
     """
     Return a bunch of records specifid by fullid
     """
@@ -988,11 +964,14 @@ def retrieve(fullids):
             groupedIds[myModel] = []
         groupedIds[myModel].append(rid)
     groupedRecords = dict()
-    for myModel,ids in groupedIds.iteritems():
-        for rec in myModel.objects.filter(pk__in=ids):
-            groupedRecords[fullid(rec)] = rec
-    ## return in original order
-    return [groupedRecords[fid] for fid in fullids]
+    if flat:
+        for myModel,ids in groupedIds.iteritems():
+            for rec in myModel.objects.filter(pk__in=ids):
+                groupedRecords[fullid(rec)] = rec
+        ## return in original order
+        return [groupedRecords[fid] for fid in fullids]
+    else:
+        return [myModel.objects.filter(pk__in=ids) for myModel,ids in groupedIds.iteritems()]
 
 
 def unitScore(value, lorange, hirange, median):
@@ -1034,6 +1013,8 @@ def multiScore(model, values, desiderata, scales=None):
             scale = scales[d]
         else:
             print("BAD")
+            print(d)
+            print(scales)
             raise Exception("This is bad news!")
         score = score + unitScore(values[d], desiderata[d][0], desiderata[d][1], scale)
         count = count + 1
