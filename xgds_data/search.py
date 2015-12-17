@@ -40,7 +40,7 @@ if cacheStatistics():
     from xgds_data.models import ModelStatistic
 from xgds_data.DataStatistics import (tableSize, segmentBounds, nextPercentile,
                                       getStatistic)
-from xgds_data.utils import total_seconds
+from xgds_data.utils import (total_seconds, handleFunnyCharacters)
 
 sdCache = dict()
 
@@ -135,16 +135,6 @@ def queryArgChain(model, qcomplexarg):
     return qchain
 
 
-def takeOutFunnyCharacters(str):
-    """
-    Take out funny chars, if there are any
-    """
-    try:
-        return str.decode('utf-8', errors='ignore')
-    except AttributeError:
-        return str ## probably not a string
-
-
 ## TODO: does not appear to do anything with hard VirtualIncludedField
 ## constraints, maybe as they show up as generic
 def makeFilters(model, qdatas, soft=True):
@@ -167,11 +157,11 @@ def makeFilters(model, qdatas, soft=True):
                 else:
                     operator = qd[basename + '_operator']
                     try:
-                        loqval = takeOutFunnyCharacters(qd[basename + '_lo'])
-                        hiqval = takeOutFunnyCharacters(qd[basename + '_hi'])
+                        loqval = handleFunnyCharacters(qd[basename + '_lo'])
+                        hiqval = handleFunnyCharacters(qd[basename + '_hi'])
                         rangeQuery = True
                     except KeyError:
-                        qval = takeOutFunnyCharacters(qd[basename])
+                        qval = handleFunnyCharacters(qd[basename])
                         rangeQuery = False
 
                     if isinstance(mf, VirtualIncludedField):
@@ -647,12 +637,12 @@ def desiredRanges(qdatas):
                 if operator == 'IN~':
                     loval = qd[base + '_lo']
                     try:
-                        loval = loval.decode('utf-8', errors='ignore')
+                        loval = handleFunnyCharacters(loval)
                     except AttributeError:
                         pass
                     hival = qd[base + '_hi']
                     try:
-                        hival = hival.decode('utf-8', errors='ignore')
+                        hival = handleFunnyCharacters(hival)
                     except AttributeError:
                         pass
                     if loval in (None, 'None'):

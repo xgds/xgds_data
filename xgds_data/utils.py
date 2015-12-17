@@ -37,3 +37,15 @@ def label(obj):
             return unicode(obj)
     except AttributeError:
         return unicode(obj)
+
+
+def handleFunnyCharacters(str):
+    """
+    Handle funny chars, if there are any. Databases don't like these.
+    """
+    try:
+        return str.encode('utf-8', errors='ignore')
+    except AttributeError:
+        return str ## probably not a string
+
+

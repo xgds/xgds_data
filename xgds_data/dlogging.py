@@ -24,6 +24,7 @@ from django.shortcuts import render
 from django.conf import settings
 from xgds_data.logconfig import logEnabled
 from xgds_data.introspection import (pk, pkValue, concrete_model)
+from xgds_data.utils import handleFunnyCharacters
 
 if logEnabled():
     from xgds_data.models import (RequestLog,
@@ -43,7 +44,7 @@ def recordRequest(request):
         reqlog.save()
         args = []
         for a in data.keys():
-            args = args + [RequestArgument(request=reqlog, name=a, value=v.decode('utf-8', errors='ignore')) for v in data.getlist(a) if v.strip() != '']
+            args = args + [RequestArgument(request=reqlog, name=a, value=handleFunnyCharacters(v)) for v in data.getlist(a) if v.strip() != '']
 
         RequestArgument.objects.bulk_create(args)
 
@@ -115,11 +116,11 @@ def logstuff(reqlog, template, rendargs, nolog=None, listing=None):
                     # check if an object is a list or tuple (but not string)
                     # http://stackoverflow.com/questions/1835018/python-check-if-an-object-is-a-list-or-tuple-but-not-string
                     assert not isinstance(rendargs.get(key), basestring)
-                    args = args + [ResponseArgument(response=reslog, name=key, value=str(v).decode('utf-8', errors='ignore')[:1024])
+                    args = args + [ResponseArgument(response=reslog, name=key, value=handleFunnyCharacters(v)[:1024])
                                    for v in rendargs.get(key) if not isinstance(v,(forms.Form,forms.formsets.BaseFormSet))]
                 except (TypeError, AssertionError):
                     # not iterable
-                    args = args + [ResponseArgument(response=reslog, name=key, value=str(rendargs.get(key)).decode('utf-8', errors='ignore')[:1024])]
+                    args = args + [ResponseArgument(response=reslog, name=key, value=handleFunnyCharacters(key)[:1024])]
 
         ResponseArgument.objects.bulk_create(args)
         if listing:
