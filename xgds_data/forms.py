@@ -19,8 +19,12 @@ from django.db import models
 from django.utils.safestring import mark_safe
 from django.db.models import fields
 #from django.forms.widgets import RadioSelect, TextInput
-from django.contrib.contenttypes.generic import GenericForeignKey
 from django.contrib.auth.models import User
+try:
+    from django.contrib.contenttypes.fields import GenericForeignKey
+except ImportError:
+    from django.contrib.contenttypes.generic import GenericForeignKey
+
 
 from django.conf import settings
 from xgds_data.models import VirtualIncludedField

@@ -21,10 +21,11 @@ import django
 import datetime
 # django.setup()
 
-from django.db.models import (get_app, get_models, StdDev, fields)
+from django.db.models import (StdDev, fields)
 from xgds_data.models import cacheStatistics
 from xgds_data.introspection import (qualifiedModelName, isAbstract,
-                                     modelFields, isNumeric)
+                                     modelFields, isNumeric, getModels,
+                                     resolveModel)
 from django.conf import settings
 if cacheStatistics():
     from xgds_data.models import ModelStatistic
@@ -156,13 +157,12 @@ def segmentBounds(model, fld, loend, hiend):
 if __name__ == "__main__":
     if len(sys.argv) <= 1:
         print("Usage: DataStatistics.py moduleName [modelName] [statistic]")
-    else:
-        module = get_app(sys.argv[1])
+        quit()
 
     try:
-        models = [getattr(module, sys.argv[2])]
+        models = [resolveModel(sys.argv[1], sys.argv[2])]
     except IndexError:
-        models = get_models(module)
+        models = getModels(sys.argv[1])
 
     try:
         statistic = sys.argv[3]

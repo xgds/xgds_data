@@ -19,8 +19,13 @@ try:
 except ImportError:
     pass
 
-from django.db.models import (get_app, fields)
 from django.conf import settings
+from django.db.models import fields
+try:
+    from django.apps import apps
+except ImportError:
+    from django.db.models import get_app
+
 #from xgds_data.models import VirtualIncludedField
 import xgds_data.models
 
@@ -56,7 +61,11 @@ def modelFields(model):
     """
     Retrieve the fields associated with the given model
     """
-    myfields = model._meta.fields + model._meta.many_to_many + model._meta.virtual_fields
+    fields = model._meta.fields
+    many_to_many = model._meta.many_to_many
+    virtual_fields = tuple(model._meta.virtual_fields)
+    myfields = fields + many_to_many + virtual_fields 
+
     # nameToField = dict([(x.name,x) for x in myfields])
     fieldNames = [x.name for x in myfields]
     for x in dir(model):
@@ -150,13 +159,43 @@ def db_table(model):
     return model._meta.db_table
 
 
+# def resolveModule(moduleName):
+#     """
+#     Return the module with this name
+#     """
+#     try:
+#         return apps.get_app_config(moduleName).module
+#     except NameError:
+#         return get_app(moduleName)
+
+
+def getModuleNames():
+    try:
+        return [x.name for x in apps.get_app_configs()]
+    except NameError:
+        return [app.__name__ for app in get_apps()]
+
+
+def getModels(moduleName):
+    try:
+        return apps.get_app_config(moduleName).get_models()
+    except NameError:
+        return get_models(get_app(moduleName))
+
+
 def resolveModel(moduleName, modelName):
     """
     Return the model with this name
     """
-    modelmodule = get_app(moduleName)
+    try:
+#        aconfig = apps.get_app_config(moduleName)
+#
+#        return aconfig.get_model(modelName)
+        return apps.get_model(moduleName, modelName)
+    except NameError:
+        modelmodule = get_app(moduleName)
 
-    return getattr(modelmodule, modelName)
+        return getattr(modelmodule, modelName)
 
 
 def resolveField(model, fieldName):

@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% load url from future %}
+{% load staticfiles %}
 {% load nav %}
 {% block siteSection %}{{ title }}{% endblock %}
 {% block nav %}
@@ -10,13 +10,13 @@
   {{ block.super }}
 {% if standalone %}
   <link rel="stylesheet" type="text/css"
-        href="{{ STATIC_URL }}external/css/jquery/jquery-ui.css" ></link>
+        href="{% static "external/css/jquery/jquery-ui.css" %}" ></link>
   <script language="javascript" type="text/javascript"
-	  src="{{ STATIC_URL }}external/js/jquery/jquery-ui.min.js"></script>
+	  src="{% static "external/js/jquery/jquery-ui.min.js" %}"></script>
   <script language="javascript" type="text/javascript"
-	  src="{{ STATIC_URL }}external/js/jquery/jquery.flot.min.js"></script>
+	  src="{% static "external/js/jquery/jquery.flot.min.js" %}"></script>
   <script language="javascript" type="text/javascript"
-	  src="{{ STATIC_URL }}external/js/jquery/jquery.flot.time.js"></script>
+	  src="{% static "external/js/jquery/jquery.flot.time.js" %}"></script>
 {% else %}
   <link rel="stylesheet" type="text/css" href="{{ EXTERNAL_URL }}jquery-ui/themes/base/jquery-ui.min.css" ></link>
   <script language="javascript" type="text/javascript" src="{{ EXTERNAL_URL }}jquery-ui/jquery-ui.min.js"></script>

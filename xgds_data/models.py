@@ -20,8 +20,12 @@ from django.db import models
 from django.contrib.auth.models import User
 from django.http import HttpRequest
 from django.contrib.contenttypes.models import ContentType
-from django.contrib.contenttypes import generic
 from django.core.urlresolvers import reverse
+try:
+    from django.contrib.contenttypes.fields import GenericForeignKey
+except ImportError:
+    from django.contrib.contenttypes.generic import GenericForeignKey
+
 
 from django.conf import settings
 from xgds_data.logconfig import logEnabled
@@ -190,7 +194,7 @@ class Collection(models.Model):
 class GenericLink(models.Model):
     linkType = models.ForeignKey(ContentType, null=True, blank=True)
     linkId = models.PositiveIntegerField(null=True, blank=True)
-    link = generic.GenericForeignKey('linkType', 'linkId')
+    link = GenericForeignKey('linkType', 'linkId')
     collection = models.ForeignKey(Collection, related_name='contents', null=True)
 
     def get_absolute_url(self):

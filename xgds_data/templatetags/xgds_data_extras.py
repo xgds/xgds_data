@@ -22,7 +22,10 @@ from django.contrib.auth.models import User
 from django.utils.safestring import mark_safe
 from django.core.urlresolvers import reverse
 from django.core.exceptions import ObjectDoesNotExist
-from django.contrib.contenttypes import generic
+try:
+    from django.contrib.contenttypes.fields import GenericForeignKey
+except ImportError:
+    from django.contrib.contenttypes.generic import GenericForeignKey
 try:
     from django.utils.html import format_html
     from django.db import OperationalError
@@ -83,7 +86,7 @@ def getattribute(obj, attr):
             print(expt)
             # No problem, we love dirty data!
             v = None
-    elif isinstance(attr, generic.GenericForeignKey):
+    elif isinstance(attr, GenericForeignKey):
         v = getattr(obj, attr.name , None)
     else:
         v = settings.TEMPLATE_STRING_IF_INVALID
@@ -167,7 +170,7 @@ def display(field, value):
                     return mark_safe('<A HREF="' + field.storage.url(value) + '"><IMG SRC="' + field.storage.url(value) + '" WIDTH="100"></A>')
         elif isinstance(field, (models.ForeignKey, models.OneToOneField)):
             return displayLinkedData(value)
-        elif isinstance(field, generic.GenericForeignKey):
+        elif isinstance(field, GenericForeignKey):
             if value is not None:
                 return displayLinkedData(value)
             else:
