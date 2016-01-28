@@ -73,6 +73,14 @@ def recordRequest(request):
 #        return getListItemProperty(item, classpk.name)
 
 
+def goodLookingModelName(model):
+    """
+    Can't seem to find the method that creates this compact name, so
+    here's another implementation of it
+    """
+    return '.'.join([model.__module__, model._meta.object_name])
+
+
 def recordList(reslog, results):
     """
     Logs a ranked list of results
@@ -85,7 +93,7 @@ def recordList(reslog, results):
             items = [ResponseList(response=reslog,
                                   rank=r,
 #                                  fclass=str(getListItemProperty(results[r - 1], '__class__')),
-                                  fclass=str(concrete_model(results[r - 1])),
+                                  fclass=goodLookingModelName(concrete_model(results[r - 1])),
 #                                  fid=getFid(results[r - 1],  pk(getListItemProperty(results[r - 1], '__class__')))
                                   fid=pkValue(results[r - 1])
                                   )
@@ -94,7 +102,7 @@ def recordList(reslog, results):
                 ResponseList.objects.bulk_create(items)
             except TypeError as e:
 #                print('dlogging.py is confused by {0}'.format(getListItemProperty(results[r - 1], '__class__')))
-                print('dlogging.py is confused by {0} instance'.format(concrete_model(results[r - 1])))
+                print('dlogging.py is confused by {0} instance'.format(goodLookingModelName(concrete_model(results[r - 1]))))
             except ValueError as e:
                 print(e)
 
@@ -120,7 +128,8 @@ def logstuff(reqlog, template, rendargs, nolog=None, listing=None):
                                    for v in rendargs.get(key) if not isinstance(v,(forms.Form,forms.formsets.BaseFormSet))]
                 except (TypeError, AssertionError):
                     # not iterable
-                    args = args + [ResponseArgument(response=reslog, name=key, value=handleFunnyCharacters(key)[:1024])]
+                    v = str(rendargs.get(key))
+                    args = args + [ResponseArgument(response=reslog, name=key, value=handleFunnyCharacters(v)[:1024])]
 
         ResponseArgument.objects.bulk_create(args)
         if listing:
