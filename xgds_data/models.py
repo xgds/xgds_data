@@ -266,7 +266,7 @@ def get_client_ip(request):
 
 if logEnabled():
     from django.http import QueryDict
-    from django.utils.datastructures import MergeDict
+#    from django.utils.datastructures import MergeDict
 
     class RequestLog(models.Model):
         timestampSeconds = models.DateTimeField(verbose_name="Time", blank=False)
@@ -293,7 +293,8 @@ if logEnabled():
                 argvalue = request.REQUEST.get('format')
                 onedict[argname] = argvalue
                 multidict.appendlist(argname, argvalue)
-            redata = MergeDict(multidict, onedict)
+            redata = multidict.copy()
+            redata.update(onedict)
 
             return HttpRequestReplay(request, self.path, redata)
 
