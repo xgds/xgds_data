@@ -214,7 +214,7 @@ def isSkippedApp(appName):
 def chooseSearchApp(request):
     apps = [re.sub(r'\.models$', '', app) for app in getModuleNames()]
     apps = [app for app in apps
-            if (not isSkippedApp(app)) and next(getModels(app))]
+            if (not isSkippedApp(app)) and len(list(getModels(app)))]
     return render(request,
                   'xgds_data/chooseSearchApp.html',
                   {'title': 'Search Apps',
@@ -817,7 +817,6 @@ def searchChosenModelCore(request, data, searchModuleName, searchModelName, expe
     """
     Search over the fields of the selected model
     """
-    print('yay')
     starttime = datetime.datetime.now()
     reqlog = recordRequest(request)
     myModel = resolveModel(searchModuleName, searchModelName)
@@ -1056,7 +1055,6 @@ def searchChosenModelCore(request, data, searchModuleName, searchModelName, expe
             reslog = ResponseLog.create(request=reqlog)
             reslog.save()
             recordList(reslog, results)
-        print('done 1')
         return response
     else:
         datetimefields = []
@@ -1133,7 +1131,7 @@ def searchChosenModelCore(request, data, searchModuleName, searchModelName, expe
         else:
             renderfn = log_and_render
         nolog = ['reqid', 'formset', 'axesform', 'results', 'resultsids', 'scores', 'displayFields']
-        print('done 2')
+
         return renderfn(request, reqlog, template,
                         templateargs,
                         nolog=nolog,

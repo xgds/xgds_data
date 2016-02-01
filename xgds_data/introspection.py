@@ -61,8 +61,8 @@ def modelFields(model):
     """
     Retrieve the fields associated with the given model
     """
-    fields = model._meta.fields
-    many_to_many = model._meta.many_to_many
+    fields = tuple(model._meta.fields)
+    many_to_many = tuple(model._meta.many_to_many)
     virtual_fields = tuple(model._meta.virtual_fields)
     myfields = fields + many_to_many + virtual_fields 
 
