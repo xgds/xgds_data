@@ -1,0 +1,17 @@
+{% extends "base.html" %}
+{% block siteSection %}Import Instrument Data{% endblock %}
+
+{% load tz %}
+{% load tz_convert %}
+
+{% block content %}
+<strong>Import Instrument Data</strong>
+<form id="instrument_data_import" action="{% url 'instrument_data_import' %}" method="post" enctype="multipart/form-data">
+	<table>
+    {{ form.as_table }}
+    </table>
+    <div id="buttons" >
+        <input id="save" class="mybutton" type="submit" value="Import">
+    </div>
+</form>
+{% endblock content %}

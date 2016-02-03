@@ -61,6 +61,18 @@ XGDS_DATA_TIME_FIELDS = (
 # Include a dictionary of name to url for imports if you wish to include import functionality
 XGDS_DATA_IMPORTS = {}
 
+# An list of science instruments with import functions for data import.
+# Override this in siteSettings.py for each specific site application
+# Example: 
+# SCIENCE_INSTRUMENT_DATA_IMPORTERS = [{"id":"ftir", "displayName":"FTIR",
+#                                      "importFunction":ftirDataImporter},
+#                                     {"id":"asd", 
+#                                      "displayName":"ASD Spectrometer",
+#                                      "importFunction":asdDataImporter}
+#                                 ]
+
+SCIENCE_INSTRUMENT_DATA_IMPORTERS = []
+
 # include this in your siteSettings.py BOWER_INSTALLED_APPS
 XGDS_DATA_BOWER_INSTALLED_APPS = ('flot',
                                   'datatables-fixedcolumns'

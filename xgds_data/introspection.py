@@ -19,7 +19,8 @@ try:
 except ImportError:
     pass
 
-from django.db.models import (get_app, fields)
+from django.db.models import fields
+from django.apps import apps
 from django.conf import settings
 #from xgds_data.models import VirtualIncludedField
 import xgds_data.models
@@ -56,7 +57,7 @@ def modelFields(model):
     """
     Retrieve the fields associated with the given model
     """
-    myfields = model._meta.fields + model._meta.many_to_many + model._meta.virtual_fields
+    myfields = model._meta.fields + model._meta.many_to_many + tuple(model._meta.virtual_fields)
     # nameToField = dict([(x.name,x) for x in myfields])
     fieldNames = [x.name for x in myfields]
     for x in dir(model):
@@ -154,9 +155,7 @@ def resolveModel(moduleName, modelName):
     """
     Return the model with this name
     """
-    modelmodule = get_app(moduleName)
-
-    return getattr(modelmodule, modelName)
+    return apps.get_model(moduleName, modelName)
 
 
 def resolveField(model, fieldName):

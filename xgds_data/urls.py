@@ -19,9 +19,7 @@ from django.conf.urls import url, patterns
 from django.conf import settings
 from xgds_data import views
 
-urlpatterns = patterns(
-    'xgds_data.views',
-
+urlpatterns = [
     url(r'^$', views.index, name='xgds_data_index'),
 
     # url(r'^advancedSearch/$', 'searchIndex',
@@ -82,12 +80,13 @@ urlpatterns = patterns(
 
     ## uploading data
     url(r'^import/$', TemplateView.as_view(template_name='xgds_data/importData.html'), name='xgds_data_import'),
-)
+    url(r'^instrumentDataImport/$', views.instrumentDataImport, 
+        name='instrument_data_import'),
+]
 
 try:
     if settings.XGDS_DATA_EDITING:
-        urlpatterns += patterns('',
-
+        urlpatterns += [
                                 ## Editing
                                 url(r'^edit/(?P<editModuleName>[^/]+)/(?P<editModelName>[^/]+)/(?P<rid>[^/]+)$',
                                     views.editRecord, name='xgds_data_editRecord'),
@@ -120,6 +119,6 @@ try:
                                     views.createChosenModel,
                                     name='xgds_data_createChosenModel'),
 
-        )
+        ]
 except AttributeError:
     pass

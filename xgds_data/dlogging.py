@@ -24,7 +24,7 @@ from django.shortcuts import render
 from django.conf import settings
 from xgds_data.logconfig import logEnabled
 from xgds_data.introspection import (pk, pkValue, concrete_model)
-from xgds_data.utils import handleFunnyCharacters
+from xgds_data.utils import handleFunnyCharacters, getDataFromRequest
 
 if logEnabled():
     from xgds_data.models import (RequestLog,
@@ -39,7 +39,7 @@ def recordRequest(request):
     Logs the request in the database
     """
     if logEnabled():
-        data = request.REQUEST
+        data = getDataFromRequest(request)
         reqlog = RequestLog.create(request)
         reqlog.save()
         args = []

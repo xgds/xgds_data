@@ -20,11 +20,12 @@ from django.db import models
 from django.contrib.auth.models import User
 from django.http import HttpRequest
 from django.contrib.contenttypes.models import ContentType
-from django.contrib.contenttypes import generic
+from django.contrib.contenttypes.fields import GenericForeignKey
 from django.core.urlresolvers import reverse
 
 from django.conf import settings
 from xgds_data.logconfig import logEnabled
+from xgds_data.utils import getDataFromRequest
 #from xgds_data.introspection import modelFields
 import xgds_data.introspection
 
@@ -190,7 +191,7 @@ class Collection(models.Model):
 class GenericLink(models.Model):
     linkType = models.ForeignKey(ContentType, null=True, blank=True)
     linkId = models.PositiveIntegerField(null=True, blank=True)
-    link = generic.GenericForeignKey('linkType', 'linkId')
+    link = GenericForeignKey('linkType', 'linkId')
     collection = models.ForeignKey(Collection, related_name='contents', null=True)
 
     def get_absolute_url(self):
@@ -262,7 +263,6 @@ def get_client_ip(request):
 
 if logEnabled():
     from django.http import QueryDict
-    from django.utils.datastructures import MergeDict
 
     class RequestLog(models.Model):
         timestampSeconds = models.DateTimeField(verbose_name="Time", blank=False)
@@ -284,14 +284,14 @@ if logEnabled():
             for arg in reqargs:
                 onedict[arg.name] = arg.value
                 multidict.appendlist(arg.name, arg.value)
-            if ('format' in request.REQUEST):
+            if ('format' in getDataFromRequest(request)):
                 argname = unicode('format')
-                argvalue = request.REQUEST.get('format')
+                argvalue = getDataFromRequest(request).get('format')
                 onedict[argname] = argvalue
                 multidict.appendlist(argname, argvalue)
-            redata = MergeDict(multidict, onedict)
+            onedict.update(multidict)
 
-            return HttpRequestReplay(request, self.path, redata)
+            return HttpRequestReplay(request, self.path, onedict)
 
         @classmethod
         def create(cls, request):

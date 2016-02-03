@@ -19,7 +19,9 @@ from django.db import models
 from django.utils.safestring import mark_safe
 from django.db.models import fields
 #from django.forms.widgets import RadioSelect, TextInput
-from django.contrib.contenttypes.generic import GenericForeignKey
+from django.forms.widgets import DateTimeInput
+from django.forms import DateTimeField, ChoiceField
+from django.contrib.contenttypes.fields import GenericForeignKey
 from django.contrib.auth.models import User
 
 from django.conf import settings
@@ -27,6 +29,9 @@ from xgds_data.models import VirtualIncludedField
 from xgds_data.introspection import (modelFields, maskField, isOrdinalOveridden, isAbstract, pk, ordinalField, modelName, settingsForModel)
 from xgds_data.DataStatistics import tableSize, fieldSize
 from xgds_data.utils import label
+from geocamTrack.forms import AbstractImportTrackedForm
+from geocamUtil.extFileField import ExtFileField
+
 # pylint: disable=R0924
 
 
@@ -171,13 +176,13 @@ def valueFormField(mymodel, field, widget, allowMultiple=True, label=None,
         to_field_name = toFieldName(field.rel.to)
 
         if queryGenerator:
-            qset = queryGenerator(field.related.parent_model)
+            qset = queryGenerator(field.related.model)
         else:
-            qset = field.related.parent_model.objects.all()
+            qset = field.related.model.objects.all()
         if widget is 'pulldown':
             # can't use as queryset arg because it needs a queryset, not a list
             # foreigners = sorted(field.related.parent_model.objects.all(), key=lambda x: unicode(x))
-            if (field.related.parent_model == User):
+            if (field.related.model == User):
                 qset = qset.order_by('last_name')
             if isinstance(field, models.ManyToManyField) and allowMultiple:
                 return forms.ModelMultipleChoiceField(queryset=qset,
@@ -504,3 +509,14 @@ class AxesForm(forms.Form):
             self.fields['series'] = forms.ChoiceField(choices=tuple(serieschoices),
                                                       required=True,
                                                       initial=serieschoices[0][0])
+
+class ImportInstrumentDataForm(AbstractImportTrackedForm):
+    dataCollectionTime = DateTimeField(label="Collection Time",
+                                       required=False,
+                                       widget=DateTimeInput(attrs={"placeholder":"blank to read from file"}))
+    instrumentChoices = [(i,e["displayName"]) for i,e in 
+                         enumerate(settings.SCIENCE_INSTRUMENT_DATA_IMPORTERS)]
+    instrumentId = ChoiceField(choices=instrumentChoices, label="Instrument")
+    sourceFile = ExtFileField(ext_whitelist=(".spc",".txt",".csv" ),
+                              required=True,
+                              label="Source File")

@@ -16,6 +16,15 @@
 
 import datetime
 
+def getDataFromRequest(request):
+    if request.method == "POST":
+        return request.POST
+    elif request.method == "GET":
+        return request.GET
+    else:
+        return {}
+
+
 def total_seconds(timediff):
     """Get total seconds for a time delta"""
     try:

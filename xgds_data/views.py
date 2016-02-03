@@ -26,20 +26,22 @@ from itertools import chain
 
 #import pytz
 
+from django.apps import apps
 from django import forms
-from django.shortcuts import render
+from django.shortcuts import render, redirect
 from django.http import HttpResponse, HttpResponseRedirect
 from django.core.urlresolvers import (resolve, reverse, NoReverseMatch)
 #from django.template import RequestContext
 #from django.db import connection, DatabaseError
 from django.db import models
-from django.db.models import (get_app, get_apps, get_models, ManyToManyField, Model)
+from django.db.models import (ManyToManyField, Model)
 from django.db.models.fields import DateTimeField, DateField, TimeField, related
 from django.forms.models import ModelMultipleChoiceField, model_to_dict
 
 from django.forms.formsets import formset_factory
 from django.utils.html import escape
 from django.contrib.auth.models import User
+from django.contrib.auth.decorators import login_required
 from django.core.exceptions import (ValidationError, ObjectDoesNotExist)
 
 try:
@@ -54,15 +56,14 @@ from xgds_data.introspection import (modelFields, maskField, resolveField, isAbs
                                      pk, pkValue, verbose_name, verbose_name_plural,
                                      settingsForModel,
                                      modelName, moduleName, fullid)
-from xgds_data.forms import QueryForm, SearchForm, EditForm, AxesForm, SpecializedForm
+from xgds_data.forms import QueryForm, SearchForm, EditForm, AxesForm, SpecializedForm, ImportInstrumentDataForm
 from xgds_data.models import Collection, GenericLink
 from xgds_data.dlogging import recordRequest, recordList, log_and_render
 from xgds_data.logconfig import logEnabled
 from xgds_data.search import getMatches, pageLimits, retrieve
-from xgds_data.utils import total_seconds
+from xgds_data.utils import total_seconds, getDataFromRequest
 from xgds_data.templatetags import xgds_data_extras
 
-from django.utils.datastructures import MergeDict
 from django.http import QueryDict
 try:
     from django.forms.utils import ErrorList, ErrorDict
@@ -83,7 +84,7 @@ def index(request):
 
 
 def hasModels(appName):
-    return len(get_models(get_app(appName))) != 0
+    return len([m for m in apps.get_app_config(appName).get_models()]) != 0
 
 
 def getModelInfo(qualifiedName, model):
@@ -107,9 +108,9 @@ def searchModelsDefault():
     """
     Pick out some reasonable search models if none were explicitly listed
     """
-    nestedModels = [get_models(app)
-                    for app in get_apps()
-                    if not isSkippedApp(app.__name__) and get_models(app)]
+    nestedModels = [[m for m in appConfig.get_models()]
+                    for appConfig in apps.get_app_configs()
+                    if not isSkippedApp(appConfig.name)]
     return dict([(model.__name__, model) for model in list(chain(*nestedModels)) if not isAbstract(model)])
 
 if (hasattr(settings, 'XGDS_DATA_SEARCH_MODELS')):
@@ -202,22 +203,22 @@ MODELS_INFO = [getModelInfo(_qname, _model)
 
 
 def chooseSearchApp(request):
-    apps = [app.__name__ for app in get_apps()]
-    apps = [re.sub(r'\.models$', '', app) for app in apps]
-    apps = [app for app in apps
+    appList = [appConfig.name for appConfig in apps.get_app_configs()]
+    appList = [re.sub(r'\.models$', '', app) for app in appList]
+    appList = [app for app in appList
             if (not isSkippedApp(app)) and hasModels(app)]
     return render(request,
                   'xgds_data/chooseSearchApp.html',
                   {'title': 'Search Apps',
-                   'apps': apps})
+                   'apps': appList})
 
 
 def chooseModel(request, moduleName, title, action, urlName):
     """
     List the models in the module, so they can be selected
     """
-    app = get_app(moduleName)
-    models = dict([(verbose_name(m), m) for m in get_models(app) if not isAbstract(m)])
+    appConfig = apps.get_app_config(moduleName)
+    models = dict([(verbose_name(m), m) for m in appConfig.get_models() if not isAbstract(m)])
     ordered_names = sorted(models.keys())
 
     return render(request, 'xgds_data/chooseModel.html',
@@ -288,14 +289,13 @@ def searchSimilar(request, searchModuleName, searchModelName, pkid,
     Launch point for finding more items like this one
     """
     ##reqlog = recordRequest(request)
-    modelmodule = get_app(searchModuleName)
-    myModel = getattr(modelmodule, searchModelName)
+    myModel = apps.get_model(searchModuleName, searchModelName)
     myFields = modelFields(myModel)
     tmpFormClass = SpecializedForm(SearchForm, myModel,
                                    queryGenerator=queryGenerator)
     tmpFormSet = formset_factory(tmpFormClass, extra=0)
     debug = []
-    data = request.REQUEST
+    data = getDataFromRequest(request)
     # me = myModel.objects.get(pk=data.get(myModel._meta.pk.name))
     #pkid = 1
     me = myModel.objects.get(pk=pkid)
@@ -335,9 +335,9 @@ def searchSimilar(request, searchModuleName, searchModelName, pkid,
                     defaults[bfld] = val
                     multidict.appendlist(bfld, val)
 
-    simdata = MergeDict(multidict, defaults)
+    defaults.update(multidict)
 
-    return searchChosenModelCore(request, simdata, searchModuleName, searchModelName)
+    return searchChosenModelCore(request, defaults, searchModuleName, searchModelName)
 
 
 def searchHandoff(request, searchModuleName, searchModelName, fn,
@@ -345,13 +345,12 @@ def searchHandoff(request, searchModuleName, searchModelName, fn,
     """
     Simplified query parse and search, with results handed to given function
     """
-    modelmodule = get_app(searchModuleName)
-    myModel = getattr(modelmodule, searchModelName)
+    myModel = apps.get_model(searchModuleName, searchModelName)
     tmpFormClass = SpecializedForm(SearchForm, myModel,
                                    queryGenerator=queryGenerator)
     tmpFormSet = formset_factory(tmpFormClass)
     debug = []
-    data = request.REQUEST
+    data = getDataFromRequest(request)
 
     results = None
 
@@ -421,8 +420,7 @@ def createChosenModel(request, createModuleName, createModelName):
     """
     starttime = datetime.datetime.now()
     reqlog = recordRequest(request)
-    modelmodule = get_app(createModuleName)
-    myModel = getattr(modelmodule, createModelName)
+    myModel = apps.get_model(createModuleName, createModelName)
     record = myModel.objects.create()
     try:
         ## try any specialized edit first
@@ -436,12 +434,11 @@ def editRecord(request, editModuleName, editModelName, rid):
     Default edit for a record
     """
     reqlog = recordRequest(request)
-    modelmodule = get_app(editModuleName)
-    myModel = getattr(modelmodule, editModelName)
+    myModel = apps.get_model(editModuleName, editModelName)
     tmpFormClass = SpecializedForm(EditForm, myModel)
     myFields = [x for x in modelFields(myModel) if not maskField(x) ]
     record = myModel.objects.get(pk=rid)
-    if (request.REQUEST.get('fnctn',None) == 'edit'):
+    if (getDataFromRequest(request).get('fnctn',None) == 'edit'):
         form = tmpFormClass(request.POST)
         assert form.is_valid()
         changed = False
@@ -494,11 +491,10 @@ def displayRecord(request, displayModuleName, displayModelName, rid, force=False
     Default display for a record
     """
     reqlog = recordRequest(request)
-    modelmodule = get_app(displayModuleName)
-    myModel = getattr(modelmodule, displayModelName)
+    myModel = apps.get_model(displayModuleName, displayModelName)
     try:
         record = myModel.objects.get(pk=rid)
-        retformat = request.REQUEST.get('format', 'html')
+        retformat = getDataFromRequest(request).get('format', 'html')
         try:
             if settings.XGDS_DATA_EDITING:
                 try: ## try any specialized edit first
@@ -559,12 +555,12 @@ def selectForAction(request, moduleName, modelName, targetURLName,
     """
     Search for and select objects for a subsequent action
     """
-    engaged = (request.REQUEST.get('fnctn',None) == finalAction)
+    engaged = (getDataFromRequest(request).get('fnctn',None) == finalAction)
     if engaged and confirmed:
         ## should do something
-        picks = request.REQUEST.getlist('picks')
-        notpicks = request.REQUEST.getlist('notpicks')
-        if request.REQUEST.get('allselected', False):
+        picks = getDataFromRequest(request).getlist('picks')
+        notpicks = getDataFromRequest(request).getlist('notpicks')
+        if getDataFromRequest(request).get('allselected', False):
             for p in picks:
                 try:
                     notpicks.remove(p)
@@ -599,7 +595,7 @@ def selectForAction(request, moduleName, modelName, targetURLName,
                     'XGDS_DATA_CHECKABLE': { modelName : True, },
                     }
 
-        picks = request.REQUEST.getlist('picks')
+        picks = getDataFromRequest(request).getlist('picks')
 
         return searchChosenModel(request, moduleName, modelName, expert, override=override, passthroughs=passes, queryGenerator=queryGenerator)
     else:
@@ -661,7 +657,7 @@ def deleteMultiple(request, moduleName, modelName, expert=False, override=None, 
         #                                             'passthroughs':passthroughs,
         #                                             'searchFn':searchFn}))
 
-    confirmed = request.REQUEST.get('confirmed',False)
+    confirmed = getDataFromRequest(request).get('confirmed',False)
     return selectForAction(request, moduleName, modelName,
                            'xgds_data_deleteMultiple',
                            'Delete Selected',
@@ -678,8 +674,7 @@ def deleteRecord(request, deleteModuleName, deleteModelName, rid=None, objs=None
     Default delete for a record
     """
     reqlog = recordRequest(request)
-    modelmodule = get_app(deleteModuleName)
-    myModel = getattr(modelmodule, deleteModelName)
+    myModel = apps.get_model(deleteModuleName, deleteModelName)
     ## objects are either give by pk (rid), passed in (objs), or submitted in
     ## form (picks). Ugh!
     if objs is not None:
@@ -687,7 +682,7 @@ def deleteRecord(request, deleteModuleName, deleteModelName, rid=None, objs=None
     elif rid is not None:
         objs = myModel.objects.filter(pk=rid)
     else:
-        picks = request.REQUEST.getlist('picks')
+        picks = getDataFromRequest(request).getlist('picks')
         if (len(picks) > 0):
             objs = retrieve(picks, flat=False)
             if (len(objs) > 1):
@@ -702,7 +697,7 @@ def deleteRecord(request, deleteModuleName, deleteModelName, rid=None, objs=None
         objs = []
 
     recordfullids = [ fullid(r) for r in objs ]
-    action = request.REQUEST.get('action',None)
+    action = getDataFromRequest(request).get('action',None)
     if (action == 'Cancel'):
         return defaultPage('xgds_data_displayRecord', [deleteModuleName, deleteModelName, rid])
     elif (action == 'Delete'):
@@ -736,7 +731,7 @@ def searchChosenModel(request, searchModuleName, searchModelName, expert=False, 
     """
     Search over the fields of the selected model
     """
-    data = request.REQUEST
+    data = getDataFromRequest(request)
 
     return searchChosenModelCore(request, data, searchModuleName, searchModelName,
                                  expert=expert, override=override, passthroughs=passthroughs, queryGenerator=queryGenerator)
@@ -806,8 +801,7 @@ def searchChosenModelCore(request, data, searchModuleName, searchModelName, expe
     """
     starttime = datetime.datetime.now()
     reqlog = recordRequest(request)
-    modelmodule = get_app(searchModuleName)
-    myModel = getattr(modelmodule, searchModelName)
+    myModel = apps.get_model(searchModuleName, searchModelName)
     myFields = [x for x in modelFields(myModel) if not maskField(x) ]
 
     # If 'start' or 'end' query parameters are specified in the initial
@@ -1255,7 +1249,7 @@ def getFieldValuesReal(request, searchModuleName, searchModelName, field,
     tmpFormClass = SpecializedForm(SearchForm, myModel,
                                    queryGenerator=queryGenerator)
     tmpFormSet = formset_factory(tmpFormClass)
-    data = request.REQUEST
+    data = getDataFromRequest(request)
     soft = soft not in (False, 'False', 'exact')
 
     myField =  resolveField(myModel, field)
@@ -1354,7 +1348,7 @@ def plotQueryResults(request, searchModuleName, searchModelName,
     myFields = [ x for x in modelFields(myModel) if not maskField(x) ]
     tmpFormClass = SpecializedForm(SearchForm, myModel)
     tmpFormSet = formset_factory(tmpFormClass)
-    data = request.REQUEST
+    data = getDataFromRequest(request)
     soft = soft not in (False, 'False', 'exact')
 
     axesform = AxesForm(myFields, data)
@@ -1455,13 +1449,12 @@ def editCollection(request, rid):
     ## just to change the submit url
     ## Need to fix
     reqlog = recordRequest(request)
-    modelmodule = get_app(editModuleName)
-    myModel = getattr(modelmodule, editModelName)
+    myModel = apps.get_model(editModuleName, editModelName)
     tmpFormClass = SpecializedForm(EditForm, myModel)
     myFields = [x for x in modelFields(myModel) if not maskField(x) ]
     record = myModel.objects.get(pk=rid)
-    retformat = request.REQUEST.get('format', 'html')
-    if (request.REQUEST.get('fnctn',None) == 'edit'):
+    retformat = getDataFromRequest(request).get('format', 'html')
+    if (getDataFromRequest(request).get('fnctn',None) == 'edit'):
         form = tmpFormClass(request.POST)
         assert form.is_valid()
         changed = False
@@ -1559,7 +1552,7 @@ def getCollectionContents(request, rid):
     reqlog = recordRequest(request)
     record = Collection.objects.get(pk=rid)
     stuff = record.resolvedContents()
-    retformat = request.REQUEST.get('format', 'html')
+    retformat = getDataFromRequest(request).get('format', 'html')
     for x in modelFields(GenericLink):
         if x.name == 'link':
             field = x
@@ -1581,3 +1574,26 @@ def replayRequest(request, rid):
     kwargs['request'] = rerequest
 
     return view(*args, **kwargs)
+
+@login_required
+def instrumentDataImport(request):
+    errors = None
+    if request.method == 'POST':
+        form = ImportInstrumentDataForm(request.POST, request.FILES)
+        if form.is_valid():
+            instrument = settings.SCIENCE_INSTRUMENT_DATA_IMPORTERS[
+                int(form.cleaned_data["instrumentId"])]
+            importFxn = instrument["importFunction"]
+            return importFxn(instrument, request.FILES["sourceFile"],
+                             form.cleaned_data["dataCollectionTime"],
+                             form.getTimezone(), form.getResource())
+        else:
+            errors = form.errors
+    return render(
+        request,
+        'xgds_data/importInstrumentData.html',
+        {
+            'form': ImportInstrumentDataForm(),
+            'errorstring': errors
+        },
+    )

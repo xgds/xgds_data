@@ -21,7 +21,8 @@ import django
 import datetime
 # django.setup()
 
-from django.db.models import (get_app, get_models, StdDev, fields)
+from django.apps import apps
+from django.db.models import (StdDev, fields)
 from xgds_data.models import cacheStatistics
 from xgds_data.introspection import (qualifiedModelName, isAbstract,
                                      modelFields, isNumeric)
@@ -157,12 +158,12 @@ if __name__ == "__main__":
     if len(sys.argv) <= 1:
         print("Usage: DataStatistics.py moduleName [modelName] [statistic]")
     else:
-        module = get_app(sys.argv[1])
+        moduleName = sys.argv[1]
 
-    try:
-        models = [getattr(module, sys.argv[2])]
-    except IndexError:
-        models = get_models(module)
+    if len(sys.argv) == 3:  # 2nd arg (if provided) is the name of a model
+        models = apps.get_model(moduleName, sys.argv[2])
+    else:
+        models = [m for m in apps.get_app_config(moduleName).get_models()]
 
     try:
         statistic = sys.argv[3]
