@@ -15,7 +15,7 @@
 #__END_LICENSE__
 
 from django.views.generic import TemplateView
-from django.conf.urls import url, patterns
+from django.conf.urls import url
 from django.conf import settings
 from xgds_data import views
 
