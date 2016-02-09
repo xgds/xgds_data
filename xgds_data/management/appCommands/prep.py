@@ -34,6 +34,6 @@ from django.core.management.base import BaseCommand
 class Command(BaseCommand):
     help = 'Prep xgds_data'
 
-    def handle_noargs(self, **options):
+    def handle(self, *args, **options):
         # put your code here
         pass
