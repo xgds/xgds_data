@@ -15,6 +15,8 @@
 #__END_LICENSE__
 
 from datetime import datetime
+import pytz
+from django.utils import timezone
 
 from django.db import models
 from django.contrib.auth.models import User
@@ -302,7 +304,7 @@ if logEnabled():
                 uzer = None
 
             # rlog = cls(path=request.path, ipaddress=get_client_ip(request), user=request.user.__str__())
-            rlog = cls(timestampSeconds=datetime.utcnow(),
+            rlog = cls(timestampSeconds=datetime.now(pytz.utc),
                        path=truncate(request.path, 256),
                        ipaddress=truncate(get_client_ip(request), 256),
                        user=uzer,
@@ -331,9 +333,9 @@ if logEnabled():
         @classmethod
         def create(cls, request, template=None):
             if (template is None):
-                return cls(timestampSeconds=datetime.utcnow(), request=request)
+                return cls(timestampSeconds=datetime.now(pytz.utc), request=request)
             else:
-                return cls(timestampSeconds=datetime.utcnow(), request=request, template=template)
+                return cls(timestampSeconds=datetime.now(pytz.utc), request=request, template=template)
 
         def __unicode__(self):
             return 'Response %s:%s' % (self.pk, self.template)
@@ -369,7 +371,7 @@ if logEnabled():
 
 if cacheStatistics():
     class ModelStatistic(models.Model):
-        recorded = models.DateTimeField(blank=False, default=datetime.utcnow())
+        recorded = models.DateTimeField(blank=False, default=timezone.now)
         model = models.CharField(max_length=256, db_index=True, blank=False)
         field = models.CharField(max_length=256, db_index=True, blank=True)
         statistic = models.CharField(max_length=256, db_index=True, blank=False)

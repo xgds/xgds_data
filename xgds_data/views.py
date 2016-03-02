@@ -20,11 +20,12 @@ import traceback
 import json
 import csv
 import datetime
+import pytz
+
 import calendar
 #import StringIO
 from itertools import chain
 
-#import pytz
 
 from django.apps import apps
 from django import forms
@@ -418,7 +419,7 @@ def createChosenModel(request, createModuleName, createModelName):
     """
     Create instance of the selected model
     """
-    starttime = datetime.datetime.now()
+    starttime = datetime.datetime.now(pytz.utc)
     reqlog = recordRequest(request)
     myModel = apps.get_model(createModuleName, createModelName)
     record = myModel.objects.create()
@@ -799,7 +800,7 @@ def searchChosenModelCore(request, data, searchModuleName, searchModelName, expe
     """
     Search over the fields of the selected model
     """
-    starttime = datetime.datetime.now()
+    starttime = datetime.datetime.now(pytz.utc)
     reqlog = recordRequest(request)
     myModel = apps.get_model(searchModuleName, searchModelName)
     myFields = [x for x in modelFields(myModel) if not maskField(x) ]
@@ -1096,7 +1097,7 @@ def searchChosenModelCore(request, data, searchModuleName, searchModelName, expe
                         'results': results,
                         'count': totalCount,
                         'exactCount': hardCount,
-                        'duration': total_seconds(datetime.datetime.now() - starttime),
+                        'duration': total_seconds(datetime.datetime.now(pytz.utc) - starttime),
                         'page': page,
                         'pageSize': pageSize,
                         'more': more,
@@ -1226,7 +1227,7 @@ def cleanQueryCache(timeout):
     """
     Remove entries exceeding timeout (in seconds)
     """
-    curtime = datetime.datetime.now()
+    curtime = datetime.datetime.now(pytz.utc)
     timedout = []
     for k,v in queryCache.iteritems():
         if total_seconds(curtime - v[0]) > timeout:
@@ -1241,7 +1242,7 @@ def getFieldValuesReal(request, searchModuleName, searchModelName, field,
     get values from a search for just one field
     """
 
-    starttime = datetime.datetime.now()
+    starttime = datetime.datetime.now(pytz.utc)
     reqlog = recordRequest(request)
     modelmodule = __import__('.'.join([searchModuleName, 'models'])).models
     myModel = getattr(modelmodule, searchModelName)

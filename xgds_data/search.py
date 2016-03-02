@@ -45,7 +45,7 @@ from xgds_data.utils import (total_seconds, handleFunnyCharacters)
 sdCache = dict()
 
 def timer(t, msg):
-    newtime = datetime.datetime.now()
+    newtime = datetime.datetime.now(pytz.utc)
     print([str(newtime - t), str(msg)])
     return newtime
 
@@ -292,7 +292,7 @@ def randomSample(model, expression, size, offset=None, limit=None):
         sql = ('select {2} as score from {0} JOIN ({3}) AS r2 USING ({1}) order by score limit {4},{5};'
                .format(table, pkname, expression, randselect, offset, limit))
     cursor = connection.cursor()
-##    runtime = datetime.datetime.now()
+##    runtime = datetime.datetime.now(pytz.utc)
     cursor.execute(sql)
 ##    runtime = timer(runtime, "<<< inner random sample >>>")
     return cursor.fetchall()
@@ -311,7 +311,7 @@ def sdRandomSample(model, expression, size):
     sql = ('SELECT STDDEV({2}) AS sd FROM {0} JOIN ({3}) AS r2 USING ({1}) ORDER BY sd;'
                .format(table, pkname, expression, randselect))
     cursor = connection.cursor()
-##    runtime = datetime.datetime.now()
+##    runtime = datetime.datetime.now(pytz.utc)
     cursor.execute(sql)
 ##    runtime = timer(runtime, "<<< inner random sample >>>")
     return cursor.fetchall()[0]
@@ -1069,7 +1069,7 @@ def sortedTopKRanges(model, desiderata, query, k):
 
     times = 10
 
-    runtime = datetime.datetime.now()
+    runtime = datetime.datetime.now(pytz.utc)
     tsize = tableSize(model)
 ##    runtime = timer(runtime, "Table size")
     scorer = sortFormulaRanges(model, desiderata)  # SLOW!!
@@ -1106,7 +1106,7 @@ def sortedTopKRanges(model, desiderata, query, k):
             if (hiend is 'max'):
                 hiend = None
 
-            newtime = datetime.datetime.now()
+            newtime = datetime.datetime.now(pytz.utc)
 ##            scales[fld] = medianEval(model, baseScore(dbFieldRef( resolveField(model, fld) ),loend, hiend), tsize)
             scales[fld] = scaleEval(model, resolveField(model, fld), loend, hiend, tsize, dbFieldRef(resolveField(model, fld)))
             newtime = timer(newtime, " << inner scale >>")

@@ -19,6 +19,7 @@ import os
 import sys
 import django
 import datetime
+import pytz
 # django.setup()
 
 from django.apps import apps
@@ -59,7 +60,7 @@ def getStatistic(model, field, stat, statFn):
     if statVal is None:
         statVal = statFn()
         if cacheStatistics():
-            timestamp = datetime.datetime.utcnow()
+            timestamp = datetime.datetime.now(pytz.utc)
             ModelStatistic.objects.create(recorded = timestamp,
                                           model = qname,
                                           field = field,
@@ -89,7 +90,7 @@ def fieldSize(field, itemCount, maxItemCount, maxFieldCount):
     try:
         if timeout() is not None:
             maxage = datetime.timedelta(seconds = timeout())
-            aged = datetime.datetime.now() - fieldCountsAge[field]
+            aged = datetime.datetime.now(pytz.utc) - fieldCountsAge[field]
             if (aged < maxage):
                 estCount = fieldCounts[field]
         else:
@@ -106,7 +107,7 @@ def fieldSize(field, itemCount, maxItemCount, maxFieldCount):
             elif (itemCount < maxFieldCount):
                 estCount = field.model.objects.values(field.name).order_by().distinct().count()
 
-        fieldCountsAge[field] = datetime.datetime.now()
+        fieldCountsAge[field] = datetime.datetime.now(pytz.utc)
         fieldCounts[field] = estCount
     return estCount
 
