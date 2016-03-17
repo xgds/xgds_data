@@ -1581,13 +1581,17 @@ def instrumentDataImport(request):
     errors = None
     if request.method == 'POST':
         form = ImportInstrumentDataForm(request.POST, request.FILES)
+        INSTRUMENT_MODEL = getModelByName(settings.XGDS_INSTRUMENT_INSTRUMENT_MODEL)
         if form.is_valid():
-            instrument = settings.SCIENCE_INSTRUMENT_DATA_IMPORTERS[
+            instrument = INSTRUMENT_MODEL.getInstrumentListWithImporters()[
                 int(form.cleaned_data["instrumentId"])]
             importFxn = instrument["importFunction"]
-            return importFxn(instrument, request.FILES["sourceFile"],
+            print "*** import data %s %s ***" % (form.cleaned_data["dataCollectionTime"], form.getTimezoneName())
+            return importFxn(instrument, request.FILES["portableDataFile"],
+                             request.FILES["manufacturerDataFile"],
                              form.cleaned_data["dataCollectionTime"],
-                             form.getTimezone(), form.getResource())
+                             form.getTimezone(), form.getResource(),
+                             request.user)
         else:
             errors = form.errors
     return render(

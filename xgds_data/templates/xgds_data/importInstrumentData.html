@@ -4,6 +4,15 @@
 {% load tz %}
 {% load tz_convert %}
 
+{% block cssExtras %}
+{{ block.super }}
+<style type="text/css" title="currentStyle">
+	@import "{{ EXTERNAL_URL }}jquery-ui/themes/base/jquery-ui.css";
+	@import url('{{EXTERNAL_URL}}jqueryui-timepicker-addon/dist/jquery-ui-timepicker-addon.css');
+</style>
+
+{% endblock cssExtras %}
+
 {% block content %}
 <strong>Import Instrument Data</strong>
 <form id="instrument_data_import" action="{% url 'instrument_data_import' %}" method="post" enctype="multipart/form-data">
@@ -15,3 +24,31 @@
     </div>
 </form>
 {% endblock content %}
+
+{% block scripts %}
+  {{ block.super }}
+  	<script language="javascript" type="text/javascript" src="{{ EXTERNAL_URL }}jquery-ui/jquery-ui.min.js"></script>
+	{% include "xgds_core/timeJS.html" %}
+	<script language="javascript" type="text/javascript" src="{{ EXTERNAL_URL }}jqueryui-timepicker-addon/dist/jquery-ui-timepicker-addon.min.js"></script>
+	<script type="text/javascript" src='{{ STATIC_URL }}xgds_core/js/datetimepickerUtils.js'></script>
+{% endblock scripts %}
+
+{% block jsInit %}
+var tzDict = {};
+{% for key,val in settings.XGDS_SITEFRAMES %}
+	tzDict['{{key}}'] = '{{val.timezone}}';
+{% endfor %}
+
+function getTimeZone() {
+ var key = $("id_timezone").val();
+ if (key in tzDict) {
+	return tzDict[key];
+  } else {
+     return 'Etc/UTC';
+ }
+}
+ $(document).ready( function () {
+//$("#id_timezone").change();
+ addDateTimePicker("id_dataCollectionTime", 'Etc/UTC'); //getTimeZone());
+});
+{% endblock jsInit %}

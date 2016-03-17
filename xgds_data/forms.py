@@ -14,6 +14,7 @@
 # specific language governing permissions and limitations under the License.
 #__END_LICENSE__
 
+import pytz
 from django import forms
 from django.db import models
 from django.utils.safestring import mark_safe
@@ -31,6 +32,11 @@ from xgds_data.DataStatistics import tableSize, fieldSize
 from xgds_data.utils import label
 from geocamTrack.forms import AbstractImportTrackedForm
 from geocamUtil.extFileField import ExtFileField
+try:
+    from geocamUtil.loader import getModelByName
+    GEOCAMUTIL_FOUND = True
+except ImportError:
+    GEOCAMUTIL_FOUND = False
 
 # pylint: disable=R0924
 
@@ -510,13 +516,36 @@ class AxesForm(forms.Form):
                                                       required=True,
                                                       initial=serieschoices[0][0])
 
+
 class ImportInstrumentDataForm(AbstractImportTrackedForm):
+    date_formats = list(forms.DateTimeField.input_formats) + [
+        '%Y/%m/%d %H:%M:%S',
+        '%Y-%m-%d %H:%M:%S',
+        '%m/%d/%Y %H:%M'
+        ]
     dataCollectionTime = DateTimeField(label="Collection Time",
+                                       input_formats=date_formats,
                                        required=False,
-                                       widget=DateTimeInput(attrs={"placeholder":"blank to read from file"}))
-    instrumentChoices = [(i,e["displayName"]) for i,e in 
-                         enumerate(settings.SCIENCE_INSTRUMENT_DATA_IMPORTERS)]
+                                       )
+    INSTRUMENT_MODEL = getModelByName(settings.XGDS_INSTRUMENT_INSTRUMENT_MODEL)
+    instrumentChoices = [(i,e["displayName"]) for i,e in
+                         enumerate(INSTRUMENT_MODEL.getInstrumentListWithImporters())]
     instrumentId = ChoiceField(choices=instrumentChoices, label="Instrument")
-    sourceFile = ExtFileField(ext_whitelist=(".spc",".txt",".csv" ),
-                              required=True,
-                              label="Source File")
+    portableDataFile = ExtFileField(ext_whitelist=(".spc",".txt",".csv" ),
+                                    required=True,
+                                    label="Portable Data File")
+    manufacturerDataFile = ExtFileField(ext_whitelist=(".pdz",".a2r",".asd" ),
+                                        required=True,
+                                        label="Manufacturer Data File")
+
+    def clean_dataCollectionTime(self):
+        ctime = self.cleaned_data['dataCollectionTime']
+
+        if not ctime:
+            return None
+        else:
+            tz = self.getTimezone()
+            naiveTime = ctime.replace(tzinfo=None)
+            localizedTime = tz.localize(naiveTime)
+            utctime = localizedTime.astimezone(pytz.utc)
+            return utctime
