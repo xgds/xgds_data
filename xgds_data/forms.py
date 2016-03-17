@@ -33,7 +33,7 @@ from xgds_data.utils import label
 from geocamTrack.forms import AbstractImportTrackedForm
 from geocamUtil.extFileField import ExtFileField
 try:
-    from geocamUtil.loader import getModelByName
+    from geocamUtil.loader import LazyGetModelByName
     GEOCAMUTIL_FOUND = True
 except ImportError:
     GEOCAMUTIL_FOUND = False
@@ -527,9 +527,9 @@ class ImportInstrumentDataForm(AbstractImportTrackedForm):
                                        input_formats=date_formats,
                                        required=False,
                                        )
-    INSTRUMENT_MODEL = getModelByName(settings.XGDS_INSTRUMENT_INSTRUMENT_MODEL)
+    INSTRUMENT_MODEL = LazyGetModelByName(settings.XGDS_INSTRUMENT_INSTRUMENT_MODEL)
     instrumentChoices = [(i,e["displayName"]) for i,e in
-                         enumerate(INSTRUMENT_MODEL.getInstrumentListWithImporters())]
+                         enumerate(INSTRUMENT_MODEL.get().getInstrumentListWithImporters())]
     instrumentId = ChoiceField(choices=instrumentChoices, label="Instrument")
     portableDataFile = ExtFileField(ext_whitelist=(".spc",".txt",".csv" ),
                                     required=True,
