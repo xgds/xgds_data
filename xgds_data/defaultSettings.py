@@ -14,6 +14,8 @@
 # specific language governing permissions and limitations under the License.
 #__END_LICENSE__
 
+from geocamUtil.SettingsUtil import getOrCreateArray, getOrCreateDict
+
 """
 This app may define some new parameters that can be modified in the
 Django settings module.  Let's say one such parameter is XGDS_DATA_FOO.
@@ -58,8 +60,27 @@ XGDS_DATA_TIME_FIELDS = (
     'timestamp',
 )
 
+XGDS_DATA_MASKED_FIELDS = getOrCreateDict('XGDS_DATA_MASKED_FIELDS')
+XGDS_DATA_MASKED_FIELDS['auth']= {'User': ['password', 'is_staff', 'is_active', 'is_superuser',
+                                           'last_login',
+                                           'date_joined', 'groups', 'user_permissions',
+                                           ],
+                                  }
+
+XGDS_DATA_EXPAND_RELATED = getOrCreateDict('XGDS_DATA_EXPAND_RELATED')
+XGDS_DATA_EXPAND_RELATED['xgds_data'] = {'RequestLog': [('requestargument_set', 'all', 'Arguments'),
+                                                        ('responselog_set', 'all', 'Response'),
+                                                        ],
+                                         'ResponseLog': [('responseargument_set', 'all', 'Arguments'),
+                                                         ('responselist_set', 'all', 'Results'),
+                                                         ],
+                                         'Collection': [ (None,'contents','Contents'),
+                                                        ] ,   
+                                         }
+
 # Include a dictionary of name to url for imports if you wish to include import functionality
-XGDS_DATA_IMPORTS = {}
+XGDS_DATA_IMPORTS = getOrCreateDict('XGDS_DATA_IMPORTS')
+XGDS_DATA_IMPORTS["Science Instruments"]= '/xgds_data/instrumentDataImport'
 
 # An list of science instruments with import functions for data import.
 # Override this in siteSettings.py for each specific site application
@@ -73,7 +94,7 @@ XGDS_DATA_IMPORTS = {}
 
 SCIENCE_INSTRUMENT_DATA_IMPORTERS = []
 
-# include this in your siteSettings.py BOWER_INSTALLED_APPS
-XGDS_DATA_BOWER_INSTALLED_APPS = ('flot',
-                                  'datatables-fixedcolumns'
-                                  )
+BOWER_INSTALLED_APPS = getOrCreateArray('BOWER_INSTALLED_APPS')
+BOWER_INSTALLED_APPS += ['flot',
+                         'datatables-fixedcolumns'
+                         ]
