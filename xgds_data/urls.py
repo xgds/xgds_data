@@ -80,8 +80,6 @@ urlpatterns = [
 
     ## uploading data
     url(r'^import/$', TemplateView.as_view(template_name='xgds_data/importData.html'), name='xgds_data_import'),
-    url(r'^instrumentDataImport/$', views.instrumentDataImport, 
-        name='instrument_data_import'),
 ]
 
 try:

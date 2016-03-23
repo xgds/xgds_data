@@ -515,37 +515,3 @@ class AxesForm(forms.Form):
             self.fields['series'] = forms.ChoiceField(choices=tuple(serieschoices),
                                                       required=True,
                                                       initial=serieschoices[0][0])
-
-
-class ImportInstrumentDataForm(AbstractImportTrackedForm):
-    date_formats = list(forms.DateTimeField.input_formats) + [
-        '%Y/%m/%d %H:%M:%S',
-        '%Y-%m-%d %H:%M:%S',
-        '%m/%d/%Y %H:%M'
-        ]
-    dataCollectionTime = DateTimeField(label="Collection Time",
-                                       input_formats=date_formats,
-                                       required=False,
-                                       )
-    INSTRUMENT_MODEL = LazyGetModelByName(settings.XGDS_INSTRUMENT_INSTRUMENT_MODEL)
-    instrumentChoices = [(i,e["displayName"]) for i,e in
-                         enumerate(INSTRUMENT_MODEL.get().getInstrumentListWithImporters())]
-    instrumentId = ChoiceField(choices=instrumentChoices, label="Instrument")
-    portableDataFile = ExtFileField(ext_whitelist=(".spc",".txt",".csv" ),
-                                    required=True,
-                                    label="Portable Data File")
-    manufacturerDataFile = ExtFileField(ext_whitelist=(".pdz",".a2r",".asd" ),
-                                        required=True,
-                                        label="Manufacturer Data File")
-
-    def clean_dataCollectionTime(self):
-        ctime = self.cleaned_data['dataCollectionTime']
-
-        if not ctime:
-            return None
-        else:
-            tz = self.getTimezone()
-            naiveTime = ctime.replace(tzinfo=None)
-            localizedTime = tz.localize(naiveTime)
-            utctime = localizedTime.astimezone(pytz.utc)
-            return utctime

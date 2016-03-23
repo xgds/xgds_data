@@ -57,7 +57,7 @@ from xgds_data.introspection import (modelFields, maskField, resolveField, isAbs
                                      pk, pkValue, verbose_name, verbose_name_plural,
                                      settingsForModel,
                                      modelName, moduleName, fullid)
-from xgds_data.forms import QueryForm, SearchForm, EditForm, AxesForm, SpecializedForm, ImportInstrumentDataForm
+from xgds_data.forms import QueryForm, SearchForm, EditForm, AxesForm, SpecializedForm
 from xgds_data.models import Collection, GenericLink
 from xgds_data.dlogging import recordRequest, recordList, log_and_render
 from xgds_data.logconfig import logEnabled
@@ -1575,30 +1575,3 @@ def replayRequest(request, rid):
     kwargs['request'] = rerequest
 
     return view(*args, **kwargs)
-
-@login_required
-def instrumentDataImport(request):
-    errors = None
-    if request.method == 'POST':
-        form = ImportInstrumentDataForm(request.POST, request.FILES)
-        INSTRUMENT_MODEL = getModelByName(settings.XGDS_INSTRUMENT_INSTRUMENT_MODEL)
-        if form.is_valid():
-            instrument = INSTRUMENT_MODEL.getInstrumentListWithImporters()[
-                int(form.cleaned_data["instrumentId"])]
-            importFxn = instrument["importFunction"]
-            print "*** import data %s %s ***" % (form.cleaned_data["dataCollectionTime"], form.getTimezoneName())
-            return importFxn(instrument, request.FILES["portableDataFile"],
-                             request.FILES["manufacturerDataFile"],
-                             form.cleaned_data["dataCollectionTime"],
-                             form.getTimezone(), form.getResource(),
-                             request.user)
-        else:
-            errors = form.errors
-    return render(
-        request,
-        'xgds_data/importInstrumentData.html',
-        {
-            'form': ImportInstrumentDataForm(),
-            'errorstring': errors
-        },
-    )

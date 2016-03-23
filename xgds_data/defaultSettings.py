@@ -78,21 +78,6 @@ XGDS_DATA_EXPAND_RELATED['xgds_data'] = {'RequestLog': [('requestargument_set', 
                                                         ] ,   
                                          }
 
-# Include a dictionary of name to url for imports if you wish to include import functionality
-XGDS_DATA_IMPORTS = getOrCreateDict('XGDS_DATA_IMPORTS')
-XGDS_DATA_IMPORTS["Science Instruments"]= '/xgds_data/instrumentDataImport'
-
-# An list of science instruments with import functions for data import.
-# Override this in siteSettings.py for each specific site application
-# Example: 
-# SCIENCE_INSTRUMENT_DATA_IMPORTERS = [{"id":"ftir", "displayName":"FTIR",
-#                                      "importFunction":ftirDataImporter},
-#                                     {"id":"asd", 
-#                                      "displayName":"ASD Spectrometer",
-#                                      "importFunction":asdDataImporter}
-#                                 ]
-
-SCIENCE_INSTRUMENT_DATA_IMPORTERS = []
 
 BOWER_INSTALLED_APPS = getOrCreateArray('BOWER_INSTALLED_APPS')
 BOWER_INSTALLED_APPS += ['flot',
