@@ -20,23 +20,25 @@ from django.db import models
 from django.utils.safestring import mark_safe
 from django.db.models import fields
 #from django.forms.widgets import RadioSelect, TextInput
-from django.forms.widgets import DateTimeInput
-from django.forms import DateTimeField, ChoiceField
-from django.contrib.contenttypes.fields import GenericForeignKey
 from django.contrib.auth.models import User
+try:
+    from django.contrib.contenttypes.fields import GenericForeignKey
+except ImportError:
+    from django.contrib.contenttypes.generic import GenericForeignKey
+
 
 from django.conf import settings
 from xgds_data.models import VirtualIncludedField
 from xgds_data.introspection import (modelFields, maskField, isOrdinalOveridden, isAbstract, pk, ordinalField, modelName, settingsForModel)
 from xgds_data.DataStatistics import tableSize, fieldSize
 from xgds_data.utils import label
-from geocamTrack.forms import AbstractImportTrackedForm
-from geocamUtil.extFileField import ExtFileField
-try:
-    from geocamUtil.loader import LazyGetModelByName
-    GEOCAMUTIL_FOUND = True
-except ImportError:
-    GEOCAMUTIL_FOUND = False
+# try:
+#     from geocamTrack.forms import AbstractImportTrackedForm
+#     from geocamUtil.extFileField import ExtFileField
+#     from geocamUtil.loader import LazyGetModelByName
+#     GEOCAMUTIL_FOUND = True
+# except ImportError:
+#     GEOCAMUTIL_FOUND = False
 
 # pylint: disable=R0924
 
@@ -166,6 +168,8 @@ def valueFormField(mymodel, field, widget, allowMultiple=True, label=None,
         return forms.CharField(required=False,label=label)
     elif isinstance(field, models.DateTimeField):
         return forms.DateTimeField(required=False,label=label)
+    elif isinstance(field, models.DateField):
+        return forms.DateField(required=False,label=label)
     elif isinstance(field, (models.DecimalField, models.FloatField)):
         return forms.FloatField(required=False,label=label)
     elif isinstance(field, models.PositiveIntegerField):
@@ -238,7 +242,8 @@ def searchFormFields(mymodel, field, enumerableFields,
             #print(searchFormFields(tmfs[0].model, tmfs[0], enumerableFields))
             vfields = dict()
             for name,ff in searchFormFields(tmfs[0].model, tmfs[0], enumerableFields, queryGenerator=queryGenerator).iteritems():
-                vfields[name] = ff
+                vname = '__'.join([field.throughfield_name,name])
+                vfields[vname] = ff
             formfields.update(vfields)
     else:
         widget = specialWidget(mymodel, field, enumerableFields)
@@ -247,7 +252,7 @@ def searchFormFields(mymodel, field, enumerableFields,
             #  This must be class that we have missed of haven't gotten around to supporting/ignoring
             longname = '.'.join([field.__class__.__module__,
                                  field.__class__.__name__])
-            print("SearchForm forms doesn't deal with %s yet" % longname)
+            print("SearchForm forms doesn't deal with %s yet (%s)" % (longname, field))
         else:
             formfieldname = field.name
             if ordinalField(mymodel, field):
@@ -283,12 +288,20 @@ class SearchForm(forms.Form):
         output = []
 
         fieldmap = dict([(f.name, f) for f in modelFields(self.model)])
+        print(self.model)
         for ffield in self.fields:
             if ffield.endswith('_operator'):
                 basename = ffield[:-(len('_operator'))]
                 loname = basename + '_lo'
                 hiname = basename + '_hi'
-                mfield = fieldmap[basename.split('__')[0]]
+                ## this code is pretty confused, need to clean up
+                try:
+                    ## virtual field branch
+                    mfield = fieldmap[basename]
+                except KeyError:
+                    ## foreign key branch
+                    mfield = fieldmap[basename.split('__')[0]]
+
                 ofield = forms.forms.BoundField(self, self.fields[ffield], ffield)
                 if not expert:
                     ofield = ofield.as_hidden()

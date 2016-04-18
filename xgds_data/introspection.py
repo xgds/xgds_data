@@ -16,14 +16,16 @@
 
 try:
     from taggit.managers import TaggableManager
-except ImportError:
-    pass
-except RuntimeError:
+except (ImportError, RuntimeError):
     pass
 
-from django.db.models import fields
-from django.apps import apps
 from django.conf import settings
+from django.db.models import fields
+try:
+    from django.apps import apps
+except ImportError:
+    from django.db.models import get_app
+
 #from xgds_data.models import VirtualIncludedField
 import xgds_data.models
 
@@ -59,7 +61,15 @@ def modelFields(model):
     """
     Retrieve the fields associated with the given model
     """
-    myfields = model._meta.fields + model._meta.many_to_many + tuple(model._meta.virtual_fields)
+    fields = model._meta.fields
+    many_to_many = model._meta.many_to_many
+    virtual_fields = model._meta.virtual_fields
+    try:
+        myfields = fields + many_to_many + virtual_fields
+    except TypeError:
+        ## fields, many_to_many are tuples in 1.9
+        myfields = fields + many_to_many + tuple(virtual_fields)
+
     # nameToField = dict([(x.name,x) for x in myfields])
     fieldNames = [x.name for x in myfields]
     for x in dir(model):
@@ -70,14 +80,15 @@ def modelFields(model):
             ## django may though AttributeError even for things listed by dir
             pass
     try:
-        for throughFieldName, relName, relVerboseName in settingsForModel(settings.XGDS_DATA_EXPAND_RELATED, model):
-            if (throughFieldName is not None) and (throughFieldName in fieldNames):
-                # throughField = nameToField[throughFieldName]
-                myfields.append(xgds_data.models.VirtualIncludedField(model, throughFieldName, relName, relVerboseName))
-            else:
-                print("Error- VirtualField {0} on {1} references nonexistent field {2}".format(relVerboseName, modelName(model), throughFieldName))
-    except AttributeError:
-        pass
+        expands = settingsForModel(settings.XGDS_DATA_EXPAND_RELATED, model)
+    except AttributeError as inst:
+        expands = []
+
+    for throughFieldName, relName, relVerboseName in expands:
+        if (throughFieldName is not None) and (throughFieldName in fieldNames):
+            myfields = myfields + (xgds_data.models.VirtualIncludedField(model, throughFieldName, relName, relVerboseName),)
+        else:
+            print("Error- VirtualField {0} on {1} references nonexistent field {2}".format(relVerboseName, modelName(model), throughFieldName))
 
     return myfields
 
@@ -153,11 +164,43 @@ def db_table(model):
     return model._meta.db_table
 
 
+# def resolveModule(moduleName):
+#     """
+#     Return the module with this name
+#     """
+#     try:
+#         return apps.get_app_config(moduleName).module
+#     except NameError:
+#         return get_app(moduleName)
+
+
+def getModuleNames():
+    try:
+        return [x.name for x in apps.get_app_configs()]
+    except NameError:
+        return [app.__name__ for app in get_apps()]
+
+
+def getModels(moduleName):
+    try:
+        return apps.get_app_config(moduleName).get_models()
+    except NameError:
+        return get_models(get_app(moduleName))
+
+
 def resolveModel(moduleName, modelName):
     """
     Return the model with this name
     """
-    return apps.get_model(moduleName, modelName)
+    try:
+#        aconfig = apps.get_app_config(moduleName)
+#
+#        return aconfig.get_model(modelName)
+        return apps.get_model(moduleName, modelName)
+    except NameError:
+        modelmodule = get_app(moduleName)
+
+        return getattr(modelmodule, modelName)
 
 
 def resolveField(model, fieldName):
@@ -265,6 +308,7 @@ def ordinalField(model, field):
             return False;
     elif isinstance(field, (fields.AutoField,
                             fields.DateTimeField,
+                            fields.DateField,
                             fields.DecimalField,
                             fields.FloatField,
                             fields.IntegerField,

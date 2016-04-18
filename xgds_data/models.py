@@ -22,8 +22,12 @@ from django.db import models
 from django.contrib.auth.models import User
 from django.http import HttpRequest
 from django.contrib.contenttypes.models import ContentType
-from django.contrib.contenttypes.fields import GenericForeignKey
 from django.core.urlresolvers import reverse
+try:
+    from django.contrib.contenttypes.fields import GenericForeignKey
+except ImportError:
+    from django.contrib.contenttypes.generic import GenericForeignKey
+
 
 from django.conf import settings
 from xgds_data.logconfig import logEnabled
@@ -223,7 +227,9 @@ class VirtualIncludedField(models.Field):
         super(VirtualIncludedField, self).__init__(*args, **kwargs)
         self.model = mymodel
         self.throughfield_name = throughfield_name
-        self.name = base_name
+        ##self.name = base_name
+        self.name = '__'.join([throughfield_name, base_name])
+        self.base_name = base_name
         self.verbose_name = base_verbose_name
 
     def throughModels(self):
@@ -233,10 +239,13 @@ class VirtualIncludedField(models.Field):
                 match = f
         if (match is not None):
             try:
+                ct_field = match.ct_field
+            except AttributeError:  # not a GenericForeignKey
+                ct_field = None
+            if ct_field:
                 throughmodels = [ContentType.objects.get_for_id(x[0]).model_class()
                                  for x in self.model.objects.values_list(match.ct_field).distinct()]
-            except:  # not a GenericForeignKey
-                # this route has never been tested
+            else:
                 throughmodels = [match.rel.to]
             return throughmodels
         else:
@@ -246,7 +255,7 @@ class VirtualIncludedField(models.Field):
         targets = []
         for tm in self.throughModels():
             for tmf in xgds_data.introspection.modelFields(tm):
-                if tmf.name == self.name:
+                if tmf.name == self.base_name:
                     targets.append(tmf)
         return targets
 
@@ -265,6 +274,7 @@ def get_client_ip(request):
 
 if logEnabled():
     from django.http import QueryDict
+#    from django.utils.datastructures import MergeDict
 
     class RequestLog(models.Model):
         timestampSeconds = models.DateTimeField(verbose_name="Time", blank=False)
@@ -291,7 +301,8 @@ if logEnabled():
                 argvalue = getDataFromRequest(request).get('format')
                 onedict[argname] = argvalue
                 multidict.appendlist(argname, argvalue)
-            onedict.update(multidict)
+            redata = multidict.copy()
+            redata.update(onedict)
 
             return HttpRequestReplay(request, self.path, onedict)
 

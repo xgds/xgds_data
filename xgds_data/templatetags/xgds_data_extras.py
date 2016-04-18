@@ -22,7 +22,10 @@ from django.contrib.auth.models import User
 from django.utils.safestring import mark_safe
 from django.core.urlresolvers import reverse
 from django.core.exceptions import ObjectDoesNotExist
-from django.contrib.contenttypes.fields import GenericForeignKey
+try:
+    from django.contrib.contenttypes.fields import GenericForeignKey
+except ImportError:
+    from django.contrib.contenttypes.generic import GenericForeignKey
 try:
     from django.utils.html import format_html
     from django.db import OperationalError
@@ -67,7 +70,7 @@ def getattribute(obj, attr):
             else:
                 throughInstance = getattr(obj, attr.throughfield_name)
             if throughInstance is not None:
-                v = getattr(throughInstance, attr.name)
+                v = getattr(throughInstance, attr.base_name)
             else:
                 v = None
         except AttributeError as inst:

@@ -1,22 +1,22 @@
 {% extends base %}
+{% load staticfiles %}
+{% load nav %}
 {% load xgds_data_extras %}
 
-{% load nav %}
 {% block siteSection %}{{ title }}{% endblock %}
 
 {% block cssExtras %}
 {{ block.super }}
 <style type="text/css" title="currentStyle">
 {% if standalone %}
-	@import "{{ STATIC_URL }}external/css/jquery/jquery-ui.css";
+	@import "{% static "external/css/jquery/jquery-ui.css" %}";
 {% else %}
-	/*
 	@import "{{ EXTERNAL_URL }}datatables-editable/media/css/demo_page.css";
 	@import "{{ EXTERNAL_URL }}datatables-editable/media/css/demo_table.css";
 	*/
 	@import "{{ EXTERNAL_URL }}jquery-ui/themes/base/jquery-ui.min.css";
 {% endif %}
-	@import "{{ STATIC_URL }}xgds_data/css/ResultList.css";
+	@import "{% static "xgds_data/css/ResultList.css" %}";
 </style>
 {% endblock cssExtras %}
 
@@ -24,13 +24,13 @@
   {{ block.super }}
 {% if standalone %}
   <script language="javascript" type="text/javascript"
-  	src="{{ STATIC_URL }}external/js/jquery/jquery-ui.min.js"></script>
+  	src="{% static "external/js/jquery/jquery-ui.min.js" %}"></script>
   <script language="javascript" type="text/javascript"
-  	src="{{ STATIC_URL }}external/js/jquery/jquery-ui-timepicker-addon.js"></script>
+  	src="{% static "external/js/jquery/jquery-ui-timepicker-addon.js" %}"></script>
   <script language="javascript" type="text/javascript"
-	  src="{{ STATIC_URL }}external/js/DataTables/jquery.dataTables.min.js"></script>
+	  src="{% static "external/js/DataTables/jquery.dataTables.min.js" %}"></script>
   <script language="javascript" type="text/javascript"
-	  src="{{ STATIC_URL }}external/js/DataTables/dataTables.fixedColumns.min.js"></script>
+	  src="{% static "external/js/DataTables/dataTables.fixedColumns.min.js" %}"></script>
 {% else %}
   <script language="javascript" type="text/javascript" src="{{ EXTERNAL_URL }}jquery-ui/jquery-ui.min.js"></script>
   <script language="javascript" type="text/javascript" src="{{ EXTERNAL_URL }}jQuery-Timepicker-Addon/dist/jquery-ui-timepicker-addon.min.js"></script>
@@ -369,9 +369,9 @@ $(function () {
 
 {% if standalone %}
   <script language="javascript" type="text/javascript"
-	  src="{{ STATIC_URL }}external/js/jquery/jquery.flot.min.js"></script>
+	  src="{% static "external/js/jquery/jquery.flot.min.js" %}"></script>
   <script language="javascript" type="text/javascript"
-	  src="{{ STATIC_URL }}external/js/jquery/jquery.flot.threshold.min.js"></script>
+	  src="{% static "external/js/jquery/jquery.flot.threshold.min.js" %}"></script>
 {% else %}
   <script language="javascript" type="text/javascript"
 	  src="{{ EXTERNAL_URL }}flot/jquery.flot.js"></script>
