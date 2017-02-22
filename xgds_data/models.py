@@ -383,7 +383,7 @@ if logEnabled():
 if cacheStatistics():
     class ModelStatistic(models.Model):
         recorded = models.DateTimeField(blank=False, default=timezone.now)
-        model = models.CharField(max_length=256, db_index=True, blank=False)
-        field = models.CharField(max_length=256, db_index=True, blank=True)
-        statistic = models.CharField(max_length=256, db_index=True, blank=False)
+        model = models.CharField(max_length=128, db_index=True, blank=False)
+        field = models.CharField(max_length=128, db_index=True, blank=True)
+        statistic = models.CharField(max_length=128, db_index=True, blank=False)
         value = models.FloatField(blank=False)
