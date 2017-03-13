@@ -386,9 +386,9 @@ $(function () {
 <div id='query-div'>
 <div style="float:right;text-align:right;">
 {% if expert %}
-	<A id="simple" class="mybutton">Simple Search</A>
+	<A id="simple" class="btn btn-primary">Simple Search</A>
 {% else %}
-	<A id="expert" class="mybutton">Advanced Search</A>
+	<A id="expert" class="btn btn-primary">Advanced Search</A>
 {% endif %}
 </div>
 <span id="query-toggle">
@@ -420,7 +420,7 @@ $(function () {
 {% endfor %}
 
 	<tr>
-	  <td colspan=5><input type="submit" class="mybutton"  value="Search" id="query" style="float:right;"/></td>
+	  <td colspan=5><input type="submit" class="btn btn-primary"  value="Search" id="query" style="float:right;"/></td>
 	</tr>
 
 </table>
@@ -481,13 +481,13 @@ $(function () {
 {% block download  %}
 	{% if count != exactCount %}
 		{% if count > 0 %}
-	    	<input type="submit" class="mybutton" value="Download CSV (All)" id="csv" />
+	    	<input type="submit" class="btn btn-primary" value="Download CSV (All)" id="csv" />
 	    {% else %}
 	    	<input type="submit"  value="Download CSV (All)" id="csv" disabled />
 	    {% endif %}
     {% endif %}
     {% if exactCount > 0 %}
-    	<input type="submit" class="mybutton"  value="Download CSV (Exact)" id="csvhard" />
+    	<input type="submit" class="btn btn-primary"  value="Download CSV (Exact)" id="csvhard" />
     {% else %}
     	<input type="submit" value="Download CSV (Exact)" id="csvhard" disabled />
     {% endif %}
@@ -497,13 +497,13 @@ $(function () {
     {% if axesform %}
 	    {% if count != exactCount %}
 		    {% if count > 0 %}
-		    	<input type="submit" class="mybutton" value="Plot (All)" id="plot"/>
+		    	<input type="submit" class="btn btn-primary" value="Plot (All)" id="plot"/>
 		    {% else %}
 		    	<input type="submit" value="Plot (All)" id="plot" disabled />
 		    {% endif %}
 	    {% endif %}
 	    {% if exactCount > 0 %}
-	    	<input type="submit" class="mybutton" value="Plot (Exact)" id="plothard"/>
+	    	<input type="submit" class="btn btn-primary" value="Plot (Exact)" id="plothard"/>
 	    {% else %}
 	    	<input type="submit" value="Plot (Exact)" id="plothard" disabled />
 	    {% endif %}
