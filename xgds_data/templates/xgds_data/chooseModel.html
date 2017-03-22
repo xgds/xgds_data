@@ -5,7 +5,7 @@
 {% load nav %}
 
 {% block contents %}
-<h2>{{ title }}</h2>
+<h6>{{ title }}</h6>
 You may {{ action }} any of the following:
 {% for name in ordered_names %}
   <div class="navLink"><a href="{% url urlName models|getattribute:name|moduleName models|getattribute:name|modelName %}">{{ name }}</a></div>
