@@ -392,8 +392,8 @@ $(function () {
 {% endif %}
 </div>
 <span id="query-toggle">
-<span class="ui-accordion-header-icon ui-icon ui-icon-triangle-1-s" style="float:left;{% if count %} display:none;{% endif %}" id="query-open"></span>
-<span class="ui-accordion-header-icon ui-icon ui-icon-triangle-1-e" style="float:left;{% if not count %} display:none;{% endif %}" id="query-close"></span>
+<span class="ui-accordion-header-icon fa fa-caret-down" style="float:left;{% if count %} display:none;{% endif %}" id="query-open"></span>
+<span class="ui-accordion-header-icon fa fa-caret-right" style="float:left;{% if not count %} display:none;{% endif %}" id="query-close"></span>
 <h2>{{ title }}</h2></span>
   <input type="hidden" name="pageno" id="id_pageno" value={{ page }}>
 
@@ -442,8 +442,8 @@ $(function () {
 {% block count  %}
 {% spaceless %}
 <span id='results-toggle'>
-<span class="ui-accordion-header-icon ui-icon ui-icon-triangle-1-s" style="float:left;" id="results-open"></span>
-<span class="ui-accordion-header-icon ui-icon ui-icon-triangle-1-e" style="float:left; display:none;" id="results-close"></span>
+<span class="ui-accordion-header-icon fa fa-caret-down" style="float:left;" id="results-open"></span>
+<span class="ui-accordion-header-icon fa fa-caret-right" style="float:left; display:none;" id="results-close"></span>
 	{% if count == exactCount %}
 		{{ count }} matching records
 	{% else %}
