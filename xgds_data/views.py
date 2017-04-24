@@ -136,9 +136,9 @@ def isSkippedApp(appName):
 
 
 # def searchIndex(request):
-#     return render_to_response('xgds_data/searchIndex.html',
-#                               {'models': MODELS_INFO},
-#                               context_instance=RequestContext(request))
+#     return render(request,
+#                   'xgds_data/searchIndex.html',
+#                   {'models': MODELS_INFO},)
 
 
 # def searchModel(request, searchModelName):
@@ -206,12 +206,12 @@ def isSkippedApp(appName):
 #         # GET method
 #         form = QueryForm()
 #         result = None
-#     return render_to_response('xgds_data/searchModel.html',
+#     return render(request,
+#                   'xgds_data/searchModel.html',
 #                               {'model': modelInfo,
 #                                'models': MODELS_INFO,
 #                                'form': form,
-#                                'result': result},
-#                               context_instance=RequestContext(request))
+#                                'result': result},)
 
 
 def chooseSearchApp(request):
