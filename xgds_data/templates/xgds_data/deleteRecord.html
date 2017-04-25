@@ -6,7 +6,7 @@
 
 {% block contents %}
 Really delete
-{% if records|length = 1 %}
+{% if records|length == 1 %}
 <B>{{ verbose_model }} {{ records.0 }}</B>
 {% else %}
 <B>{{ records|length }} {{ verbose_model_plural }} </B>
