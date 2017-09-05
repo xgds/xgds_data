@@ -42,7 +42,6 @@ from django.forms.models import ModelMultipleChoiceField, model_to_dict
 from django.forms.formsets import formset_factory
 from django.utils.html import escape
 from django.contrib.auth.models import User
-from django.contrib.auth.decorators import login_required
 from django.core.exceptions import (ValidationError, ObjectDoesNotExist)
 
 try:
