@@ -1,0 +1,16 @@
+{
+  "name": "xgds_data",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "dependencies": {
+    "flot": "flot/flot",
+    "datatables-fixedcolumns": "DataTables/FixedColumns"
+  },
+  "devDependencies": {},
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "",
+  "license": "Apache-2.0"
+}
