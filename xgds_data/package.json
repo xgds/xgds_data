@@ -4,8 +4,8 @@
   "description": "",
   "main": "index.js",
   "dependencies": {
-    "flot": "flot/flot",
-    "datatables-fixedcolumns": "DataTables/FixedColumns"
+    "flot": "^0.8.0-alpha",
+    "datatables.net-fixedcolumns": "^3.2.4"
   },
   "devDependencies": {},
   "scripts": {
