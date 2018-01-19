@@ -182,16 +182,16 @@ var plotExactURL="{% url 'xgds_data_searchPlotQueryResults' module model 'exact'
 	    {% endif %}
     var options = {
 	"initComplete": function(settings, json) { syncFramesize(); },
-    		"sScrollY": "100%", // calcOuterResultsHeight(),
-    		"sScrollX": "100%",
-            "bFilter": false,
-            "bInfo": false,
-    		"bPaginate": false,
-    		"bAutoWidth": true,
-    		"bJQueryUI": false,
-    		"bSort": false,
-    		"aoColumnDefs": [
-    			{ "bSortable": false, "bFilter": false, "aTargets": [ 0 ] }
+    		"scrollY": "100%", // calcOuterResultsHeight(),
+    		"scrollX": "100%",
+            "searching": false,
+            "info": false,
+    		"paging": false,
+    		"autoWidth": true,
+    		"jQueryUI": false,
+    		"ordering": false,
+    		"columnDefs": [
+    			{ "targets": [ 0 ], "ordering": false, "searching": false }
     		]
     	};
 	oTable = $('#tableresults').DataTable(options);
