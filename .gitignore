@@ -10,3 +10,4 @@
 /xgds_data/build
 migrations/
 /docs/_build
+node_modules

@@ -77,9 +77,3 @@ XGDS_DATA_EXPAND_RELATED['xgds_data'] = {'RequestLog': [('requestargument_set', 
                                          'Collection': [ (None,'contents','Contents'),
                                                         ] ,   
                                          }
-
-
-BOWER_INSTALLED_APPS = getOrCreateArray('BOWER_INSTALLED_APPS')
-BOWER_INSTALLED_APPS += ['flot',
-                         'datatables-fixedcolumns'
-                         ]
